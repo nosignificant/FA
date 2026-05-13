@@ -43,8 +43,9 @@ public class RoomManager : MonoBehaviour
         playerRoom.isActive = true;
         foreach (var d in playerRoom.doors)
         {
-            if (d.isOpen && d.nextRoom != null)
-                d.nextRoom.isActive = true;
+            if (!d.isOpen) continue;
+            Room other = d.GetOtherRoom(playerRoom);
+            if (other != null) other.isActive = true;
         }
     }
 }

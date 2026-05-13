@@ -13,8 +13,8 @@ public class Door : MonoBehaviour
     }
 
     [Header("References")]
-    public Room room;
-    public Room nextRoom;
+    public Room roomA;
+    public Room roomB;
     public Creature self;
 
     [Header("Door")]
@@ -31,9 +31,17 @@ public class Door : MonoBehaviour
     private float originalUpperY;
     private float originalLowerY;
 
+    public Room GetOtherRoom(Room from)
+    {
+        if (from == roomA) return roomB;
+        if (from == roomB) return roomA;
+        return null;
+    }
+
     void Awake()
     {
-        if (room == null) room = GetComponentInParent<Room>();
+        // roomA가 비어있으면 부모에서 자동 할당
+        if (roomA == null) roomA = GetComponentInParent<Room>();
         if (self == null) self = GetComponent<Creature>();
     }
 
@@ -42,73 +50,62 @@ public class Door : MonoBehaviour
         originalUpperY = upperDoor.position.y;
         originalLowerY = lowerDoor.position.y;
 
-        if (room != null) room.RegisterCreature(self);
+        // 양쪽 방에 등록
+        if (roomA != null) roomA.RegisterCreature(self);
+        if (roomB != null && roomB != roomA) roomB.RegisterCreature(self);
 
-        Debug.Log($"[Door {name}] Start. room={room?.roomID ?? "NULL"}, nextRoom={nextRoom?.roomID ?? "NULL"}, observingC={roomCondition.observingC?.name ?? "NULL"}, howManyMore={roomCondition.howManyMore}");
+        Debug.Log($"[Door {name}] Start. A={roomA?.roomID ?? "NULL"}, B={roomB?.roomID ?? "NULL"}, observingC={roomCondition.observingC?.name ?? "NULL"}");
     }
 
-    // 구독은 OnEnable/OnDisable에서 (RoomManager가 켜고 껐다 해도 안전하게)
     private void OnEnable()
     {
-        if (room == null) room = GetComponentInParent<Room>();
-        if (room != null) room.OnCreatureDecomposed += OnRoomDecomposed;
-        if (nextRoom != null) nextRoom.OnCreatureDecomposed += OnNextRoomDecomposed;
+        if (roomA == null) roomA = GetComponentInParent<Room>();
+        if (roomA != null) roomA.OnCreatureDecomposed += OnRoomADecomposed;
+        if (roomB != null) roomB.OnCreatureDecomposed += OnRoomBDecomposed;
 
-        // 비활성 동안 놓친 분해 이벤트 보완 → 현재 카운트로 조건 재평가
         EvaluateConditions();
-    }
-
-    private void EvaluateConditions()
-    {
-        Debug.Log($"[Door {name}] EvaluateConditions called. observingC={roomCondition.observingC?.name ?? "NULL"}");
-        if (roomCondition.observingC == null) return;
-
-        if (room != null)
-        {
-            var (best, diff) = room.MostDecomposedAndSecond();
-            conditionA = CheckCondition(best, diff, roomCondition);
-            Debug.Log($"[Door {name}] room({room.roomID}): best={best?.name ?? "NULL"}, diff={diff}, conditionA={conditionA}");
-        }
-        if (nextRoom != null)
-        {
-            var (best, diff) = nextRoom.MostDecomposedAndSecond();
-            conditionB = CheckCondition(best, diff, roomCondition);
-            Debug.Log($"[Door {name}] nextRoom({nextRoom.roomID}): best={best?.name ?? "NULL"}, diff={diff}, conditionB={conditionB}");
-        }
-        Debug.Log($"[Door {name}] final: A={conditionA} B={conditionB} → open={(conditionA || conditionB)}");
-        if (conditionA || conditionB) DoorCloseAndOpen(true);
     }
 
     private void OnDisable()
     {
-        if (room != null) room.OnCreatureDecomposed -= OnRoomDecomposed;
-        if (nextRoom != null) nextRoom.OnCreatureDecomposed -= OnNextRoomDecomposed;
+        if (roomA != null) roomA.OnCreatureDecomposed -= OnRoomADecomposed;
+        if (roomB != null) roomB.OnCreatureDecomposed -= OnRoomBDecomposed;
     }
 
-    private void OnRoomDecomposed(Creature creature, CreatureID decomposerID)
+    private void EvaluateConditions()
     {
-        Debug.Log($"[Door {name}] OnRoomDecomposed fired. decomposerID={decomposerID}, creature.data={creature?.data?.name}, condition.observingC={roomCondition.observingC?.name}");
-        if (decomposerID != CreatureID.D) { Debug.Log($"[Door {name}] reject: decomposerID != D"); return; }
-        if (creature.data != roomCondition.observingC) { Debug.Log($"[Door {name}] reject: data mismatch"); return; }
+        if (roomCondition.observingC == null) return;
 
-        var (best, diff) = room.MostDecomposedAndSecond();
-        Debug.Log($"[Door {name}] best={best?.name}, diff={diff}, required={roomCondition.howManyMore}");
-        conditionA = CheckCondition(best, diff, roomCondition);
-        Debug.Log($"[Door {name}] conditionA={conditionA}, will open: {(conditionA || conditionB)}");
-
-        DoorCloseAndOpen(conditionA || conditionB);
+        if (roomA != null)
+        {
+            var (best, diff) = roomA.MostDecomposedAndSecond();
+            conditionA = CheckCondition(best, diff, roomCondition);
+        }
+        if (roomB != null)
+        {
+            var (best, diff) = roomB.MostDecomposedAndSecond();
+            conditionB = CheckCondition(best, diff, roomCondition);
+        }
+        if (conditionA || conditionB) DoorCloseAndOpen(true);
     }
 
-    private void OnNextRoomDecomposed(Creature creature, CreatureID decomposerID)
+    private void OnRoomADecomposed(Creature creature, CreatureID decomposerID)
     {
-        Debug.Log($"[Door {name}] OnNextRoomDecomposed fired. decomposerID={decomposerID}, creature.data={creature?.data?.name}");
         if (decomposerID != CreatureID.D) return;
         if (creature.data != roomCondition.observingC) return;
 
-        var (best, diff) = nextRoom.MostDecomposedAndSecond();
-        conditionB = CheckCondition(best, diff, roomCondition);
-        Debug.Log($"[Door {name}] (next) best={best?.name}, diff={diff}, conditionB={conditionB}");
+        var (best, diff) = roomA.MostDecomposedAndSecond();
+        conditionA = CheckCondition(best, diff, roomCondition);
+        DoorCloseAndOpen(conditionA || conditionB);
+    }
 
+    private void OnRoomBDecomposed(Creature creature, CreatureID decomposerID)
+    {
+        if (decomposerID != CreatureID.D) return;
+        if (creature.data != roomCondition.observingC) return;
+
+        var (best, diff) = roomB.MostDecomposedAndSecond();
+        conditionB = CheckCondition(best, diff, roomCondition);
         DoorCloseAndOpen(conditionA || conditionB);
     }
 

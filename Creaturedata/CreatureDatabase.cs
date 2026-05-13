@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using CreatureTypes;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -62,4 +63,13 @@ public class CreatureDatabase : ScriptableObject
         return allCreatures.FirstOrDefault(c => c.creatureName == name);
     }
 
+    public CreatureData GetByID(CreatureID id)
+    {
+        return allCreatures.FirstOrDefault(c => c != null && c.creatureID == id);
+    }
+
+    public GameObject GetPrefab(CreatureID id)
+    {
+        return GetByID(id)?.prefab;
+    }
 }

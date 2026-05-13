@@ -5,18 +5,23 @@ using CreatureTypes;
 
 public class Room : MonoBehaviour
 {
+    [Serializable]
+    public struct WallSlot
+    {
+        public Direction direction;
+        public Wall wall;
+        public Door door;
+    }
+
     public string roomID;
     public bool isActive = false;
 
     [Header("room bounds")]
     public Collider homeBound;
-    public Vector3 roomSize = new Vector3(10f, 0f, 10f);
+    public Vector3 roomSize = new Vector3(60f, 6f, 60f);
 
-    [Header("door slots")]
-    public Transform slotN;
-    public Transform slotS;
-    public Transform slotE;
-    public Transform slotW;
+    [Header("walls")]
+    public WallSlot[] wallSlots = new WallSlot[4];
 
     [Header("room outside")]
     public List<Door> doors = new();
@@ -26,6 +31,60 @@ public class Room : MonoBehaviour
     public int maxCreaturesInRoom = 5;
     public Dictionary<CreatureData, int> decomposedCounts = new();
     public event Action<Creature, CreatureID> OnCreatureDecomposed;
+
+    [Header("initial spawn")]
+    public CreatureDatabase creatureDB;
+    public SpawnEntry[] spawnEntries;
+
+    [Serializable]
+    public struct SpawnEntry
+    {
+        public CreatureID id;
+        [Min(0)] public int count;
+    }
+
+    void Awake()
+    {
+        if (homeBound == null) homeBound = GetComponent<Collider>();
+        InitWallSlots();
+    }
+
+    private void InitWallSlots()
+    {
+        // 배열 크기 보장
+        if (wallSlots == null || wallSlots.Length != 4)
+        {
+            wallSlots = new WallSlot[4];
+            Direction[] dirs = DirectionExt.All;
+            for (int i = 0; i < 4; i++)
+                wallSlots[i].direction = dirs[i];
+        }
+
+        // door 리스트 동기화: WallSlot.door → doors
+        doors.Clear();
+        foreach (var ws in wallSlots)
+        {
+            if (ws.door != null && !doors.Contains(ws.door))
+                doors.Add(ws.door);
+        }
+    }
+
+    public WallSlot? GetWallSlot(Direction dir)
+    {
+        for (int i = 0; i < wallSlots.Length; i++)
+            if (wallSlots[i].direction == dir) return wallSlots[i];
+        return null;
+    }
+
+    public Wall GetWall(Direction dir) => GetWallSlot(dir)?.wall;
+    public Door GetDoor(Direction dir) => GetWallSlot(dir)?.door;
+
+    public void SetDoorWall(Direction dir, bool hasDoor)
+    {
+        GetWall(dir)?.SetDoor(hasDoor);
+    }
+
+    // ── decompose ────────────────────────────────────────────────────────
 
     public (CreatureData, int) MostDecomposedAndSecond()
     {
@@ -54,44 +113,72 @@ public class Room : MonoBehaviour
         {
             if (!decomposedCounts.ContainsKey(target.data)) decomposedCounts[target.data] = 0;
             decomposedCounts[target.data]++;
-            Debug.Log($"[Room {roomID}] decomposed {target.data.name}, count={decomposedCounts[target.data]}, listeners={OnCreatureDecomposed?.GetInvocationList().Length ?? 0}");
+            Debug.Log($"[Room {roomID}] decomposed {target.data.name}, count={decomposedCounts[target.data]}");
         }
         OnCreatureDecomposed?.Invoke(target, decomposerID);
     }
 
-    void Awake()
-    {
-        if (homeBound == null) homeBound = GetComponent<Collider>();
-    }
-
-    public Transform GetSlot(Direction d)
-    {
-        switch (d)
-        {
-            case Direction.N: return slotN;
-            case Direction.S: return slotS;
-            case Direction.E: return slotE;
-            case Direction.W: return slotW;
-            default: return null;
-        }
-    }
-
-#if UNITY_EDITOR
-    private void OnDrawGizmosSelected()
-    {
-        Gizmos.color = new Color(0f, 1f, 1f, 0.3f);
-        Vector3 c = transform.position;
-        Gizmos.DrawWireCube(c, roomSize);
-    }
-#endif
+    // ── lifecycle ────────────────────────────────────────────────────────
 
     void Start()
     {
         roomID = gameObject.name;
         if (RoomManager.Instance != null) RoomManager.Instance.Register(this);
         Player.Instance.roomChanged += ActiveRoom;
+        // 이미 자식으로 배치된 생물들 자동 등록
         foreach (Creature c in GetComponentsInChildren<Creature>()) RegisterCreature(c);
+    }
 
+    /// <summary>spawnEntries대로 생물을 즉시 Room 자식으로 스폰 (에디터/런타임 공용)</summary>
+    public void SpawnInitialCreatures()
+    {
+        if (spawnEntries == null || creatureDB == null || homeBound == null) return;
+
+        Bounds b = homeBound.bounds;
+        for (int i = 0; i < spawnEntries.Length; i++)
+        {
+            var entry = spawnEntries[i];
+            if (entry.count <= 0) continue;
+
+            CreatureData data = creatureDB.GetByID(entry.id);
+            GameObject prefab = data?.prefab;
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[Room {roomID}] creatureDB에 {entry.id}의 prefab이 없습니다.");
+                continue;
+            }
+
+            float yOffset = data.spawnYOffset;
+
+            for (int n = 0; n < entry.count; n++)
+            {
+                Vector3 pos = new Vector3(
+                    UnityEngine.Random.Range(b.min.x, b.max.x),
+                    b.min.y + yOffset,
+                    UnityEngine.Random.Range(b.min.z, b.max.z));
+
+#if UNITY_EDITOR
+                GameObject obj = !Application.isPlaying
+                    ? (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, transform)
+                    : Instantiate(prefab, pos, Quaternion.identity, transform);
+#else
+                GameObject obj = Instantiate(prefab, pos, Quaternion.identity, transform);
+#endif
+                obj.transform.position = pos;
+                obj.transform.rotation = Quaternion.identity;
+            }
+        }
+    }
+
+    /// <summary>방 벽 상태를 초기 상태(모든 벽 noDoor)로 되돌리고 doors 비움</summary>
+    public void ResetWalls()
+    {
+        for (int i = 0; i < wallSlots.Length; i++)
+        {
+            Wall w = wallSlots[i].wall;
+            if (w != null) w.SetDoor(false);
+        }
+        doors.Clear();
     }
 
     private void OnTriggerEnter(Collider other)
@@ -100,7 +187,13 @@ public class Room : MonoBehaviour
         if (p != null) Player.Instance.SetRoom(this);
     }
 
-    //Register
+    public void ActiveRoom(Room room)
+    {
+        if (room.roomID == this.roomID) isActive = true;
+    }
+
+    // ── creature register ────────────────────────────────────────────────
+
     public void RegisterCreature(Creature c)
     {
         c.currentRoom = this;
@@ -110,11 +203,6 @@ public class Room : MonoBehaviour
 
         if (c.data.creatureID != CreatureID.Door && c.data.creatureID != CreatureID.Player)
             c.Died += OnCreatureDied;
-    }
-
-    public void ActiveRoom(Room room)
-    {
-        if (room.roomID == this.roomID) isActive = true;
     }
 
     public void UnregisterCreature(Creature c)
@@ -128,4 +216,14 @@ public class Room : MonoBehaviour
         UnregisterCreature(c);
         c.Died -= OnCreatureDied;
     }
+
+    // ── gizmo ────────────────────────────────────────────────────────────
+
+#if UNITY_EDITOR
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = new Color(0f, 1f, 1f, 0.3f);
+        Gizmos.DrawWireCube(transform.position, roomSize);
+    }
+#endif
 }

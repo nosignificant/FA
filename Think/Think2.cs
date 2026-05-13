@@ -117,7 +117,7 @@ public abstract class Think2 : MonoBehaviour
 
 
         if (targetControl != null)
-            targetControl.SetMovementTarget(currentTarget.creature.rootTransform);
+            targetControl.SetMovementTarget(proxyTarget);
     }
 
     private void UpdateCurrentTarget()
@@ -165,8 +165,9 @@ public abstract class Think2 : MonoBehaviour
         float bestDist = float.MaxValue;
         foreach (var d in self.currentRoom.doors)
         {
-            //내 방의 문이 targetRoom으로 이어져야함 내가 있는 방에 nextRoom을 설정해놔야함 
-            if (d == null || !d.isOpen || d.nextRoom != targetRoom) continue;
+            //내 방의 문이 targetRoom으로 이어져야함
+            if (d == null || !d.isOpen) continue;
+            if (d.GetOtherRoom(self.currentRoom) != targetRoom) continue;
 
             float dist = Vector3.Distance(self.rootTransform.position, d.transform.position);
             if (dist < bestDist)
@@ -188,7 +189,8 @@ public abstract class Think2 : MonoBehaviour
 
         foreach (var d in self.currentRoom.doors)
         {
-            if (!d.isOpen || d.nextRoom == null) continue;
+            if (!d.isOpen) continue;
+            if (d.GetOtherRoom(self.currentRoom) == null) continue;
             float dist = Vector3.Distance(self.transform.position, d.transform.position);
             if (dist < bestDist) { bestDist = dist; bestDoor = d; }
         }
@@ -201,9 +203,10 @@ public abstract class Think2 : MonoBehaviour
         // 문에 충분히 가까우면 방 교체
         if (bestDist <= migrationRange)
         {
+            Room nextRoom = bestDoor.GetOtherRoom(self.currentRoom);
             self.currentRoom.UnregisterCreature(self);
-            bestDoor.nextRoom.RegisterCreature(self);
-            Debug.Log("move to room: " + bestDoor.nextRoom);
+            nextRoom.RegisterCreature(self);
+            Debug.Log("move to room: " + nextRoom);
         }
 
         return true;
