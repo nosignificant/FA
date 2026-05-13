@@ -15,5 +15,5 @@ public class CreatureData : ScriptableObject
     public int maxHP;
     public float weight = 1.0f;
     public float fleeWeight = 1f;
-    public float approachWeight = 1f;
+    public float chaseWeight = 1f;
 }

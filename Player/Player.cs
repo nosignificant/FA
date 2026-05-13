@@ -87,38 +87,9 @@ public class Player : MonoBehaviour
         //c버튼
         if (Input.GetKeyDown(KeyCode.C))
         {
-            isSelectingTransform = !isSelectingTransform;
-
-            if (isSelectingTransform)
-            {
-                canTracking = false;
-                PlayerControl.SetPlayerMove(false);
-                plUI.SetVisible(true);
-            }
-            else
-            {
-                canTracking = true;
-                PlayerControl.SetPlayerMove(true);
-                plUI.SetVisible(false);
-            }
-        }
-
-        if (isSelectingTransform)
-        {
-            if (Input.GetKeyDown(KeyCode.W))
-                plUI.IndexUpDown(-1);
-
-            if (Input.GetKeyDown(KeyCode.S))
-                plUI.IndexUpDown(1);
-
-            if (Input.GetKeyDown(KeyCode.E))
-            {
-                isSelectingTransform = false;
-                canTracking = true;
-                PlayerControl.SetPlayerMove(true);
-                plUI.SetVisible(false);
-                // TransformInto(plUI.GetSelectedData());
-            }
+            canTracking = true;
+            PlayerControl.SetPlayerMove(true);
+            plUI.SetVisible(false);
         }
 
         if (Input.GetKeyDown(KeyCode.Escape))

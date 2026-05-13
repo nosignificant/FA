@@ -104,12 +104,6 @@ public class Room : MonoBehaviour
     public void RegisterCreature(Creature c)
     {
         c.currentRoom = this;
-
-        // homeBound 자동 할당 (Think 컴포넌트 있으면)
-        var think = c.GetComponent<Think>();
-        if (think == null) think = c.GetComponentInChildren<Think>();
-        if (think != null) think.homeBound = homeBound;
-
         if (creatureList.Contains(c)) return;
 
         creatureList.Add(c);

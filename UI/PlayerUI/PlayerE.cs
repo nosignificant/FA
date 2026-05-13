@@ -24,18 +24,6 @@ public class PlayerE : MonoBehaviour
     {
         if (Player.Instance == null) { cg.alpha = 0f; return; }
 
-        // C
-        if (Player.Instance.isSelectingTransform)
-        {
-            cg.alpha = 1f;
-            var selected = Player.Instance.plUI.GetSelectedData();
-            if (selected == null) { cg.alpha = 0f; return; }
-
-            bool canTransform = Player.Instance.learnedForms.Contains(selected);
-            playerE.text = "press E to transform";
-            return;
-        }
-
         // 락온
         if (!Player.Instance.isTracking) { cg.alpha = 0f; return; }
 

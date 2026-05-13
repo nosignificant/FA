@@ -76,7 +76,7 @@ class SynthesizeState : ThinkState
         CreatureID idA = first.data.creatureID;
         CreatureID idB = second != null ? second.data.creatureID : CreatureID.Player;
 
-        SynthesisResult result = tCreature.synthesisResolver.Resolve(selfID, idA, idB);
+        SynthesisResult result = tCreature.synthesis.Resolve(selfID, idA, idB);
 
         Debug.Log($"[Synthesizer] {selfID}: {idA} + {idB} → valid={result.IsValid}");
 

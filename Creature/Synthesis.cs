@@ -12,7 +12,7 @@ public struct SynthesisResult
         => new SynthesisResult { prefab = prefab, count = count };
 }
 
-public class SynthesisResolver : MonoBehaviour
+public class Synthesis : MonoBehaviour
 {
     [Header("A Synthesis (1 grab)")]
     [Tooltip("A + h → ah")]

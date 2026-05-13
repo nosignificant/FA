@@ -6,7 +6,7 @@ using CreatureTypes;
 public class TentacleCreature : Creature
 {
     public TentacleGrab2 tentacleGrab;
-    public SynthesisResolver synthesisResolver;
+    public Synthesis synthesis;
 
     [Header("Synthesize Behavior")]
     public float synthesisCooldown = 13f;
@@ -15,7 +15,7 @@ public class TentacleCreature : Creature
     protected override void Awake()
     {
         base.Awake();
-        if (synthesisResolver == null) synthesisResolver = GetComponent<SynthesisResolver>();
+        if (synthesis == null) synthesis = gameObject.AddComponent<Synthesis>();
         if (tentacleGrab == null) tentacleGrab = GetComponentInChildren<TentacleGrab2>();
     }
 }

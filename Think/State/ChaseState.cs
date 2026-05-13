@@ -89,7 +89,7 @@ class ChaseState : ThinkState
 
         if (IsBlocked(point, targetPos)) return float.NegativeInfinity;
 
-        total += self.data.ChaseWeight * (1f / (distToTarget + 1f));
+        total += self.data.chaseWeight * (1f / (distToTarget + 1f));
 
         for (int i = 0; i < detected.Count; i++)
         {

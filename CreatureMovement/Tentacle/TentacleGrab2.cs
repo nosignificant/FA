@@ -24,8 +24,8 @@ public class TentacleGrab2 : MonoBehaviour
     void Start()
     {
         self = GetComponentInParent<Creature>();
+        if (self is Lcreature lc) reservedForSpawn = lc.spawnCreatureAtTentacleIndex;
         initTentacles();
-
     }
 
     public void TryGrab(Creature target)
@@ -105,4 +105,6 @@ public class TentacleGrab2 : MonoBehaviour
             tentacles[i].oldTarget = found[i].target;
         }
     }
+
+
 }

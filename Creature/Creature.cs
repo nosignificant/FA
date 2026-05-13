@@ -9,8 +9,11 @@ public class Creature : MonoBehaviour
     public Collider mainCollider;
     public Transform rootTransform;
     public CreatureData data;
+    public CreatureIntent intent;
     public Interaction interact;
     public Room currentRoom;
+
+    public Transform kabschIn;
 
     [Header("bool")]
     public bool isAttached = false;
@@ -21,7 +24,7 @@ public class Creature : MonoBehaviour
 
     public event Action<Creature, CreatureID> Died;
 
-    protected void Awake()
+    protected virtual void Awake()
     {
         if (rootTransform == null)
         {
@@ -34,14 +37,7 @@ public class Creature : MonoBehaviour
 
         if (interact == null) interact = gameObject.AddComponent<Interaction>();
 
-        ApplyIdentity();
         currentHP = data.maxHP;
-    }
-
-    protected void ApplyIdentity()
-    {
-        if (!string.IsNullOrWhiteSpace(data.creatureName)) ;
-        // gameObject.name = data.creatureName;
     }
 
     public void TakeDamage(int amount, Creature who)
@@ -80,5 +76,41 @@ public class Creature : MonoBehaviour
         return interact != null
             ? interact.GetActionPriority(data.creatureID, targetCreatureId, action)
             : int.MinValue;
+    }
+    public void OnGrabbed(Transform attachPoint)
+    {
+        intent = CreatureIntent.Grabbed;
+
+        // 자기 자신 처리
+        Rigidbody rb = GetComponentInChildren<Rigidbody>();
+        if (rb != null) rb.isKinematic = true;
+
+        transform.SetParent(attachPoint);
+        transform.localPosition = Vector3.zero;
+
+        foreach (var mono in GetComponentsInChildren<MonoBehaviour>())
+        {
+            if (mono is Creature) continue;
+            mono.enabled = false;
+        }
+
+        if (data.creatureID == CreatureID.S || data.creatureID == CreatureID.A)
+            kabschIn.localPosition = Vector3.zero;
+    }
+
+    public void OnReleased()
+    {
+        intent = CreatureIntent.Wander;
+
+        Rigidbody rb = GetComponentInChildren<Rigidbody>();
+        if (rb != null) rb.isKinematic = false;
+
+        transform.SetParent(null);
+
+        foreach (var mono in GetComponentsInChildren<MonoBehaviour>())
+        {
+            if (mono is Creature) continue;
+            mono.enabled = true;
+        }
     }
 }
