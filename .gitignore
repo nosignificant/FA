@@ -1,0 +1,6 @@
+*.meta
+*.cs.meta
+*.unity
+*.mat
+*.prefab
+*.asset
