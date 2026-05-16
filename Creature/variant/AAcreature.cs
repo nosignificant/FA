@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Linq;
 using UnityEngine;
 using CreatureTypes;
@@ -6,43 +5,22 @@ using CreatureTypes;
 public class AACreature : TentacleCreature
 {
     [Header("AABehavior")]
-    public float migrateThreshold = 5f;
-    public float forgetDelay = 10f;
+    [Range(0f, 1f)] public float lNearbyChanceBonus = 0.3f;
 
-    private void Start()
+    // 인접한 방에 L이 있으면 이주 확률 ↑
+    protected override float GetMigrateChance()
     {
-        if (tentacleGrab == null || tentacleGrab.tentacles == null) return;
+        float baseChance = base.GetMigrateChance();
 
-        migrateThreshold += Random.Range(-1.5f, 3.5f);
-        StartCoroutine(AAbehaviour());
-    }
-
-    private IEnumerator AAbehaviour()
-    {
-        while (!IsDead)
+        bool anyAdjacentHasL = currentRoom != null && currentRoom.doors.Any(d =>
         {
-            if (intent == CreatureIntent.Wander)
-            {
-                // 인접한 방 중 하나라도 L이 있으면 이주 확률 증가
-                bool anyAdjacentHasL = currentRoom != null && currentRoom.doors.Any(d =>
-                {
-                    Room other = d?.GetOtherRoom(currentRoom);
-                    return other != null && other.creatureList.Any(x =>
-                        x != null && x.data != null && x.data.creatureID == CreatureID.L);
-                });
+            Room other = d != null ? d.GetOtherRoom(currentRoom) : null;
+            return other != null && other.creatureList.Any(x =>
+                x != null && x.data != null && x.data.creatureID == CreatureID.L);
+        });
 
-                // threshold가 낮을수록 잘 옮김. L 있으면 threshold 효과적으로 -3
-                float effective = anyAdjacentHasL ? migrateThreshold - 3f : migrateThreshold;
-                bool goNow = Random.Range(1, 11) > effective;
-
-                if (goNow) wantToMigrate = true;
-                yield return new WaitForSeconds(forgetDelay);
-                wantToMigrate = false;
-            }
-            else
-            {
-                yield return null;
-            }
-        }
+        return anyAdjacentHasL
+            ? Mathf.Clamp01(baseChance + lNearbyChanceBonus)
+            : baseChance;
     }
 }

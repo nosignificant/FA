@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using CreatureTypes;
 
@@ -15,9 +16,16 @@ public class Creature : MonoBehaviour
 
     public Transform kabschIn;
 
+
     [Header("bool")]
     public bool isAttached = false;
     public bool wantToMigrate = false;
+
+    [Header("Migration")]
+    public bool canMigrate = false;
+    [Min(0f)] public float migrateInterval = 8f;
+    [Min(0f)] public float migrateWantDuration = 5f;
+    [Range(0f, 1f)] public float migrateChance = 0.5f;
 
     [Header("Instance")]
     public int currentHP;
@@ -39,6 +47,33 @@ public class Creature : MonoBehaviour
         if (interact == null) interact = gameObject.AddComponent<Interaction>();
 
         currentHP = data.maxHP;
+
+        if (canMigrate) StartCoroutine(MigrateLoop());
+    }
+
+    // 서브클래스가 상황별로 확률을 바꾸려면 오버라이드 (예: AA는 옆방에 L 있으면 ↑)
+    protected virtual float GetMigrateChance() => migrateChance;
+
+    private IEnumerator MigrateLoop()
+    {
+        while (!IsDead)
+        {
+            // 일 처리 중(잡힘/합성/분해 등)이면 이주 안 함
+            if (intent == CreatureIntent.Wander)
+            {
+                if (UnityEngine.Random.value < GetMigrateChance())
+                {
+                    wantToMigrate = true;
+                    yield return new WaitForSeconds(migrateWantDuration);
+                    wantToMigrate = false;
+                }
+                yield return new WaitForSeconds(migrateInterval);
+            }
+            else
+            {
+                yield return null;
+            }
+        }
     }
 
     public void TakeDamage(int amount, Creature who)
@@ -78,10 +113,9 @@ public class Creature : MonoBehaviour
             ? interact.GetActionPriority(data.creatureID, targetCreatureId, action)
             : int.MinValue;
     }
-    public void AttachedTo(Transform attachPoint)
+    public virtual void AttachedTo(Transform attachPoint)
     {
         intent = CreatureIntent.Grabbed;
-
         // 자기 자신 처리
         Rigidbody rb = GetComponentInChildren<Rigidbody>();
         if (rb != null) rb.isKinematic = true;
@@ -109,7 +143,7 @@ public class Creature : MonoBehaviour
         rootTransform.localPosition = Vector3.zero;
     }
 
-    public void Release()
+    public virtual void Release()
     {
         intent = CreatureIntent.Wander;
 
@@ -122,8 +156,11 @@ public class Creature : MonoBehaviour
         {
             if (mono is Creature) continue;
             if (mono is Think2) continue;
-
             mono.enabled = true;
         }
+
+        // AttachedTo에서 끈 콜라이더 복구
+        foreach (var col in GetComponentsInChildren<Collider>())
+            col.enabled = true;
     }
 }

@@ -9,11 +9,21 @@ public class Wall : MonoBehaviour
     public GameObject noDoorMesh;
     public GameObject yesDoorMesh;
 
-    public Door door { get; private set; }
+    [Header("Door (비워두면 yesDoorMesh에서 자동 탐색)")]
+    [SerializeField] private Door _door;
+
+    public Door door
+    {
+        get
+        {
+            if (_door == null && yesDoorMesh != null)
+                _door = yesDoorMesh.GetComponentInChildren<Door>(true); // 비활성 포함
+            return _door;
+        }
+    }
 
     private void Awake()
     {
-        door = yesDoorMesh?.GetComponentInChildren<Door>();
         SetDoor(false);
     }
 

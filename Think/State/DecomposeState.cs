@@ -21,7 +21,7 @@ class DecomposeState : ThinkState
     public Creature decomposeTarget { get; private set; }
     private bool isAttached = false;
 
-    public DecomposeState(Think2 think, DecomposeRule[] rules, float decomposeRange, float attachDuration)
+    public DecomposeState(Dthink think, DecomposeRule[] rules, float decomposeRange, float attachDuration)
         : base(think)
     {
         this.rules = rules;
@@ -63,8 +63,7 @@ class DecomposeState : ThinkState
         // 강제 상태 이탈 시 붙어있던 것 정리
         if (isAttached)
         {
-            think.self.transform.SetParent(null);
-            RestoreComponents();
+            think.self.Release();
             isAttached = false;
         }
         decomposeTarget = null;
@@ -77,33 +76,20 @@ class DecomposeState : ThinkState
     {
         isAttached = true;
 
-        think.self.AttachedTo(target.rootTransform);
+        think.self.AttachedTo(target.transform);
 
         yield return new WaitForSeconds(attachDuration);
 
-        // 분해 실행
-        if (target != null && !target.IsDead)
-            DoDecompose(target);
-
-        // 떼어내기 & 복원
+        // 먼저 타겟에서 떨어진다 (타겟이 죽으면 자식인 D도 같이 파괴되므로)
         think.self.Release();
 
-        RestoreComponents();
+        // 그 다음 분해 (타겟 사망 처리)
+        if (target != null && !target.IsDead)
+            DoDecompose(target);
 
         decomposeTarget = null;
         isAttached = false;
         think.self.intent = CreatureIntent.Wander;
-    }
-
-    private void RestoreComponents()
-    {
-        foreach (var mono in think.self.GetComponentsInChildren<MonoBehaviour>())
-        {
-            if (mono is Creature) continue;
-            mono.enabled = true;
-        }
-        foreach (var col in think.self.GetComponentsInChildren<Collider>())
-            col.enabled = true;
     }
 
     private void DoDecompose(Creature target)

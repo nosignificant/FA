@@ -13,7 +13,7 @@ public struct ThinkTarget
     public Creature creature;
 }
 
-public abstract class Think2 : MonoBehaviour
+public class Think2 : MonoBehaviour
 {
     [Header("References")]
     public Creature self;
@@ -126,10 +126,36 @@ public abstract class Think2 : MonoBehaviour
             currentTarget = currentState.newTarget;
     }
 
-    protected abstract CreatureIntent DetermineIntent();
-    protected abstract bool DoesNeedToFlee();
-    protected abstract bool DoesNeedToChase();
-
+    protected virtual CreatureIntent DetermineIntent()
+    {
+        if (DoesNeedToFlee()) return CreatureIntent.Flee;
+        else if (DoesNeedToChase()) return CreatureIntent.Chase;
+        return CreatureIntent.Wander;
+    }
+    protected virtual bool DoesNeedToFlee()
+    {
+        if (detected == null) return false;
+        if (self.intent == CreatureIntent.Flee && isLocked) return true;
+        for (int i = 0; i < detected.Count; i++)
+        {
+            var t = detected[i];
+            if (!IsValidTarget(t)) continue;
+            if (self.HasAction(t.data.creatureID, InteractionAction.Flee)) return true;
+        }
+        return false;
+    }
+    protected virtual bool DoesNeedToChase()
+    {
+        if (detected == null) return false;
+        if (self.intent == CreatureIntent.Chase && isLocked) return true;
+        for (int i = 0; i < detected.Count; i++)
+        {
+            var t = detected[i];
+            if (!IsValidTarget(t)) continue;
+            if (self.HasAction(t.data.creatureID, InteractionAction.Chase)) return true;
+        }
+        return false;
+    }
 
     public bool IsValidTarget(Creature target)
     {

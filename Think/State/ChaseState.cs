@@ -13,6 +13,9 @@ class ChaseState : ThinkState
     public override void Enter(ThinkTarget prev)
     {
         base.Enter(prev);
+        // 새로 chase 진입 시 lock 해제: 첫 Refresh가 전체 경로를 타서
+        // newTarget.point가 반드시 세팅되도록 (안 그러면 Vector3.zero로 남음)
+        think.LockThink(false);
         if (prev.creature != null && think.IsValidTarget(prev.creature))
             newTarget = prev;
     }
@@ -24,19 +27,28 @@ class ChaseState : ThinkState
         Creature temp = BestChaseTarget(detected);
         if (temp == null || temp.data == null) return;
 
-        //잠겨있을 때 다른 더 높은 쫓기 대상 찾으면 쫓아감
-        if (think.isLocked)
+        // lock은 "타겟 교체"만 막음. 같은 타겟이면 위치는 계속 갱신.
+        bool locked = think.isLocked && newTarget.creature != null;
+        if (locked && temp != newTarget.creature)
         {
+            // 더 우선순위 높은 대상이면 lock 시간 소모(곧 풀림)
             int priority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Chase);
             if (priority < currentPriority)
                 think.currentLockTime += think.waitInterval;
-            return;
+            // 교체는 안 하지만 기존 타겟 추적은 계속 (아래로 진행)
+        }
+        else
+        {
+            // 미잠금 or 같은 타겟 → 타겟 갱신/확정
+            newTarget.creature = temp;
+            think.LockThink(true);
+            currentPriority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Chase);
         }
 
-        newTarget.creature = temp;
-        newTarget.point = temp.rootTransform.position;
-
-        think.LockThink(true);
+        // 항상 현재 타겟 위치로 갱신 (한 자리 고정 방지)
+        Creature chaseC = newTarget.creature;
+        if (chaseC == null) return;
+        newTarget.point = chaseC.rootTransform.position;
 
         float d = Vector3.Distance(think.self.rootTransform.position, newTarget.point);
 

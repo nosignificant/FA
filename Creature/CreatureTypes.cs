@@ -9,6 +9,7 @@ namespace CreatureTypes
         Decomposing = 4,
         Attack = 5,
         Synthesizing = 6,
+
     }
 
     public enum InteractionAction

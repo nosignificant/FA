@@ -19,7 +19,6 @@ public class Leg : MonoBehaviour
     private float topToTargetDist;
 
     [Header("Moving")]
-    private Vector3 movingDir;
     private bool isMoving = false;
     private Vector3 targetPos;
     private float maxBodyLength;

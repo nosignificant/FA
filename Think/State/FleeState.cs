@@ -14,8 +14,9 @@ class FleeState : ThinkState
     public override void Enter(ThinkTarget prev)
     {
         base.Enter(prev);
-        // 새로 도망 시작할 때 lock 초기화
+        // 새로 도망 시작할 때 lock 초기화 (첫 Refresh가 point 세팅하도록)
         currentPriority = 0;
+        think.LockThink(false);
     }
     public override void Refresh(List<Vector3> points)
     {
@@ -24,23 +25,30 @@ class FleeState : ThinkState
         Creature temp = BestFleeTarget(detected);
         if (temp == null) return;
 
-
-        if (think.isLocked)
+        // lock은 "타겟 교체"만 막음. 같은 타겟이면 위치/도망점은 계속 갱신.
+        bool locked = think.isLocked && newTarget.creature != null;
+        if (locked && temp != newTarget.creature)
         {
             int priority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Flee);
             if (priority < currentPriority)
                 think.currentLockTime += think.waitInterval;
-            return;
+            // 교체 안 함, 기존 타겟 기준으로 아래 진행
+        }
+        else
+        {
+            newTarget.creature = temp;
+            think.LockThink(true);
+            currentPriority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Flee);
         }
 
-        newTarget.creature = temp;
-        newTarget.point = temp.rootTransform.position;
-
-        think.LockThink(true);
+        Creature ft = newTarget.creature;
+        if (ft == null) return;
+        fleeTarget = ft;
+        newTarget.point = ft.rootTransform.position;
 
         float d = Vector3.Distance(think.self.rootTransform.position, newTarget.point);
 
-        //나랑 타겟 사이 거리가 더 짧으면 도망가야함 
+        //나랑 타겟 사이 거리가 더 짧으면 도망가야함
         needToFlee = d < runThreshold;
         if (needToFlee) newTarget.point = GetNewPoint(points);
     }

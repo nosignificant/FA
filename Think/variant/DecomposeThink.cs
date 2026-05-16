@@ -84,7 +84,9 @@ public class Dthink : Think2
         if (!self.HasAction(target.data.creatureID, InteractionAction.Decompose)) return false;
 
         // 범위 안이면 분해 가능
-        return Vector3.Distance(SelfPos(), TargetPos(target)) <= decomposeRange;
+        float dist = Vector3.Distance(SelfPos(), TargetPos(target));
+        Debug.Log($"[Dthink] CanDecompose dist={dist:F2} / range={decomposeRange} → {dist <= decomposeRange}");
+        return dist <= decomposeRange;
     }
 
     // ── 헬퍼 ─────────────────────────────────────────────────────────────
