@@ -6,6 +6,14 @@ using System.Linq;
 
 public class Lthink : TentacleThink
 {
+    // L은 다른 L이 있는 방으로는 이주하지 않음
+    protected override bool ShouldAvoidRoom(Room room)
+    {
+        if (room == null || room.creatureList == null) return false;
+        return room.creatureList.Any(x =>
+            x != null && x.data != null && x.data.creatureID == CreatureID.L);
+    }
+
     protected override CreatureIntent DetermineIntent()
     {
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
@@ -30,8 +38,9 @@ public class Lthink : TentacleThink
     }
     protected override bool DoesNeedToChase()
     {
-        if (detected == null || self == null || self.data == null) return false;
+        if (detected == null) return false;
 
+        //락이 걸려있을 때 
         if (self.intent == CreatureIntent.Chase && isLocked && currentTarget.creature != null)
         {
             Creature c = currentTarget.creature;
@@ -49,6 +58,9 @@ public class Lthink : TentacleThink
             if (c.currentRoom != self.currentRoom)
             {
                 if (!IsValidTarget(c) || IsGrabbedByMe(c)) return false;
+                if (c.currentRoom.creatureList.Any(x =>
+                        x != null && x.data != null && x.data.creatureID == CreatureID.L))
+                    return false;
             }
             return true;
         }

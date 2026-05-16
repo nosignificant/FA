@@ -5,12 +5,12 @@ using CreatureTypes;
 using System.Linq;
 
 
-public class AAthink : TentacleThink
+public class AAThink : TentacleThink
 {
     protected override CreatureIntent DetermineIntent()
     {
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
-        else if (DoesNeedToChase())
+        if (DoesNeedToChase())
         {
             if (CanSynthesize()) return CreatureIntent.Synthesizing;
             return CreatureIntent.Chase;

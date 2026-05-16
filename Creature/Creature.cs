@@ -17,6 +17,7 @@ public class Creature : MonoBehaviour
 
     [Header("bool")]
     public bool isAttached = false;
+    public bool wantToMigrate = false;
 
     [Header("Instance")]
     public int currentHP;
@@ -77,7 +78,7 @@ public class Creature : MonoBehaviour
             ? interact.GetActionPriority(data.creatureID, targetCreatureId, action)
             : int.MinValue;
     }
-    public void OnGrabbed(Transform attachPoint)
+    public void AttachedTo(Transform attachPoint)
     {
         intent = CreatureIntent.Grabbed;
 
@@ -91,14 +92,24 @@ public class Creature : MonoBehaviour
         foreach (var mono in GetComponentsInChildren<MonoBehaviour>())
         {
             if (mono is Creature) continue;
+            if (mono is Think2) continue;
             mono.enabled = false;
         }
 
+        foreach (var col in GetComponentsInChildren<Collider>())
+            col.enabled = false;
+
         if (data.creatureID == CreatureID.S || data.creatureID == CreatureID.A)
             kabschIn.localPosition = Vector3.zero;
+
+        foreach (var t in GetComponentsInChildren<Transform>())
+            t.localPosition = Vector3.zero;
+
+        rootTransform.SetParent(attachPoint);
+        rootTransform.localPosition = Vector3.zero;
     }
 
-    public void OnReleased()
+    public void Release()
     {
         intent = CreatureIntent.Wander;
 
@@ -110,6 +121,8 @@ public class Creature : MonoBehaviour
         foreach (var mono in GetComponentsInChildren<MonoBehaviour>())
         {
             if (mono is Creature) continue;
+            if (mono is Think2) continue;
+
             mono.enabled = true;
         }
     }

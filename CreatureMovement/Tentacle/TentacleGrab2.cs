@@ -76,7 +76,7 @@ public class TentacleGrab2 : MonoBehaviour
         tentacles[i].grabbedCreature = c;
         tentacles[i].tentacle.target = tentacles[i].oldTarget;
 
-        c.OnGrabbed(tentacles[i].tentacle.foot);
+        c.AttachedTo(tentacles[i].tentacle.foot);
     }
 
     public void ReleaseSlot(int i)
@@ -87,8 +87,7 @@ public class TentacleGrab2 : MonoBehaviour
         tentacles[i].isGrabbing = false;
         tentacles[i].grabbedCreature = null;
 
-        // 풀려나는 쪽한테 위임
-        c.OnReleased();
+        c.Release();
     }
 
 

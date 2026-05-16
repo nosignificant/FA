@@ -113,7 +113,7 @@ public abstract class Think2 : MonoBehaviour
 
         currentState.Refresh(BuildQueryPoints());
         currentTarget = currentState.newTarget; // ← Refresh 후에 업데이트
-        MoveProxy(currentTarget.point, 1f);
+        MoveProxy(currentTarget.point, 10f);
 
 
         if (targetControl != null)
@@ -178,9 +178,9 @@ public abstract class Think2 : MonoBehaviour
         }
         return bestDoor;
     }
+    protected virtual bool ShouldAvoidRoom(Room room) => false;
 
-
-    private bool TryMigrateRoom()
+    public bool TryMigrateRoom()
     {
         if (self.currentRoom == null) return false;
 
@@ -190,12 +190,19 @@ public abstract class Think2 : MonoBehaviour
         foreach (var d in self.currentRoom.doors)
         {
             if (!d.isOpen) continue;
-            if (d.GetOtherRoom(self.currentRoom) == null) continue;
+            Room other = d.GetOtherRoom(self.currentRoom);
+            if (other == null) continue;
+            if (ShouldAvoidRoom(other)) continue;
+
             float dist = Vector3.Distance(self.transform.position, d.transform.position);
             if (dist < bestDist) { bestDist = dist; bestDoor = d; }
         }
 
-        if (bestDoor == null) return false;
+        if (bestDoor == null)
+        {
+            self.wantToMigrate = false;
+            return false;
+        }
 
         // 열린 문 방향으로 유도
         MoveProxy(bestDoor.transform.position, 2f);
@@ -207,6 +214,7 @@ public abstract class Think2 : MonoBehaviour
             self.currentRoom.UnregisterCreature(self);
             nextRoom.RegisterCreature(self);
             Debug.Log("move to room: " + nextRoom);
+            self.wantToMigrate = false;
         }
 
         return true;
@@ -230,7 +238,7 @@ public abstract class Think2 : MonoBehaviour
         return points;
     }
 
-    private bool IsInsideBounds(Vector3 p, float shrink = 1f)
+    private bool IsInsideBounds(Vector3 p, float shrink = 0f)
     {
         if (self.currentRoom == null) return false;
         Bounds b = self.currentRoom.homeBound.bounds;
@@ -245,10 +253,9 @@ public abstract class Think2 : MonoBehaviour
     }
     public void MoveProxy(Vector3 p, float speed)
     {
-        proxyTarget.position = Vector3.Lerp(
-                                proxyTarget.position,
-                                p,
-                                1f - Mathf.Exp(-proxyMoveSpeed * Time.deltaTime));
+        // ThinkLoop는 waitInterval마다 호출됨. deltaTime이 아니라 waitInterval 기준으로 보간
+        float t = 1f - Mathf.Exp(-speed * waitInterval);
+        proxyTarget.position = Vector3.Lerp(proxyTarget.position, p, t);
     }
     private void EnsureProxyTarget()
     {

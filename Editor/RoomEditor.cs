@@ -45,6 +45,9 @@ public class RoomEditor : Editor
         }
 
         EditorGUILayout.Space();
+        DrawDoorControls(room);
+
+        EditorGUILayout.Space();
         if (GUILayout.Button("Spawn Creatures (spawnEntries대로 즉시 스폰)"))
             SpawnCreatures(room);
         if (GUILayout.Button("Clear Creatures (방 안 생물 전부 제거)"))
@@ -55,6 +58,50 @@ public class RoomEditor : Editor
         if (GUILayout.Button("Reset Walls (벽 전부 초기 상태로)"))
             ResetWalls(room);
         GUI.backgroundColor = Color.white;
+    }
+
+    void DrawDoorControls(Room room)
+    {
+        EditorGUILayout.LabelField("Doors", EditorStyles.boldLabel);
+
+        foreach (var slot in room.wallSlots)
+        {
+            Door d = slot.wall != null ? slot.wall.door : null;
+            if (d == null) continue;
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField($"{slot.direction}", GUILayout.Width(30));
+
+            // 조건 옵저빙 생물
+            EditorGUI.BeginChangeCheck();
+            CreatureData newObs = (CreatureData)EditorGUILayout.ObjectField(
+                d.roomCondition.observingC, typeof(CreatureData), false, GUILayout.MinWidth(80));
+            int newCount = EditorGUILayout.IntField(d.roomCondition.howManyMore, GUILayout.Width(40));
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(d, "Edit Door Condition");
+                var cond = d.roomCondition;
+                cond.observingC = newObs;
+                cond.howManyMore = newCount;
+                d.roomCondition = cond;
+                EditorUtility.SetDirty(d);
+            }
+
+            // 강제 열기/닫기 버튼
+            GUI.backgroundColor = d.isOpen ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.7f, 0.7f);
+            if (GUILayout.Button(d.isOpen ? "Open ▶ Close" : "Closed ▶ Open", GUILayout.Width(110)))
+            {
+                Undo.RecordObject(d, "Toggle Door");
+                if (Application.isPlaying)
+                    d.DoorCloseAndOpen(!d.isOpen);
+                else
+                    d.isOpen = !d.isOpen;   // 에디터 모드에선 상태만 토글
+                EditorUtility.SetDirty(d);
+            }
+            GUI.backgroundColor = Color.white;
+
+            EditorGUILayout.EndHorizontal();
+        }
     }
 
     void ClearCreatures(Room room)

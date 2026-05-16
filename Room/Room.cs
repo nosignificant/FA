@@ -166,6 +166,13 @@ public class Room : MonoBehaviour
 #endif
                 obj.transform.position = pos;
                 obj.transform.rotation = Quaternion.identity;
+
+                // Play 모드 중 스폰된 거면 즉시 등록 (Start의 자동 등록은 이미 지났음)
+                if (Application.isPlaying)
+                {
+                    Creature c = obj.GetComponent<Creature>();
+                    if (c != null) RegisterCreature(c);
+                }
             }
         }
     }

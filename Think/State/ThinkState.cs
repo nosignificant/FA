@@ -33,7 +33,10 @@ public abstract class ThinkState
     //point think//
     public Vector3 GetNewPoint(List<Vector3> points)
     {
-        Vector3 best = Vector3.zero;
+        Vector3 selfPos = GetSelfPos();
+        if (points == null || points.Count == 0) return selfPos;
+
+        Vector3 best = points[0];   // fallback: 첫 점
         float bestScore = float.NegativeInfinity;
         for (int i = 0; i < points.Count; i++)
         {

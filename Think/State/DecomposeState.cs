@@ -4,19 +4,15 @@ using System.Collections;
 using System.Collections.Generic;
 using CreatureTypes;
 
-// Decomposer MonoBehaviour의 로직을 ThinkState 서브클래스로 이식
-// config(rules, range, duration)는 Think2 서브클래스에서 생성자로 주입
 class DecomposeState : ThinkState
 {
     [Serializable]
     public struct DecomposeRule
     {
         public CreatureID targetID;
-        public GameObject[] options;
+        public CreatureID[] productIDs;   // 스폰될 후보 ID들 (랜덤 픽). 빈 배열이면 산물 없음
         public int spawnCount;
     }
-
-    // ── config (Think2 서브클래스에서 주입) ──────────────────────────────
     private readonly DecomposeRule[] rules;
     private readonly float decomposeRange;
     private readonly float attachDuration;
@@ -28,9 +24,9 @@ class DecomposeState : ThinkState
     public DecomposeState(Think2 think, DecomposeRule[] rules, float decomposeRange, float attachDuration)
         : base(think)
     {
-        this.rules      = rules;
-        this.decomposeRange  = decomposeRange;
-        this.attachDuration  = attachDuration;
+        this.rules = rules;
+        this.decomposeRange = decomposeRange;
+        this.attachDuration = attachDuration;
     }
 
     // ── ThinkState overrides ─────────────────────────────────────────────
@@ -52,30 +48,14 @@ class DecomposeState : ThinkState
         if (think.self == null || think.self.IsDead) return;
         if (isAttached) return;
 
-        // D: 방 포화 상태일 때만 / 그 외: 항상
-        Room current = think.self.currentRoom;
-        bool shouldDecompose = think.self.data.creatureID == CreatureID.D
-            ? (current != null && CountRoomCreatures(current) >= current.maxCreaturesInRoom)
-            : true;
-        if (!shouldDecompose) return;
-
-        // 쫓던 대상 유효성 확인
+        // 결정(범위/룰 체크)은 Dthink.CanDecompose가 이미 했음.
+        // 여기선 넘겨받은 target에 붙기만 함.
         Creature target = newTarget.creature;
-        if (target == null || target.IsDead || target.data == null) return;
-        if (!HasRuleFor(target.data.creatureID)) return;
-        if (!think.self.HasAction(target.data.creatureID, InteractionAction.Decompose)) return;
+        if (target == null || target.IsDead) return;
 
-        // 범위 체크 → 달라붙기
-        Vector3 selfPos  = GetSelfPos();
-        Vector3 targetPos = target.rootTransform != null ? target.rootTransform.position : target.transform.position;
-
-        if (Vector3.Distance(selfPos, targetPos) <= decomposeRange)
-        {
-            decomposeTarget       = target;
-            target.intent         = CreatureIntent.Decomposing;
-            think.self.intent     = CreatureIntent.Decomposing;
-            think.StartCoroutine(AttachRoutine(target));
-        }
+        decomposeTarget = target;
+        target.intent = CreatureIntent.Grabbed;
+        think.StartCoroutine(AttachRoutine(target));
     }
 
     public override ThinkTarget Exit()
@@ -97,26 +77,7 @@ class DecomposeState : ThinkState
     {
         isAttached = true;
 
-        // Think2(MonoBehaviour)는 유지, 나머지 컴포넌트 비활성화
-        foreach (var mono in think.self.GetComponentsInChildren<MonoBehaviour>())
-        {
-            if (mono is Creature) continue;
-            if (mono == think)   continue;   // 브레인 자신은 유지
-            mono.enabled = false;
-        }
-
-        foreach (var col in think.self.GetComponentsInChildren<Collider>())
-            col.enabled = false;
-
-        Rigidbody rb = think.self.GetComponentInChildren<Rigidbody>();
-        if (rb != null) rb.isKinematic = true;
-
-        // 타겟에 붙이고 위치 초기화
-        Transform attachTo = target.rootTransform != null ? target.rootTransform : target.transform;
-        think.self.transform.SetParent(attachTo);
-        think.self.transform.localPosition = Vector3.zero;
-        foreach (var t in think.self.GetComponentsInChildren<Transform>())
-            t.localPosition = Vector3.zero;
+        think.self.AttachedTo(target.rootTransform);
 
         yield return new WaitForSeconds(attachDuration);
 
@@ -125,12 +86,12 @@ class DecomposeState : ThinkState
             DoDecompose(target);
 
         // 떼어내기 & 복원
-        think.self.transform.SetParent(null);
-        if (rb != null) rb.isKinematic = false;
+        think.self.Release();
+
         RestoreComponents();
 
-        decomposeTarget   = null;
-        isAttached        = false;
+        decomposeTarget = null;
+        isAttached = false;
         think.self.intent = CreatureIntent.Wander;
     }
 
@@ -153,15 +114,15 @@ class DecomposeState : ThinkState
         {
             if (rules[i].targetID == target.data.creatureID)
             {
-                rule  = rules[i];
+                rule = rules[i];
                 found = true;
                 break;
             }
         }
         if (!found) return;
 
-        Vector3 pos        = target.transform.position;
-        Room    targetRoom = target.currentRoom;
+        Vector3 pos = target.transform.position;
+        Room targetRoom = target.currentRoom;
 
         // 즉사
         target.TakeDamage(target.currentHP, think.self);
@@ -171,12 +132,20 @@ class DecomposeState : ThinkState
             targetRoom?.NotifyDecomposed(target, think.self.data.creatureID);
 
         // 분해 산물 스폰
-        if (rule.options != null && rule.options.Length > 0 && rule.spawnCount > 0)
+        if (rule.productIDs != null && rule.productIDs.Length > 0 && rule.spawnCount > 0)
         {
             Room registerTo = targetRoom != null ? targetRoom : think.self.currentRoom;
+            CreatureDatabase db = registerTo?.creatureDB;
+            if (db == null)
+            {
+                Debug.LogWarning($"[DecomposeState] {registerTo?.roomID}에 creatureDB가 없어 산물을 스폰할 수 없습니다.");
+                return;
+            }
+
             for (int i = 0; i < rule.spawnCount; i++)
             {
-                GameObject pick = rule.options[UnityEngine.Random.Range(0, rule.options.Length)];
+                CreatureID pickID = rule.productIDs[UnityEngine.Random.Range(0, rule.productIDs.Length)];
+                GameObject pick = db.GetPrefab(pickID);
                 if (pick == null) continue;
 
                 Vector3 spawnPos = pos + new Vector3(
@@ -190,8 +159,8 @@ class DecomposeState : ThinkState
                         spawnPos = roomCol.ClosestPoint(spawnPos);
                 }
 
-                GameObject  obj = UnityEngine.Object.Instantiate(pick, spawnPos, Quaternion.identity);
-                Creature    c   = obj.GetComponent<Creature>();
+                GameObject obj = UnityEngine.Object.Instantiate(pick, spawnPos, Quaternion.identity);
+                Creature c = obj.GetComponent<Creature>();
                 if (c != null) registerTo?.RegisterCreature(c);
             }
         }
@@ -216,7 +185,7 @@ class DecomposeState : ThinkState
             Creature c = room.creatureList[i];
             if (c == null || c.data == null) continue;
             if (c.data.creatureID == CreatureID.Player) continue;
-            if (c.data.creatureID == CreatureID.Door)   continue;
+            if (c.data.creatureID == CreatureID.Door) continue;
             count++;
         }
         return count;
