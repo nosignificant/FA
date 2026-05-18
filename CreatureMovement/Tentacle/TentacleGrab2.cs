@@ -19,8 +19,6 @@ public class TentacleGrab2 : MonoBehaviour
     public TentacleSlot[] tentacles;
     public int reservedForSpawn = -1;
     public float holdTime = 2f;
-    [Tooltip("이 거리 이내의 대상만 잡음")]
-    public float grabRange = 5f;
 
 
     void Start()

@@ -66,12 +66,7 @@ class ChaseState : ThinkState
         if (needToChase) newTarget.point = GetNewPoint(points);
 
         if (think is TentacleThink tt && tt.tentacleGrab != null && newTarget.creature != null)
-        {
-            float gd = Vector3.Distance(think.self.rootTransform.position,
-                                        newTarget.creature.rootTransform.position);
-            if (gd <= tt.tentacleGrab.grabRange)
-                tt.tentacleGrab.TryGrab(newTarget.creature);
-        }
+            tt.tentacleGrab.TryGrab(newTarget.creature);
     }
 
     public Creature BestChaseTarget(IReadOnlyList<Creature> detected)
