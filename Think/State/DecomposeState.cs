@@ -16,17 +16,20 @@ class DecomposeState : ThinkState
     private readonly DecomposeRule[] rules;
     private readonly float decomposeRange;
     private readonly float attachDuration;
+    private readonly float decomposeCooldown;
 
     // ── 런타임 상태 ──────────────────────────────────────────────────────
     public Creature decomposeTarget { get; private set; }
     private bool isAttached = false;
+    private float nextDecomposeTime = 0f;
 
-    public DecomposeState(Dthink think, DecomposeRule[] rules, float decomposeRange, float attachDuration)
+    public DecomposeState(Dthink think, DecomposeRule[] rules, float decomposeRange, float attachDuration, float decomposeCooldown)
         : base(think)
     {
         this.rules = rules;
         this.decomposeRange = decomposeRange;
         this.attachDuration = attachDuration;
+        this.decomposeCooldown = decomposeCooldown;
     }
 
     // ── ThinkState overrides ─────────────────────────────────────────────
@@ -47,6 +50,7 @@ class DecomposeState : ThinkState
     {
         if (think.self == null || think.self.IsDead) return;
         if (isAttached) return;
+        if (Time.time < nextDecomposeTime) return;   // 분해 쿨타임
 
         // 결정(범위/룰 체크)은 Dthink.CanDecompose가 이미 했음.
         // 여기선 넘겨받은 target에 붙기만 함.
@@ -90,6 +94,7 @@ class DecomposeState : ThinkState
 
         decomposeTarget = null;
         isAttached = false;
+        nextDecomposeTime = Time.time + decomposeCooldown;   // 다음 분해까지 쿨타임
         think.self.intent = CreatureIntent.Wander;
     }
 

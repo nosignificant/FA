@@ -7,6 +7,7 @@ public class Dthink : Think2
     [Min(0f)] public float decomposeRange = 2f;
     [Min(0f)] public float chaseThreshold = 10f;   // 이 거리보다 멀면 더 다가가야 함
     [Min(0f)] public float attachDuration = 2f;
+    [Min(0f)] public float decomposeCooldown = 8f;   // 분해 후 다음 분해까지 대기
     public bool needToChase = false;
 
     private DecomposeState decomposeState;
@@ -149,6 +150,6 @@ public class Dthink : Think2
         };
 
         rules = (self.data.creatureID == CreatureID.D) ? dRules : ssRules;
-        decomposeState = new DecomposeState(this, rules, decomposeRange, attachDuration);
+        decomposeState = new DecomposeState(this, rules, decomposeRange, attachDuration, decomposeCooldown);
     }
 }

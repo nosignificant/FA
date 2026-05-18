@@ -53,7 +53,7 @@ public class ObservationUI : MonoBehaviour
 
         if (panelRoot == null || !panelRoot.activeSelf) return;
 
-        if (Input.GetKeyDown(KeyCode.UpArrow))   Move(-1);
+        if (Input.GetKeyDown(KeyCode.UpArrow)) Move(-1);
         if (Input.GetKeyDown(KeyCode.DownArrow)) Move(1);
 
         if (Time.time >= nextRefresh)
