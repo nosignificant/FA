@@ -24,6 +24,15 @@ class ChaseState : ThinkState
     {
         detected = think.scanner.Results;
 
+        // 현재 타겟이 잡혀버렸으면(또는 무효) 버리고 lock 해제 → 새 대상 찾게
+        if (newTarget.creature != null &&
+            (newTarget.creature.intent == CreatureIntent.Grabbed ||
+             !think.IsValidTarget(newTarget.creature)))
+        {
+            newTarget.creature = null;
+            think.LockThink(false);
+        }
+
         Creature temp = BestChaseTarget(detected);
         if (temp == null || temp.data == null) return;
 
@@ -74,6 +83,7 @@ class ChaseState : ThinkState
         {
             var t = detected[i];
             if (!think.IsValidTarget(t)) continue;
+            if (t.intent == CreatureIntent.Grabbed) continue;   // 이미 잡힌 건 안 쫓음
             if (!self.HasAction(t.data.creatureID, InteractionAction.Chase)) continue;
 
             int priority = self.GetActionPriority(t.data.creatureID, InteractionAction.Chase);
