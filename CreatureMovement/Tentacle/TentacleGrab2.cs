@@ -76,6 +76,7 @@ public class TentacleGrab2 : MonoBehaviour
         tentacles[i].grabbedCreature = c;
         tentacles[i].tentacle.target = tentacles[i].oldTarget;
 
+        c.grabbedBy = self;
         c.AttachedTo(tentacles[i].tentacle.foot);
     }
 

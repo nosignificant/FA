@@ -54,6 +54,7 @@ class DecomposeState : ThinkState
         if (target == null || target.IsDead) return;
 
         decomposeTarget = target;
+        target.grabbedBy = think.self;          // D가 사라지면 타겟이 스스로 풀림
         target.intent = CreatureIntent.Grabbed;
         think.StartCoroutine(AttachRoutine(target));
     }

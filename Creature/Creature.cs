@@ -208,8 +208,25 @@ public class Creature : MonoBehaviour
         if (rootTransform != null) rootTransform.localPosition = Vector3.zero;
     }
 
+    // 누가 날 잡았는지 (D 분해 / 촉수 grab 등). 이게 사라지면 Grabbed 자동 해제
+    [System.NonSerialized] public Creature grabbedBy;
+
+    private void Update()
+    {
+        if (intent == CreatureIntent.Grabbed)
+        {
+            // 잡은 주체가 파괴됐거나(Unity null) 죽었으면 → 스스로 풀림
+            if (grabbedBy == null || grabbedBy.IsDead)
+            {
+                grabbedBy = null;
+                Release();
+            }
+        }
+    }
+
     public virtual void Release()
     {
+        grabbedBy = null;
         intent = CreatureIntent.Wander;
 
         Rigidbody rb = GetComponentInChildren<Rigidbody>();
