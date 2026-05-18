@@ -1,10 +1,21 @@
 using System;
 using System.Collections;
+using System.Linq;
 using UnityEngine;
 using CreatureTypes;
 
 public class Lcreature : TentacleCreature
 {
+    // 같은 방에 AA 또는 (자기 말고) 다른 L 있으면 무조건 다른 방으로
+    protected override float GetMigrateChance()
+    {
+        if (currentRoom != null && currentRoom.creatureList != null &&
+            currentRoom.creatureList.Any(c =>
+                c != null && c != this && c.data != null &&
+                (c.data.creatureID == CreatureID.AA || c.data.creatureID == CreatureID.L)))
+            return 1f;
+        return base.GetMigrateChance();
+    }
 
     [Header("LBehavior")]
 

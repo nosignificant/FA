@@ -34,26 +34,45 @@ public class ObservationUI : MonoBehaviour
     private readonly StringBuilder sb = new();
     private bool built = false;
 
+    public static ObservationUI Instance;
+    public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
+
+    // ESC를 이 프레임에 ObservationUI가 소비했는지 (실행 순서 무관)
+    private static int escConsumedFrame = -1;
+    public static bool EscConsumedThisFrame => escConsumedFrame == Time.frameCount;
+
     private void Awake()
     {
+        Instance = this;
         if (player == null) player = Player.Instance;
         if (learner == null && player != null) learner = player.GetComponent<ObservationLearner>();
         if (panelRoot != null) panelRoot.SetActive(false);
+    }
+
+    private void SetOpen(bool on)
+    {
+        if (panelRoot != null) panelRoot.SetActive(on);
+        if (on) { selected = 0; BuildList(); Refresh(); }
+        PlayerControl.SetPlayerMove(!on);   // 열린 동안 이동 차단
     }
 
     private void Update()
     {
         if (Input.GetKeyDown(toggleKey))
         {
-            bool on = panelRoot != null && !panelRoot.activeSelf;
-            if (panelRoot != null) panelRoot.SetActive(on);
-            if (on) { selected = 0; BuildList(); Refresh(); }
-            // 열려있는 동안 플레이어 이동 차단 (W/S가 네비랑 겹침)
-            PlayerControl.SetPlayerMove(!on);
+            SetOpen(!IsOpen);
             return;
         }
 
-        if (panelRoot == null || !panelRoot.activeSelf) return;
+        // ESC: 열려있으면 먼저 닫기 (이 프레임 ESC 소비 — 순서 무관하게 마커로)
+        if (IsOpen && Input.GetKeyDown(KeyCode.Escape))
+        {
+            escConsumedFrame = Time.frameCount;
+            SetOpen(false);
+            return;
+        }
+
+        if (!IsOpen) return;
 
         if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))   Move(-1);
         if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) Move(1);

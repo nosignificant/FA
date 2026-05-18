@@ -14,8 +14,19 @@ public class Lthink : TentacleThink
             x != null && x.data != null && x.data.creatureID == CreatureID.L);
     }
 
+    private bool AAInRoom()
+    {
+        var room = self.currentRoom;
+        if (room == null || room.creatureList == null) return false;
+        return room.creatureList.Any(c =>
+            c != null && c != self && c.data != null && c.data.creatureID == CreatureID.AA);
+    }
+
     protected override CreatureIntent DetermineIntent()
     {
+        // 같은 방에 AA 있으면 하던 일 다 제치고 이주 (Wander → GetMigrateChance=1)
+        if (AAInRoom()) return CreatureIntent.Wander;
+
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
         else if (DoesNeedToChase())
         {

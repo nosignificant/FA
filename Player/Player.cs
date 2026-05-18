@@ -78,6 +78,11 @@ public class Player : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.Escape))
         {
+            // ObservationUI가 이 프레임 ESC를 닫기용으로 소비했으면 lockOn 안 건드림
+            if ((ObservationUI.Instance != null && ObservationUI.Instance.IsOpen)
+                || ObservationUI.EscConsumedThisFrame)
+                return;
+
             if (isTracking)
             {
                 isTracking = false;
