@@ -19,6 +19,8 @@ public class TentacleGrab2 : MonoBehaviour
     public TentacleSlot[] tentacles;
     public int reservedForSpawn = -1;
     public float holdTime = 2f;
+    [Tooltip("이 거리 이내의 대상만 잡음")]
+    public float grabRange = 5f;
 
 
     void Start()
@@ -31,7 +33,7 @@ public class TentacleGrab2 : MonoBehaviour
     public void TryGrab(Creature target)
     {
         if (target.IsDead || target.data == null) return;
-        if (!target.data.isGrabable) return;
+        if (!target.data.isGrabable || !target.grabbable) return;
         if (target.intent == CreatureIntent.Grabbed || target.intent == CreatureIntent.Decomposing) return;
         if (forcedTargetID != CreatureID.Player && target.data.creatureID != forcedTargetID) return;
         if (!self.HasAction(target.data.creatureID, InteractionAction.Grab)) return;

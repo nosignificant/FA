@@ -9,6 +9,7 @@ class SynthesizeState : ThinkState
     private TentacleCreature tCreature;
     private TentacleGrab2 tentacleGrab;
     private float nextSynthTime = 0f;
+    private float singleGrabSince = -1f;
 
     public SynthesizeState(TentacleThink think) : base(think)
     {
@@ -46,7 +47,22 @@ class SynthesizeState : ThinkState
 
         CreatureID selfID = tCreature.data.creatureID;
         if (selfID == CreatureID.A) return grabbedCount >= 1;
-        if (selfID == CreatureID.AA || selfID == CreatureID.L) return grabbedCount >= 2;
+        if (selfID == CreatureID.L) return grabbedCount >= 2;
+
+        if (selfID == CreatureID.AA)
+        {
+            if (grabbedCount >= 2) { singleGrabSince = -1f; return true; }
+
+            // 1마리만 잡은 채 타임아웃 → 그거 소비해서 A 합성
+            if (grabbedCount == 1)
+            {
+                if (singleGrabSince < 0f) singleGrabSince = Time.time;
+                float timeout = (tCreature as AACreature)?.aaSingleGrabTimeout ?? 5f;
+                return Time.time - singleGrabSince >= timeout;
+            }
+            singleGrabSince = -1f;
+            return false;
+        }
         return false;
     }
 

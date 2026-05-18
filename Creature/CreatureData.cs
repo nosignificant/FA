@@ -8,11 +8,15 @@ public class CreatureData : ScriptableObject
     public string creatureName;
     public CreatureID creatureID;
     public GameObject prefab;
-    [Tooltip("스폰 시 homeBound 바닥 기준 Y 오프셋 (특정 높이에서 시작해야 하는 생물용)")]
     public float spawnYOffset = 0f;
-
     public bool canAttackThis = true;
     public bool isGrabable = true;
+
+    [Header("learn (관찰 학습)")]
+    [Tooltip("이 생물의 대표 행동 — 이 intent로 진입하는 걸 목격하면 1회 카운트")]
+    public CreatureIntent signatureIntent = CreatureIntent.Wander;
+    [Tooltip("이 횟수만큼 대표 행동을 목격하면 변신 폼 학습")]
+    public int observationsToLearn = 1;
 
     [Header("stat")]
     public int maxHP;

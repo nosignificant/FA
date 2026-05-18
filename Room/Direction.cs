@@ -3,7 +3,6 @@ using UnityEngine;
 public enum Direction
 {
     N, S, E, W
-    // 나중에 NE, NW, SE, SW 추가 가능
 }
 
 public static class DirectionExt

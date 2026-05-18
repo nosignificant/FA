@@ -13,13 +13,6 @@ public class Lcreature : TentacleCreature
     public bool needToSpawn = false;
     public int spawnCreatureAtTentacleIndex = 0;
 
-    [System.Serializable]
-    public struct SpawnEntry
-    {
-        public CreatureID ID;
-        public GameObject prefab;
-    }
-    public SpawnEntry[] spawnPrefabs;
     public CreatureID currentSpawn;
 
     private void Start()
@@ -117,26 +110,17 @@ public class Lcreature : TentacleCreature
 
         if (c == null || c.IsDead) return;
 
-        c.intent = CreatureIntent.Wander;
-        c.transform.SetParent(null);
+        // AttachedTo의 정확한 역동작 (계층/컴포넌트/kinematic 복구)
+        c.Release();
 
-        Rigidbody crb = c.GetComponentInChildren<Rigidbody>();
-        if (crb != null) crb.isKinematic = false;
-
-        foreach (var mono in c.GetComponentsInChildren<MonoBehaviour>())
-        {
-            if (mono is Creature) continue;
-            mono.enabled = true;
-        }
+        // 풀리자마자 다시 잡히는 것 방지 — 10초 grab 면역
+        c.SetGrabImmunity(10f);
     }
 
     public GameObject WhichOneSpawn(CreatureID idx)
     {
-        foreach (var sp in spawnPrefabs)
-        {
-            if (sp.ID == idx) return sp.prefab;
-        }
-        return null;
+        if (currentRoom == null || currentRoom.creatureDB == null) return null;
+        return currentRoom.creatureDB.GetPrefab(idx);
     }
 
     public void SetLSpawnCreature(CreatureID idx) { currentSpawn = idx; }

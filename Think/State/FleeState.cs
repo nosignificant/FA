@@ -22,6 +22,17 @@ class FleeState : ThinkState
     {
         detected = think.scanner.Results;
 
+        // 도망 중 다른 방으로 탈출
+        if (think.self.wantToMigrate)
+        {
+            think.TryMigrateRoom();
+            if (think.hasMigrateTarget)
+            {
+                newTarget.point = think.migrateTargetPoint;
+                return;
+            }
+        }
+
         Creature temp = BestFleeTarget(detected);
         if (temp == null) return;
 

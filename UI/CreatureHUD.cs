@@ -10,7 +10,7 @@ public class CreatureHUD : MonoBehaviour
     public RectTransform creatureBoxRect;
     public TMP_Text statusText;
     public TMP_Text nameText;
-
+    public TMP_Text targetText;
     public Tutorial tutorial;
 
 
@@ -113,6 +113,14 @@ public class CreatureHUD : MonoBehaviour
         }
 
         if (nameText != null && Player.Instance != null) nameText.text = pl.targetCreature.data.creatureName;
+        if (targetText != null && Player.Instance != null)
+        {
+            Think2 think = targetCreature.GetComponent<Think2>();
+            if (think != null && think.currentTarget.creature != null)
+                targetText.text = $"target:{think.currentTarget.creature.data.creatureName}";
+        }
+        else targetText.text = " - ";
+
 
     }
 

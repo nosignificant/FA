@@ -65,7 +65,7 @@ public class CreatureScanner : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        if (drawScannerGizmo)
+        if (drawScannerGizmo && self != null && self.rootTransform != null)
         {
             Gizmos.color = new Color(0f, 1f, 1f, 0.25f);
             Gizmos.DrawWireSphere(self.rootTransform.position, scanRadius);
