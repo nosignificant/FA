@@ -48,13 +48,15 @@ public class ObservationUI : MonoBehaviour
             bool on = panelRoot != null && !panelRoot.activeSelf;
             if (panelRoot != null) panelRoot.SetActive(on);
             if (on) { selected = 0; BuildList(); Refresh(); }
+            // 열려있는 동안 플레이어 이동 차단 (W/S가 네비랑 겹침)
+            PlayerControl.SetPlayerMove(!on);
             return;
         }
 
         if (panelRoot == null || !panelRoot.activeSelf) return;
 
-        if (Input.GetKeyDown(KeyCode.UpArrow)) Move(-1);
-        if (Input.GetKeyDown(KeyCode.DownArrow)) Move(1);
+        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))   Move(-1);
+        if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) Move(1);
 
         if (Time.time >= nextRefresh)
         {
@@ -104,7 +106,7 @@ public class ObservationUI : MonoBehaviour
             bool learned = player != null && player.learnedForms.Contains(d);
             int cur = learner != null ? learner.GetProgress(d.creatureID) : 0;
             int req = Mathf.Max(1, d.observationsToLearn);
-            entries[i].Set(n, cur, req, learned, i == selected);
+            entries[i].Set(n, d.signatureIntent.ToString(), cur, req, learned, i == selected);
         }
 
         if (detailText != null)

@@ -8,13 +8,13 @@ public class ObservationEntry : MonoBehaviour
     [Tooltip("선택됐을 때 켜질 하이라이트 (선택)")]
     public GameObject highlight;
 
-    public void Set(string creatureName, int cur, int req, bool learned, bool selected)
+    public void Set(string creatureName, string signature, int cur, int req, bool learned, bool selected)
     {
         if (label != null)
         {
             label.text = learned
-                ? $"{creatureName}  <color=#6fdc6f>✓</color>"
-                : $"{creatureName}  {cur}/{req}";
+                ? $"{creatureName}  [{signature}]  <color=#6fdc6f>✓</color>"
+                : $"{creatureName}  [{signature}]  {cur}/{req}";
         }
         if (highlight != null) highlight.SetActive(selected);
     }
