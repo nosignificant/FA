@@ -81,7 +81,17 @@ class DecomposeState : ThinkState
     {
         isAttached = true;
 
-        think.self.AttachedTo(target.transform);
+        // 타겟의 rootTransform에 정확히 붙임
+        Transform attachTo = target.rootTransform != null ? target.rootTransform : target.transform;
+        think.self.AttachedTo(attachTo);
+
+        // D 본체 + 모든 자식 localPosition 0 → 타겟에 딱 겹치게
+        var st = think.self.transform;
+        st.localPosition = Vector3.zero;
+        foreach (var t in think.self.GetComponentsInChildren<Transform>(true))
+            t.localPosition = Vector3.zero;
+        if (think.self.rootTransform != null)
+            think.self.rootTransform.localPosition = Vector3.zero;
 
         yield return new WaitForSeconds(attachDuration);
 

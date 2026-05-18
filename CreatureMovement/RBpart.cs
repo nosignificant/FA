@@ -15,6 +15,12 @@ public class RBpart : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            // 벽 터널링 방지
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+        }
     }
 
     void Update()
