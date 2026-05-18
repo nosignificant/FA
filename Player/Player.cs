@@ -9,8 +9,6 @@ public class Player : MonoBehaviour
     [Header("reference")]
 
     public PlayerLockOn pl;
-    public PlayerAttack pa;
-
     public PlayerControl pctrl;
     public Creature pc;
     public PlayerLearnedUI plUI;
@@ -38,7 +36,6 @@ public class Player : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         if (pl == null) pl = GetComponent<PlayerLockOn>();
-        if (pa == null) pa = GetComponent<PlayerAttack>();
         if (pc == null) pc = GetComponent<Creature>();
 
         if (plUI == null) Debug.Log("[playerLearnedUI] canvas에서 찾아와서 할당해주세요 ㅠㅠ");
@@ -47,7 +44,6 @@ public class Player : MonoBehaviour
 
     void Start()
     {
-        // 시작 시 플레이어가 이미 방 안에 있으면 자동 등록
         foreach (var room in FindObjectsOfType<Room>())
         {
             var col = room.GetComponent<Collider>();
@@ -79,26 +75,9 @@ public class Player : MonoBehaviour
             }
         }
 
-        if (Input.GetMouseButtonDown(0))
-        {
-            pa.TryHitAtScreenCenter();
-        }
-
-        //c버튼
-        if (Input.GetKeyDown(KeyCode.C))
-        {
-            canTracking = true;
-            PlayerControl.SetPlayerMove(true);
-            plUI.SetVisible(false);
-        }
 
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            if (isInteract)
-            {
-                StopInteract();
-                return;
-            }
             if (isTracking)
             {
                 isTracking = false;
@@ -108,37 +87,6 @@ public class Player : MonoBehaviour
         }
     }
 
-
-    void TryStartInteract()
-    {
-        // if (interactSpawner == null) return;
-
-        // // 학습
-        // if (interactSpawner.spawnData != null &&
-        //     !learnedForms.Contains(interactSpawner.spawnData))
-        // {
-        //     learnedForms.Add(interactSpawner.spawnData);
-        //     //learnedPopUpUI;
-        // }
-
-        // isInteract = true;
-        // PlayerControl.SetPlayerMove(false);
-        // if (sqUI != null) sqUI.SetVisible(true);
-    }
-
-    void StopInteract()
-    {
-        // isInteract = false;
-        // PlayerControl.SetPlayerMove(true);
-        // if (sqUI != null) sqUI.SetVisible(false);
-    }
-
-
-    public void GivePlayerToken(int amount)
-    {
-        // spawnerToken += amount;
-        // tokenChanged?.Invoke(spawnerToken);
-    }
 
 
     //room setting

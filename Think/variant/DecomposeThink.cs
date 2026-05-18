@@ -85,7 +85,6 @@ public class Dthink : Think2
 
         // 범위 안이면 분해 가능
         float dist = Vector3.Distance(SelfPos(), TargetPos(target));
-        Debug.Log($"[Dthink] CanDecompose dist={dist:F2} / range={decomposeRange} → {dist <= decomposeRange}");
         return dist <= decomposeRange;
     }
 

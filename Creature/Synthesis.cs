@@ -20,8 +20,8 @@ public class Synthesis : MonoBehaviour
     [Tooltip("A + s → as")]
     public GameObject asPrefab;
 
-    [Header("AA Synthesis (1 grab) — 결과는 a")]
-    [Tooltip("AA가 합성한 결과로 만드는 a 프리팹 (h/s 잡으면 1개, ah/as 잡으면 2개)")]
+    [Header("AA Synthesis — 결과는 a")]
+    [Tooltip("AA가 합성한 결과로 만드는 a 프리팹")]
     public GameObject aPrefab;
 
     [Header("L Synthesis (2 grabs)")]
@@ -29,7 +29,7 @@ public class Synthesis : MonoBehaviour
     public GameObject hhPrefab;
     [Tooltip("L + s+s → ss")]
     public GameObject ssPrefab;
-    [Tooltip("L + (anything containing a) → aa")]
+    [Tooltip("L + (a 포함) → aa")]
     public GameObject aaPrefab;
 
     public SynthesisResult Resolve(CreatureID selfID, CreatureID idA, CreatureID idB)
@@ -48,9 +48,7 @@ public class Synthesis : MonoBehaviour
         return SynthesisResult.None;
     }
 
-    //무조건 2개여야 합성
-    // ab둘 중하나라도 h나 s면 a1개
-    // ah나 as가 들어오면 aa로 만듦
+    // h/s → a 1개, ah/as 또는 a+a → aa 1개
     SynthesisResult ResolveAA(CreatureID idA, CreatureID idB)
     {
         if (idA == CreatureID.H || idA == CreatureID.S) return SynthesisResult.Of(aPrefab, 1);
@@ -60,7 +58,7 @@ public class Synthesis : MonoBehaviour
         return SynthesisResult.None;
     }
 
-    // L: a 들어가면 무조건 aa, 아니면 같은 종 짝일 때만 hh/ss
+    // L: h+h → hh, s+s → ss, a 포함 → aa
     SynthesisResult ResolveL(CreatureID idA, CreatureID idB)
     {
         if (idA == CreatureID.A || idB == CreatureID.A)

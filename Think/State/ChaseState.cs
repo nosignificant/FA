@@ -65,9 +65,12 @@ class ChaseState : ThinkState
         needToChase = d > runThreshold;
         if (needToChase) newTarget.point = GetNewPoint(points);
 
-        if (think is TentacleThink tt && tt.tentacleGrab != null)
+        if (think is TentacleThink tt && tt.tentacleGrab != null && newTarget.creature != null)
         {
-            tt.tentacleGrab.TryGrab(newTarget.creature);
+            float gd = Vector3.Distance(think.self.rootTransform.position,
+                                        newTarget.creature.rootTransform.position);
+            if (gd <= tt.tentacleGrab.grabRange)
+                tt.tentacleGrab.TryGrab(newTarget.creature);
         }
     }
 

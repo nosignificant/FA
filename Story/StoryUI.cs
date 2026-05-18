@@ -54,8 +54,6 @@ public class StoryUI : MonoBehaviour
         switch (state)
         {
             case State.Closed:
-                // 다른 메뉴(isSelectingTransform) 켜져있으면 C 무시
-                if (Input.GetKeyDown(KeyCode.C)) Open();
                 break;
             case State.Menu:
                 HandleMenuInput();

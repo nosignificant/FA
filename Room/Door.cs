@@ -74,17 +74,15 @@ public class Door : MonoBehaviour
 
     private void EvaluateConditions()
     {
-        if (roomCondition.observingC == null) return;
-
         if (roomA != null)
         {
             var (best, diff) = roomA.MostDecomposedAndSecond();
-            conditionA = CheckCondition(best, diff, roomCondition);
+            conditionA = CheckCondition(best, diff);
         }
         if (roomB != null)
         {
             var (best, diff) = roomB.MostDecomposedAndSecond();
-            conditionB = CheckCondition(best, diff, roomCondition);
+            conditionB = CheckCondition(best, diff);
         }
         if (conditionA || conditionB) DoorCloseAndOpen(true);
     }
@@ -92,26 +90,27 @@ public class Door : MonoBehaviour
     private void OnRoomADecomposed(Creature creature, CreatureID decomposerID)
     {
         if (decomposerID != CreatureID.D) return;
-        if (creature.data != roomCondition.observingC) return;
 
         var (best, diff) = roomA.MostDecomposedAndSecond();
-        conditionA = CheckCondition(best, diff, roomCondition);
+        conditionA = CheckCondition(best, diff);
         DoorCloseAndOpen(conditionA || conditionB);
     }
 
     private void OnRoomBDecomposed(Creature creature, CreatureID decomposerID)
     {
         if (decomposerID != CreatureID.D) return;
-        if (creature.data != roomCondition.observingC) return;
 
         var (best, diff) = roomB.MostDecomposedAndSecond();
-        conditionB = CheckCondition(best, diff, roomCondition);
+        conditionB = CheckCondition(best, diff);
         DoorCloseAndOpen(conditionA || conditionB);
     }
 
-    private bool CheckCondition(CreatureData best, int diff, Condition condition)
+    // 방의 최다 분해 생물이 이 문의 observingC면 열림 (1·2위 차 howManyMore 이상)
+    private bool CheckCondition(CreatureData best, int diff)
     {
-        return best == condition.observingC && diff >= condition.howManyMore;
+        return best != null
+            && best == roomCondition.observingC
+            && diff >= roomCondition.howManyMore;
     }
 
     public void DoorCloseAndOpen(bool open)

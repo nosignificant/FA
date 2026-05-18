@@ -41,13 +41,19 @@ public class Think2 : MonoBehaviour
 
     [Header("EQS (Point Query)")]
     public float pointSpacing = 2f;
-    public int maxPoints = 80;
+    public int maxPoints = 35;
+
+    [Header("Wander")]
+    [Tooltip("점에 못 닿아도 이 시간마다 새 wander 점")]
+    public float wanderChangeInterval = 3f;
+    [Tooltip("점에 이만큼 가까워지면 새 wander 점")]
+    public float wanderReachThreshold = 5f;
 
     [Header("Debug")]
     public bool drawEqsPoints = true;
-    private float proxyMoveSpeed = 1f;
     public float migrationRange = 2f;
     protected Transform proxyTarget;
+
 
     private void SyncRoomFromPosition() { }
 
@@ -77,6 +83,9 @@ public class Think2 : MonoBehaviour
 
     private IEnumerator ThinkLoop()
     {
+        // 생물마다 시작 타이밍 분산 → 같은 프레임에 몰리는 부하 스파이크 방지
+        yield return new WaitForSeconds(UnityEngine.Random.Range(0f, waitInterval));
+
         while (true)
         {
             if (self != null) SyncRoomFromPosition();
@@ -178,7 +187,11 @@ public class Think2 : MonoBehaviour
     {
         fleeState = new FleeState(this);
         chaseState = new ChaseState(this);
-        wanderState = new WanderState(this);
+        wanderState = new WanderState(this)
+        {
+            maxStayTime = wanderChangeInterval,
+            changeTargetThreshold = wanderReachThreshold
+        };
     }
 
 
@@ -206,8 +219,17 @@ public class Think2 : MonoBehaviour
     }
     protected virtual bool ShouldAvoidRoom(Room room) => false;
 
+    // 이주 목표(문) 위치 — WanderState가 이걸 EQS 대신 추적함
+    [System.NonSerialized] public bool hasMigrateTarget = false;
+    [System.NonSerialized] public Vector3 migrateTargetPoint;
+    [Tooltip("이주 시 문 너머 반대쪽 방 안쪽으로 얼마나 들어간 지점을 목표로 할지")]
+    public float migrateThroughDepth = 5f;
+    [Tooltip("문에 이 거리 이내로 붙으면 반대쪽 방으로 전환 + 방 교체 (생물 몸집 고려해 너무 작게 두면 영영 도달 못함)")]
+    public float migrateDoorReachDist = 2f;
+
     public bool TryMigrateRoom()
     {
+        hasMigrateTarget = false;
         if (self.currentRoom == null) return false;
 
         Door bestDoor = null;
@@ -220,27 +242,46 @@ public class Think2 : MonoBehaviour
             if (other == null) continue;
             if (ShouldAvoidRoom(other)) continue;
 
-            float dist = Vector3.Distance(self.transform.position, d.transform.position);
+            Vector3 dp = (d.self != null && d.self.rootTransform != null)
+                ? d.self.rootTransform.position : d.transform.position;
+            float dist = Vector3.Distance(self.rootTransform.position, dp);
             if (dist < bestDist) { bestDist = dist; bestDoor = d; }
         }
 
         if (bestDoor == null)
         {
-            self.wantToMigrate = false;
+            // 지금 갈 문이 없을 뿐 — 의향은 MigrateLoop이 관리. 여기서 끄지 않음
+            hasMigrateTarget = false;
             return false;
         }
 
-        // 열린 문 방향으로 유도
-        MoveProxy(bestDoor.transform.position, 2f);
+        Room nextR = bestDoor.GetOtherRoom(self.currentRoom);
+        Vector3 doorPos = (bestDoor.self != null && bestDoor.self.rootTransform != null)
+            ? bestDoor.self.rootTransform.position
+            : bestDoor.transform.position;
 
-        // 문에 충분히 가까우면 방 교체
-        if (bestDist <= migrationRange)
+        hasMigrateTarget = true;
+
+        if (bestDist > migrateDoorReachDist)
         {
-            Room nextRoom = bestDoor.GetOtherRoom(self.currentRoom);
+            // 1단계: 아직 문에서 멀다 → 문 자체를 목표
+            migrateTargetPoint = doorPos;
+        }
+        else
+        {
+            // 2단계: 문 똑바로 관통 → 두 방 중심을 잇는 축 방향으로
+            Vector3 intoNext = (nextR.transform.position - self.currentRoom.transform.position);
+            intoNext.y = 0f;
+            intoNext = intoNext.sqrMagnitude > 0.001f ? intoNext.normalized : Vector3.zero;
+            migrateTargetPoint = doorPos + intoNext * migrateThroughDepth;
+
             self.currentRoom.UnregisterCreature(self);
-            nextRoom.RegisterCreature(self);
-            Debug.Log("move to room: " + nextRoom);
+            nextR.RegisterCreature(self);
+            self.transform.SetParent(nextR.transform, true);   // 새 방 자식으로
+            self.lastMigrateTime = Time.time;                   // 재이동 쿨타임 시작
+            Debug.Log("move to room: " + nextR);
             self.wantToMigrate = false;
+            hasMigrateTarget = false;
         }
 
         return true;
@@ -283,6 +324,12 @@ public class Think2 : MonoBehaviour
         float t = 1f - Mathf.Exp(-speed * waitInterval);
         proxyTarget.position = Vector3.Lerp(proxyTarget.position, p, t);
     }
+    private void OnDestroy()
+    {
+        // 독립 루트 오브젝트라 생물 죽어도 안 지워짐 → 직접 정리
+        if (proxyTarget != null) Destroy(proxyTarget.gameObject);
+    }
+
     private void EnsureProxyTarget()
     {
         if (proxyTarget != null) return;

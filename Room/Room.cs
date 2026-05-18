@@ -34,6 +34,8 @@ public class Room : MonoBehaviour
 
     [Header("initial spawn")]
     public CreatureDatabase creatureDB;
+    [Tooltip("이 방에 D 생물을 항상 최소 1마리 유지")]
+    public bool keepOneD = true;
     public SpawnEntry[] spawnEntries;
 
     [Serializable]
@@ -51,12 +53,12 @@ public class Room : MonoBehaviour
 
     private void InitWallSlots()
     {
-        // 배열 크기 보장
-        if (wallSlots == null || wallSlots.Length != 4)
+        // 배열 크기 보장 (N/S/E/W/Up/Down = DirectionExt.All)
+        Direction[] dirs = DirectionExt.All;
+        if (wallSlots == null || wallSlots.Length != dirs.Length)
         {
-            wallSlots = new WallSlot[4];
-            Direction[] dirs = DirectionExt.All;
-            for (int i = 0; i < 4; i++)
+            wallSlots = new WallSlot[dirs.Length];
+            for (int i = 0; i < dirs.Length; i++)
                 wallSlots[i].direction = dirs[i];
         }
 
@@ -127,6 +129,79 @@ public class Room : MonoBehaviour
         Player.Instance.roomChanged += ActiveRoom;
         // 이미 자식으로 배치된 생물들 자동 등록
         foreach (Creature c in GetComponentsInChildren<Creature>()) RegisterCreature(c);
+
+        EnsureOneD();
+        if (keepOneD) StartCoroutine(DKeepAliveLoop());
+    }
+
+    [Tooltip("D 존재 체크 주기(초)")]
+    public float dCheckInterval = 2f;
+
+    private System.Collections.IEnumerator DKeepAliveLoop()
+    {
+        var wait = new WaitForSeconds(dCheckInterval);
+        while (true)
+        {
+            KillStrayD();   // 방 밖으로 나간 D는 즉시 사망 처리
+            EnsureOneD();   // 없으면 새로 스폰
+            yield return wait;
+        }
+    }
+
+    // 방 collider(homeBound) 밖으로 벗어난 D를 사망 처리 + 리스트에서 제거
+    private void KillStrayD()
+    {
+        if (homeBound == null) return;
+        Bounds b = homeBound.bounds;
+
+        for (int i = creatureList.Count - 1; i >= 0; i--)
+        {
+            var c = creatureList[i];
+            if (c == null) { creatureList.RemoveAt(i); continue; }
+            if (c.data == null || c.data.creatureID != CreatureID.D) continue;
+
+            Vector3 p = c.rootTransform != null ? c.rootTransform.position : c.transform.position;
+            if (!b.Contains(p))
+            {
+                UnregisterCreature(c);
+                if (!c.IsDead) c.Die(CreatureID.D);
+            }
+        }
+    }
+
+    private bool HasD()
+    {
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c != null && !c.IsDead && c.data != null && c.data.creatureID == CreatureID.D)
+                return true;
+        }
+        return false;
+    }
+
+    public void EnsureOneD()
+    {
+        if (!keepOneD || creatureDB == null || homeBound == null) return;
+        if (HasD()) return;
+
+        CreatureData data = creatureDB.GetByID(CreatureID.D);
+        GameObject prefab = data?.prefab;
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[Room {roomID}] creatureDB에 D prefab이 없습니다.");
+            return;
+        }
+
+        Bounds b = homeBound.bounds;
+        Vector3 pos = new Vector3(
+            UnityEngine.Random.Range(b.min.x, b.max.x),
+            b.min.y + data.spawnYOffset,
+            UnityEngine.Random.Range(b.min.z, b.max.z));
+
+        GameObject obj = Instantiate(prefab, pos, Quaternion.identity, transform);
+        Creature dc = obj.GetComponent<Creature>();
+        if (dc != null) RegisterCreature(dc);
     }
 
     /// <summary>spawnEntries대로 생물을 즉시 Room 자식으로 스폰 (에디터/런타임 공용)</summary>

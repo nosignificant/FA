@@ -22,10 +22,6 @@ public class Wall : MonoBehaviour
         }
     }
 
-    private void Awake()
-    {
-        SetDoor(false);
-    }
 
     public void SetDoor(bool hasDoor)
     {

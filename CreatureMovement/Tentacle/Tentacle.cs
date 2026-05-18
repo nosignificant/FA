@@ -17,11 +17,11 @@ public class Tentacle : MonoBehaviour
     private float topToTargetDist;
 
     [Header("Bend curve settings")]
-public float minBendCurve = 5f;
+    public float minBendCurve = 5f;
     public float maxBendCurve = 10f;
     float bendCurve = 5f;
-        public float minBendStrength = 0.5f;
-        public float maxBendStrength = 0.5f;
+    public float minBendStrength = 0.5f;
+    public float maxBendStrength = 0.5f;
     public float bendStrength = 0.5f;
 
     public bool NeedCoroutine = false;
@@ -100,7 +100,6 @@ public float minBendCurve = 5f;
             current.position = Vector3.Lerp(current.position, finalPos, Time.deltaTime * 20f);
 
             current.LookAt(lower.transform);
-            top.LookAt(target.transform);
         }
     }
 

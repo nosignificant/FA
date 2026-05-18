@@ -29,7 +29,16 @@ class WanderState : ThinkState
             hasTarget = true;
             lastRefreshTime = Time.time;
         }
-        if (think.self.wantToMigrate) think.TryMigrateRoom();
+        if (think.self.wantToMigrate)
+        {
+            think.TryMigrateRoom();
+            // 이주 중이면 방 안 EQS 무시하고 문 위치를 목표로
+            if (think.hasMigrateTarget)
+            {
+                newTarget.point = think.migrateTargetPoint;
+                return;
+            }
+        }
 
         // 도달했거나 너무 오래 머물렀으면 새 점
         float d = Vector3.Distance(think.self.rootTransform.position, newTarget.point);

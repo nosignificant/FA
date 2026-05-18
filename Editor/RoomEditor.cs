@@ -45,6 +45,9 @@ public class RoomEditor : Editor
         }
 
         EditorGUILayout.Space();
+        DrawDecomposedCounts(room);
+
+        EditorGUILayout.Space();
         DrawDoorControls(room);
 
         EditorGUILayout.Space();
@@ -58,6 +61,31 @@ public class RoomEditor : Editor
         if (GUILayout.Button("Reset Walls (벽 전부 초기 상태로)"))
             ResetWalls(room);
         GUI.backgroundColor = Color.white;
+    }
+
+    void DrawDecomposedCounts(Room room)
+    {
+        EditorGUILayout.LabelField("Decomposed Counts", EditorStyles.boldLabel);
+
+        if (room.decomposedCounts == null || room.decomposedCounts.Count == 0)
+        {
+            EditorGUILayout.LabelField("  (없음 — 아직 분해 안 됨)");
+        }
+        else
+        {
+            foreach (var kv in room.decomposedCounts)
+            {
+                string n = kv.Key != null ? kv.Key.name : "null";
+                EditorGUILayout.LabelField($"  {n}", $"{kv.Value} 마리");
+            }
+
+            var (best, diff) = room.MostDecomposedAndSecond();
+            EditorGUILayout.LabelField("  최다(1·2위 차)",
+                best != null ? $"{best.name}  (+{diff})" : "-");
+        }
+
+        // 런타임 중 실시간 갱신
+        if (Application.isPlaying) Repaint();
     }
 
     void DrawDoorControls(Room room)
@@ -249,12 +277,23 @@ public class RoomEditor : Editor
             door.roomB = newRoom;
             if (!from.doors.Contains(door))    from.doors.Add(door);
             if (!newRoom.doors.Contains(door)) newRoom.doors.Add(door);
+
+            EditorUtility.SetDirty(door);
+            Debug.Log($"[RoomEditor] Door 연결됨: roomA={from.name}, roomB={newRoom.name}");
+        }
+        else
+        {
+            Debug.LogError($"[RoomEditor] {dir} 벽에서 Door를 못 찾음 (wallA={(wallA == null ? "null" : "ok")}, " +
+                           $"yesDoorMesh={(wallA != null && wallA.yesDoorMesh != null ? "ok" : "null")})");
         }
 
         Undo.CollapseUndoOperations(undoGroup);
 
         EditorUtility.SetDirty(from);
         EditorUtility.SetDirty(newRoom);
+        if (door != null) EditorUtility.SetDirty(door.gameObject);
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene());
 
         Selection.activeGameObject = newGO;
     }
