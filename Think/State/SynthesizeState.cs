@@ -9,7 +9,6 @@ class SynthesizeState : ThinkState
     private TentacleCreature tCreature;
     private TentacleGrab2 tentacleGrab;
     private float nextSynthTime = 0f;
-    private float singleGrabSince = -1f;
 
     public SynthesizeState(TentacleThink think) : base(think)
     {
@@ -48,21 +47,8 @@ class SynthesizeState : ThinkState
         CreatureID selfID = tCreature.data.creatureID;
         if (selfID == CreatureID.A) return grabbedCount >= 1;
         if (selfID == CreatureID.L) return grabbedCount >= 2;
-
-        if (selfID == CreatureID.AA)
-        {
-            if (grabbedCount >= 2) { singleGrabSince = -1f; return true; }
-
-            // 1마리만 잡은 채 타임아웃 → 그거 소비해서 A 합성
-            if (grabbedCount == 1)
-            {
-                if (singleGrabSince < 0f) singleGrabSince = Time.time;
-                float timeout = (tCreature as AACreature)?.aaSingleGrabTimeout ?? 5f;
-                return Time.time - singleGrabSince >= timeout;
-            }
-            singleGrabSince = -1f;
-            return false;
-        }
+        // AA 진입 판단(2마리 OR 1마리+타임아웃)은 AAThink가 이미 함 → 1마리 이상이면 진행
+        if (selfID == CreatureID.AA) return grabbedCount >= 1;
         return false;
     }
 
@@ -86,7 +72,8 @@ class SynthesizeState : ThinkState
         if (first == null) { tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
 
         CreatureID selfID = tCreature.data.creatureID;
-        if ((selfID == CreatureID.L || selfID == CreatureID.AA) && second == null)
+        // L은 2마리 필수. AA는 1마리(타임아웃)도 진행 → ResolveAA가 h/s→A 처리
+        if (selfID == CreatureID.L && second == null)
         { tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
 
         CreatureID idA = first.data.creatureID;
