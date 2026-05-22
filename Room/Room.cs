@@ -15,6 +15,8 @@ public class Room : MonoBehaviour
 
     public string roomID;
     public bool isActive = false;
+    [Tooltip("튜토리얼 방 — 문 열려도 자동 isActive 안 됨 (플레이어가 직접 들어와야)")]
+    public bool isTutorial = false;
 
     [Header("room bounds")]
     public Collider homeBound;

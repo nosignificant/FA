@@ -24,6 +24,7 @@ public class Tutorial : MonoBehaviour
 
     private string lastRoom = "";
     Coroutine co;
+    private readonly System.Collections.Generic.HashSet<string> doneRooms = new();
 
 
     void Start()
@@ -51,7 +52,12 @@ public class Tutorial : MonoBehaviour
         lastRoom = room.roomID;
         if (co != null) StopCoroutine(co);
 
-        Debug.Log($"[Tutorial] 방 진입 roomID='{room.roomID}' / tmp={(tmp==null?"NULL":"ok")} / slidePanel={(slidePanel==null?"NULL":"ok")}");
+        // 이미 대사 끝낸 방이면 다시 재생 안 함
+        if (doneRooms.Contains(room.roomID))
+        {
+            SetTutorialVisible(false);
+            return;
+        }
 
         switch (room.roomID)
         {
@@ -84,7 +90,6 @@ public class Tutorial : MonoBehaviour
         }
     }
 
-    // 이미 열린 문은 다시 호출 안 함 (매번 호출하면 애니메이션 재시작됨)
     private void OpenDoor(int idx)
     {
         if (doors == null || idx < 0 || idx >= doors.Length) return;
@@ -106,39 +111,60 @@ public class Tutorial : MonoBehaviour
 
         tmp.text = "탭 키를 눌러 생물을 관찰하세요.";
         while (!Player.Instance.isTracking) yield return null;
+        if (LockedOn(CreatureID.D))
+        {
+            tmp.text = "이 생물은 주변을 돌아다니고 있습니다.";
+            yield return new WaitForSeconds(3f);
+            tmp.text = "생물은 주변에 어떤 생물이 있느냐에 따라 다양한 행동을 합니다.";
+        }
 
-        tmp.text = "이 생물은 주변을 돌아다니고 있습니다.";
-        OpenDoor(1);
+        if (LockedOn(CreatureID.Door))
+        {
+            tmp.text = "문을 관찰하면, 문을 열 수 있는 조건을 알 수 있습니다.";
+            yield return new WaitForSeconds(3f);
+        }
+
+        tmp.text = "관찰 중 탭을 눌러 관찰 중인 생물을 전환할 수 있습니다.";
+
         yield return new WaitForSeconds(3f);
-        tmp.text = "생물은 주변에 어떤 생물이 있느냐에 따라 다양한 행동을 합니다.";
+
+        OpenDoor(1);
+
         yield return new WaitForSeconds(3f);
         tmp.text = "ESC로 관찰을 해제할 수 있습니다.";
         yield return new WaitForSeconds(3f);
+        tmp.text = "다음 방으로 이동하십시오.";
 
+        doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
-
     }
 
     IEnumerator Tut2Routine(Room room)
     {
         SetTutorialVisible(true);
-
-        tmp.text = "탭을 한 번 더 눌러 생물 관찰을 전환하세요.";
+        doors[1].DoorCloseAndOpen(false);
+        room.isActive = true;
+        tmp.text = "어떤 생물은 다른 생물을 생산하고 합성할 수 있습니다.";
         while (!LockedOn(CreatureID.L)) yield return null;
 
-        tmp.text = "어떤 생물은 다른 생물을 생산하고 합성할 수 있습니다.";
         yield return new WaitForSeconds(3f);
-        tmp.text = "L은 H를 2마리 합쳐 HH를 만들 수 있습니다.";
+        tmp.text = "L은 S를 2마리 합쳐 SS를 만들 수 있습니다.";
         yield return new WaitForSeconds(3f);
 
-        // HH 생기거나 분해 진행되면 문 열기
-        while (!room.creatureList.Exists(c => c != null && c.data != null && c.data.creatureID == CreatureID.HH)
+        while (!room.creatureList.Exists(c => c != null && c.data != null && c.data.creatureID == CreatureID.SS)
                && room.decomposedCounts.Values.Sum() <= 1)
             yield return null;
-        OpenDoor(2);
+        tmp.text = "L이 S를 합성해 SS를 만들어 냈습니다. 탭 키로 관찰 중인 생물을 전환해 방에서 SS를 찾으십시오.";
+
+        while (!LockedOn(CreatureID.SS)) yield return null;
+        tmp.text = "SS는 특정 생물을 분해할 수 있습니다.";
+        yield return new WaitForSeconds(3f);
 
         tmp.text = "생물마다 각자의 기능이 있고, 그를 통해 다양한 생물을 생산할 수 있습니다.";
+
+        OpenDoor(2);
         yield return new WaitForSeconds(3f);
+        doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
     IEnumerator Tut3Routine(Room room)
@@ -154,6 +180,7 @@ public class Tutorial : MonoBehaviour
 
         tmp.text = "어떤 생물이 어떤 생물을 좋아하고 싫어하는지 알아내십시오.";
         yield return new WaitForSeconds(3f);
+        doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
     IEnumerator Tut4Routine(Room room)
@@ -172,6 +199,7 @@ public class Tutorial : MonoBehaviour
         tmp.text = "그리고 다양한 생물을 생산하고 분해해 문의 잠금을 해제하고 새로운 곳으로 나아가십시오.";
 
         yield return new WaitForSeconds(3f);
+        doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
 

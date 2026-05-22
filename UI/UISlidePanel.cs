@@ -10,7 +10,7 @@ public class UISlidePanel : MonoBehaviour
     [Tooltip("화면에 보일 때 x (보통 0)")]
     public float shownX = 0f;
     [Tooltip("숨었을 때 x — 화면 오른쪽 밖. 비워두면 패널 너비로 자동")]
-    public float hiddenX = 0f;
+    public float hiddenX = 1000f;
     public bool autoHiddenX = true;
 
     [Header("Anim")]

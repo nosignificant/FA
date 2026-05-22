@@ -82,6 +82,7 @@ class ChaseState : ThinkState
             var t = detected[i];
             if (!think.IsValidTarget(t)) continue;
             if (t.intent == CreatureIntent.Grabbed) continue;   // 이미 잡힌 건 안 쫓음
+            if (t.currentRoom != self.currentRoom) continue;    // 다른 방 생물은 안 쫓음 (방 밖으로 새는 것 방지)
             if (!self.HasAction(t.data.creatureID, InteractionAction.Chase)) continue;
 
             int priority = self.GetActionPriority(t.data.creatureID, InteractionAction.Chase);

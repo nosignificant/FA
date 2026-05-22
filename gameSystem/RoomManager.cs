@@ -45,7 +45,8 @@ public class RoomManager : MonoBehaviour
         {
             if (!d.isOpen) continue;
             Room other = d.GetOtherRoom(playerRoom);
-            if (other != null) other.isActive = true;
+            // 튜토리얼 방은 문 열려도 자동 활성화 안 함
+            if (other != null && !other.isTutorial) other.isActive = true;
         }
     }
 }

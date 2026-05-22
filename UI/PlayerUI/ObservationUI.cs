@@ -43,7 +43,7 @@ public class ObservationUI : MonoBehaviour
     {
         if (morph == null || shown.Count == 0) return;
         var d = shown[selected];
-        if (player == null || !player.learnedForms.Contains(d)) return;   // 학습한 것만
+        // TODO: 나중에 학습 조건 추가 — if (!player.learnedForms.Contains(d)) return;
         morph.Morph(d.creatureID);
     }
 

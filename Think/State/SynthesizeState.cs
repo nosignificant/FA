@@ -85,14 +85,22 @@ class SynthesizeState : ThinkState
 
         if (result.IsValid)
         {
-            for (int n = 0; n < result.count; n++)
+            CreatureDatabase db = tCreature.currentRoom != null ? tCreature.currentRoom.creatureDB : null;
+            GameObject prefab = db != null ? db.GetPrefab(result.resultID) : null;
+
+            if (prefab == null)
+                Debug.LogWarning($"[Synthesizer] {result.resultID} prefab을 creatureDB에서 못 찾음");
+            else
             {
-                Vector3 spawnPos = tCreature.transform.position + new Vector3(
-                    Random.Range(-0.5f, 0.5f), tCreature.transform.forward.y, Random.Range(-0.5f, 0.5f));
-                GameObject obj = Object.Instantiate(result.prefab, spawnPos, Quaternion.identity);
-                Creature newCreature = obj.GetComponent<Creature>();
-                if (newCreature != null)
-                    tCreature.currentRoom?.RegisterCreature(newCreature);
+                for (int n = 0; n < result.count; n++)
+                {
+                    Vector3 spawnPos = tCreature.transform.position + new Vector3(
+                        Random.Range(-0.5f, 0.5f), tCreature.transform.forward.y, Random.Range(-0.5f, 0.5f));
+                    GameObject obj = Object.Instantiate(prefab, spawnPos, Quaternion.identity);
+                    Creature newCreature = obj.GetComponent<Creature>();
+                    if (newCreature != null)
+                        tCreature.currentRoom?.RegisterCreature(newCreature);
+                }
             }
         }
 
