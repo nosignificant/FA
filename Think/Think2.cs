@@ -105,8 +105,21 @@ public class Think2 : MonoBehaviour
         isLocked = setLock;
     }
 
+    // 플레이어 조종 모드 — AI 판단 중지, proxyTarget을 외부(플레이어)가 제어
+    [System.NonSerialized] public bool manualControl = false;
+    public Transform ProxyTarget => proxyTarget;
+
+    /// <summary>수동 조종 on/off. 켜면 AI 정지하고 proxyTarget을 직접 움직이면 됨</summary>
+    public void SetManualControl(bool on)
+    {
+        manualControl = on;
+        if (on && targetControl != null && proxyTarget != null)
+            targetControl.SetMovementTarget(proxyTarget);   // 이동 스택은 계속 proxy 따라감
+    }
+
     private void LetsThink()
     {
+        if (manualControl) return;          // 수동 조종 중엔 AI 안 돎
         if (self.intent == CreatureIntent.Grabbed) return;
         detected = scanner.Results;
         var newIntent = DetermineIntent();

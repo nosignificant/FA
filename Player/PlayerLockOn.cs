@@ -90,6 +90,14 @@ public class PlayerLockOn : MonoBehaviour
         LookAtTarget();
     }
 
+    /// <summary>특정 생물로 강제 락온 (조종 중 고정용)</summary>
+    public void ForceLock(Creature target)
+    {
+        if (target == null) return;
+        SetTarget(target);
+        if (Player.Instance != null) Player.Instance.isTracking = true;
+    }
+
     // 거리 기준으로 정렬된 후보 리스트 빌드
     private void BuildCandidateList(Room room)
     {
