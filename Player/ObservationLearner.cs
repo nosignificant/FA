@@ -1,20 +1,18 @@
-using System.Collections.Generic;
 using UnityEngine;
 using CreatureTypes;
 
-// 락온한 생물이 "대표 행동(signatureIntent)"에 진입하는 걸 N번 목격하면
-// 그 폼을 learnedForms에 추가 (변신 가능해짐).
+// 락온한 생물 "개체"가 대표 행동(signatureIntent)에 진입하는 걸 N번 목격하면
+// 그 개체를 possessable로 표시 (그 인스턴스만 빙의 가능해짐).
 public class ObservationLearner : MonoBehaviour
 {
     [Header("References")]
     public Player player;
     public PlayerLockOn lockOn;
 
-    // CreatureID별 목격 누적
-    private readonly Dictionary<CreatureID, int> progress = new();
-
     private Creature observed;
     private CreatureIntent lastIntent;
+
+    public System.Action<Creature> OnCreatureObserved;
 
     private void Awake()
     {
@@ -36,38 +34,28 @@ public class ObservationLearner : MonoBehaviour
 
         if (observed == null || observed.data == null) return;
 
-        CreatureData data = observed.data;
         CreatureIntent now = observed.intent;
 
         // 대표 행동으로 "진입"하는 순간만 1회 카운트 (연속 유지는 중복 X)
-        if (now != lastIntent && now == data.signatureIntent)
-            CountObservation(data);
+        if (now != lastIntent && now == observed.data.signatureIntent)
+            CountObservation(observed);
 
         lastIntent = now;
     }
 
-    private void CountObservation(CreatureData data)
+    private void CountObservation(Creature c)
     {
-        if (player == null) return;
-        if (player.learnedForms.Contains(data)) return;   // 이미 학습함
+        if (c.possessable) return;   // 이미 관찰 완료
 
-        CreatureID id = data.creatureID;
-        progress.TryGetValue(id, out int cur);
-        cur++;
-        progress[id] = cur;
+        c.observeCount++;
+        int need = Mathf.Max(1, c.data.observationsToLearn);
+        Debug.Log($"[Observe] {c.data.creatureName} 관찰 {c.observeCount}/{need}");
 
-        Debug.Log($"[Learn] {data.creatureName} 관찰 {cur}/{data.observationsToLearn}");
-
-        if (cur >= data.observationsToLearn)
+        if (c.observeCount >= need)
         {
-            player.learnedForms.Add(data);
-            progress.Remove(id);
-            Debug.Log($"[Learn] {data.creatureName} 폼 학습 완료!");
-            OnFormLearned?.Invoke(data);
+            c.possessable = true;
+            Debug.Log($"[Observe] {c.data.creatureName} 빙의 가능!");
+            OnCreatureObserved?.Invoke(c);
         }
     }
-
-    public System.Action<CreatureData> OnFormLearned;
-
-    public int GetProgress(CreatureID id) => progress.TryGetValue(id, out int v) ? v : 0;
 }

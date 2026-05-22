@@ -15,6 +15,11 @@ public class Tutorial : MonoBehaviour
 
     public Image ProductionImage;
     public CanvasGroup tutorialCanvasGroup;
+    public ObservationUI observationUI;
+
+    [Header("대사 간격")]
+    [Tooltip("튜토리얼 대사 전환 사이 대기 시간(초)")]
+    public float messageInterval = 3f;
 
     [Header("ProductionImage 페이드 설정")]
     public float fadeInTime = 1.5f;
@@ -33,6 +38,7 @@ public class Tutorial : MonoBehaviour
         if (slidePanel == null) slidePanel = tutorialUI.GetComponent<UISlidePanel>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.GetComponent<CanvasGroup>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.AddComponent<CanvasGroup>();
+        if (observationUI == null) observationUI = FindObjectOfType<ObservationUI>();
     }
 
     private void SetTutorialVisible(bool visible)
@@ -114,26 +120,27 @@ public class Tutorial : MonoBehaviour
         if (LockedOn(CreatureID.D))
         {
             tmp.text = "이 생물은 주변을 돌아다니고 있습니다.";
-            yield return new WaitForSeconds(3f);
+            yield return new WaitForSeconds(messageInterval);
             tmp.text = "생물은 주변에 어떤 생물이 있느냐에 따라 다양한 행동을 합니다.";
         }
 
         if (LockedOn(CreatureID.Door))
         {
             tmp.text = "문을 관찰하면, 문을 열 수 있는 조건을 알 수 있습니다.";
-            yield return new WaitForSeconds(3f);
+            yield return new WaitForSeconds(messageInterval);
         }
 
         tmp.text = "관찰 중 탭을 눌러 관찰 중인 생물을 전환할 수 있습니다.";
 
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(messageInterval);
+
+
+        tmp.text = "ESC로 관찰을 해제할 수 있습니다.";
+        yield return new WaitForSeconds(messageInterval);
+        tmp.text = "다음 방으로 이동하십시오.";
+        yield return new WaitForSeconds(messageInterval);
 
         OpenDoor(1);
-
-        yield return new WaitForSeconds(3f);
-        tmp.text = "ESC로 관찰을 해제할 수 있습니다.";
-        yield return new WaitForSeconds(3f);
-        tmp.text = "다음 방으로 이동하십시오.";
 
         doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
@@ -143,63 +150,86 @@ public class Tutorial : MonoBehaviour
     {
         SetTutorialVisible(true);
         doors[1].DoorCloseAndOpen(false);
-        room.isActive = true;
         tmp.text = "어떤 생물은 다른 생물을 생산하고 합성할 수 있습니다.";
         while (!LockedOn(CreatureID.L)) yield return null;
 
-        yield return new WaitForSeconds(3f);
         tmp.text = "L은 S를 2마리 합쳐 SS를 만들 수 있습니다.";
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(messageInterval);
+        tmp.text = "C를 눌러 방 안에 어떤 생물이 있는지 확인하십시오.";
+        while (observationUI == null || !observationUI.IsOpen) yield return null;
+        tmp.text = "스페이스바를 눌러 커서를 이동시키십시오. 그리고 E를 눌러 SS를 락온하십시오.";
+        yield return new WaitForSeconds(messageInterval);
 
         while (!room.creatureList.Exists(c => c != null && c.data != null && c.data.creatureID == CreatureID.SS)
                && room.decomposedCounts.Values.Sum() <= 1)
             yield return null;
-        tmp.text = "L이 S를 합성해 SS를 만들어 냈습니다. 탭 키로 관찰 중인 생물을 전환해 방에서 SS를 찾으십시오.";
 
         while (!LockedOn(CreatureID.SS)) yield return null;
         tmp.text = "SS는 특정 생물을 분해할 수 있습니다.";
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(messageInterval);
 
         tmp.text = "생물마다 각자의 기능이 있고, 그를 통해 다양한 생물을 생산할 수 있습니다.";
+        yield return new WaitForSeconds(messageInterval);
+
+        tmp.text = "다음 방으로 이동하십시오.";
+        yield return new WaitForSeconds(messageInterval);
 
         OpenDoor(2);
-        yield return new WaitForSeconds(3f);
         doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
     IEnumerator Tut3Routine(Room room)
     {
         SetTutorialVisible(true);
+        doors[2].DoorCloseAndOpen(false);
 
         tmp.text = "L은 같은 방에 AA가 있는 것을 싫어합니다.";
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(messageInterval);
         tmp.text = "AA가 같은 방에 있으면, L은 다른 방으로 가려고 합니다.";
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(messageInterval);
 
-        OpenDoor(3);
 
         tmp.text = "어떤 생물이 어떤 생물을 좋아하고 싫어하는지 알아내십시오.";
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(messageInterval);
+
+        tmp.text = "다음 방으로 이동하십시오.";
+        OpenDoor(3);
+
+        yield return new WaitForSeconds(messageInterval);
+
         doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
     IEnumerator Tut4Routine(Room room)
     {
         SetTutorialVisible(true);
+        doors[3].DoorCloseAndOpen(false);
 
-        tmp.text = "D는 방 안의 생물 수가 과도해지면 생물을 분해합니다.";
-        yield return new WaitForSeconds(3f);
-        tmp.text = "D를 관찰하십시오.";
+        tmp.text = "D는 방 안의 생물 수가 과도하게 많아지면 생물을 분해합니다.";
+        yield return new WaitForSeconds(messageInterval);
+        tmp.text = "D가 분해한 생물 수는 오른쪽 위에 표시됩니다.";
+        int decomposedBefore = room.decomposedCounts.Values.Sum();
+        while (room.decomposedCounts.Values.Sum() <= decomposedBefore) yield return null;
 
-        while (!doors[4].isOpen) yield return null;
+        tmp.text = "이제 L이 생물을 합성하는 것을 관찰하십시오.";
+        while (!room.creatureList.Exists(c =>
+                   c != null && c.data != null &&
+                   c.data.creatureID == CreatureID.L && c.possessable))
+            yield return null;
 
-        tmp.text = "생물이 다른 생물과 상호작용하는 방식을 관찰하십시오.";
-        yield return new WaitForSeconds(3f);
+        tmp.text = "L의 핵심 행동을 관찰해 L을 조종할 수 있게 되었습니다. F를 눌러 L에 빙의하십시오.";
+        yield return new WaitForSeconds(messageInterval);
+        tmp.text = "F를 눌러 L을 조종하십시오.";
+        yield return new WaitForSeconds(messageInterval);
+        tmp.text = "조종 중 F를 다시 눌러 조종을 해제하십시오.";
 
-        tmp.text = "그리고 다양한 생물을 생산하고 분해해 문의 잠금을 해제하고 새로운 곳으로 나아가십시오.";
+        tmp.text = "다양한 생물을 관찰하고 조작해서 많은 곳의 문을 열고, 탐헙하십시오.";
 
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(messageInterval);
+        OpenDoor(4);
+
         doneRooms.Add(room.roomID);
+
         SetTutorialVisible(false);
     }
 

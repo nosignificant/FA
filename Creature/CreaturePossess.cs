@@ -63,6 +63,13 @@ public class CreaturePossess : MonoBehaviour
         Creature target = pl != null ? pl.targetCreature : null;
         if (target == null) { Debug.Log("[Possess] 락온된 생물 없음"); return; }
 
+        // 관찰을 끝낸 개체만 빙의 가능
+        if (!target.possessable)
+        {
+            Debug.Log("[Possess] 아직 관찰이 끝나지 않은 개체 — 빙의 불가");
+            return;
+        }
+
         Think2 brain = target.GetComponentInChildren<Think2>();
         if (brain == null) brain = target.GetComponentInParent<Think2>();
         if (brain == null) { Debug.Log("[Possess] 대상에 Think2 없음"); return; }

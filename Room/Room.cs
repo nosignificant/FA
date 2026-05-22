@@ -128,7 +128,6 @@ public class Room : MonoBehaviour
     {
         roomID = gameObject.name;
         if (RoomManager.Instance != null) RoomManager.Instance.Register(this);
-        Player.Instance.roomChanged += ActiveRoom;
         // 이미 자식으로 배치된 생물들 자동 등록
         foreach (Creature c in GetComponentsInChildren<Creature>()) RegisterCreature(c);
 
@@ -269,11 +268,6 @@ public class Room : MonoBehaviour
     {
         var p = other.GetComponentInParent<Player>();
         if (p != null) Player.Instance.SetRoom(this);
-    }
-
-    public void ActiveRoom(Room room)
-    {
-        if (room.roomID == this.roomID) isActive = true;
     }
 
     // ── creature register ────────────────────────────────────────────────

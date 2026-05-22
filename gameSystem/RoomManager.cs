@@ -17,7 +17,12 @@ public class RoomManager : MonoBehaviour
     private void Start()
     {
         if (Player.Instance != null)
+        {
             Player.Instance.roomChanged += UpdateActiveRooms;
+            // Player.Start가 먼저 돌아 초기 roomChanged를 놓쳤을 경우 대비해 즉시 동기화
+            if (Player.Instance.currentRoom != null)
+                UpdateActiveRooms(Player.Instance.currentRoom);
+        }
     }
 
     public void Register(Room room)

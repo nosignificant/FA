@@ -72,6 +72,10 @@ public class Creature : MonoBehaviour
     public int currentHP;
     public bool IsDead => currentHP <= 0;
 
+    // 인스턴스별 관찰 상태 — 대표 행동을 N번 목격하면 possessable=true (빙의 가능)
+    [System.NonSerialized] public int observeCount;
+    [System.NonSerialized] public bool possessable;
+
     public event Action<Creature, CreatureID> Died;
 
     protected virtual void Awake()

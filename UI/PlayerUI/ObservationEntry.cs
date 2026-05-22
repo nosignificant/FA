@@ -16,8 +16,8 @@ public class ObservationEntry : MonoBehaviour
         if (label != null)
         {
             label.text = learned
-                ? $"{creatureName}  [{signature}]  <color=#6fdc6f>✓</color>"
-                : $"{creatureName}  [{signature}]  {cur}/{req}";
+                ? $"{creatureName}  [{signature}]  조종 가능"
+                : $"{creatureName}  [{signature}]  조종 불가  {cur}/{req}";
         }
         if (border != null) border.color = selected ? selectedColor : normalColor;
     }
