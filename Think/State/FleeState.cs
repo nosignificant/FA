@@ -55,13 +55,12 @@ class FleeState : ThinkState
         Creature ft = newTarget.creature;
         if (ft == null) return;
         fleeTarget = ft;
-        newTarget.point = ft.rootTransform.position;
 
-        float d = Vector3.Distance(think.self.rootTransform.position, newTarget.point);
-
-        //나랑 타겟 사이 거리가 더 짧으면 도망가야함
+        float d = Vector3.Distance(think.self.rootTransform.position, ft.rootTransform.position);
         needToFlee = d < runThreshold;
-        if (needToFlee) newTarget.point = GetNewPoint(points);
+
+        // Flee 상태면 항상 위협 반대 방향 점으로 (위협 위치로 가지 않음)
+        newTarget.point = GetNewPoint(points);
     }
 
 

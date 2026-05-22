@@ -137,6 +137,9 @@ public class Think2 : MonoBehaviour
 
     protected virtual CreatureIntent DetermineIntent()
     {
+        // 회피 대상(avoidCreatureIDs)이 같은 방에 있으면 하던 일 멈추고 이주(Wander→GetMigrateChance=1)
+        if (self != null && self.AvoidedKindInRoom()) return CreatureIntent.Wander;
+
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
         else if (DoesNeedToChase()) return CreatureIntent.Chase;
         return CreatureIntent.Wander;

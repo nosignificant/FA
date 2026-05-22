@@ -34,8 +34,23 @@ public class ObservationUI : MonoBehaviour
     private readonly StringBuilder sb = new();
     private bool built = false;
 
+    public PlayerMorph morph;
+
     public static ObservationUI Instance;
     public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
+
+    private void MorphSelected()
+    {
+        if (morph == null || shown.Count == 0) return;
+        var d = shown[selected];
+        if (player == null || !player.learnedForms.Contains(d)) return;   // 학습한 것만
+        morph.Morph(d.creatureID);
+    }
+
+    private void RevertMorph()
+    {
+        if (morph != null) morph.Revert();
+    }
 
     // ESC를 이 프레임에 ObservationUI가 소비했는지 (실행 순서 무관)
     private static int escConsumedFrame = -1;
@@ -46,6 +61,7 @@ public class ObservationUI : MonoBehaviour
         Instance = this;
         if (player == null) player = Player.Instance;
         if (learner == null && player != null) learner = player.GetComponent<ObservationLearner>();
+        if (morph == null && player != null) morph = player.GetComponent<PlayerMorph>();
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
@@ -76,6 +92,10 @@ public class ObservationUI : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))   Move(-1);
         if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) Move(1);
+
+        // E: 선택한 학습 폼으로 변신 / Q: 인간 복귀
+        if (Input.GetKeyDown(KeyCode.E)) MorphSelected();
+        if (Input.GetKeyDown(KeyCode.Q)) RevertMorph();
 
         if (Time.time >= nextRefresh)
         {

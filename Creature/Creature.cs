@@ -52,7 +52,7 @@ public class Creature : MonoBehaviour
     [Tooltip("이 종들 중 하나라도 같은 방에 있으면 다른 방으로 가고 싶어함")]
     public CreatureID[] avoidCreatureIDs;
 
-    protected bool AvoidedKindInRoom()
+    public bool AvoidedKindInRoom()
     {
         if (avoidCreatureIDs == null || avoidCreatureIDs.Length == 0) return false;
         if (currentRoom == null || currentRoom.creatureList == null) return false;

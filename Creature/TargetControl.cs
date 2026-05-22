@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using System.Collections.Generic;
+using CreatureTypes;
 
 
 [DisallowMultipleComponent]
@@ -15,14 +16,43 @@ public sealed class TargetControl : MonoBehaviour
     public bool isEngineLeg = false;
     public bool isQuadLeg = false;
     public bool isFollowingRB = false;
+    [Tooltip("flee 또는 migrate 중일 때 moveSpeed에 더해줄 가속량")]
+    public float urgentSpeedBonus = 5f;
     public event Action<Transform> TargetChanged;
 
     private Vector3 smoothedDir;
+
+    private Creature self;
+    private EngineLegs engineLegs;
+    private QuadLegs quadLegs;
+    private float engineBaseSpeed, quadBaseSpeed;
+
+    void Awake()
+    {
+        self = GetComponentInParent<Creature>();
+        if (isEngineLeg)
+        {
+            engineLegs = GetComponentInChildren<EngineLegs>();
+            if (engineLegs != null) engineBaseSpeed = engineLegs.moveSpeed;
+        }
+        if (isQuadLeg)
+        {
+            quadLegs = GetComponentInChildren<QuadLegs>();
+            if (quadLegs != null) quadBaseSpeed = quadLegs.moveSpeed;
+        }
+    }
 
     void Update()
     {
         if (movementTarget == null) return;
 
+        // 도망/이주 중이면 다리 속도 +bonus
+        bool urgent = self != null &&
+            (self.intent == CreatureIntent.Flee || self.wantToMigrate);
+        float add = urgent ? urgentSpeedBonus : 0f;
+
+        if (engineLegs != null) engineLegs.moveSpeed = engineBaseSpeed + add;
+        if (quadLegs != null)   quadLegs.moveSpeed   = quadBaseSpeed + add;
     }
 
     public void SetMovementTarget(Transform newTarget)
