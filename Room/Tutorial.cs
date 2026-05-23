@@ -15,7 +15,6 @@ public class Tutorial : MonoBehaviour
 
     public Image ProductionImage;
     public CanvasGroup tutorialCanvasGroup;
-    public ObservationUI observationUI;
 
     [Header("대사 간격")]
     [Tooltip("튜토리얼 대사 전환 사이 대기 시간(초)")]
@@ -38,7 +37,6 @@ public class Tutorial : MonoBehaviour
         if (slidePanel == null) slidePanel = tutorialUI.GetComponent<UISlidePanel>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.GetComponent<CanvasGroup>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.AddComponent<CanvasGroup>();
-        if (observationUI == null) observationUI = FindObjectOfType<ObservationUI>();
     }
 
     private void SetTutorialVisible(bool visible)
@@ -156,7 +154,7 @@ public class Tutorial : MonoBehaviour
         tmp.text = "L은 S를 2마리 합쳐 SS를 만들 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);
         tmp.text = "C를 눌러 방 안에 어떤 생물이 있는지 확인하십시오.";
-        while (observationUI == null || !observationUI.IsOpen) yield return null;
+        while (ObservationUI.Instance == null || !ObservationUI.Instance.IsOpen) yield return null;
         tmp.text = "스페이스바를 눌러 커서를 이동시키십시오. 그리고 E를 눌러 SS를 락온하십시오.";
         yield return new WaitForSeconds(messageInterval);
 

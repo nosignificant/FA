@@ -8,6 +8,8 @@ using CreatureTypes;
 // 플레이어가 있는 방의 생물 개체를 나열하고 각각의 관찰 진행도/빙의 가능 여부를 보여줌.
 public class ObservationUI : MonoBehaviour
 {
+    public static ObservationUI Instance;
+
     [Header("Refs")]
     public ObservationLearner learner;
     public Player player;
@@ -42,6 +44,7 @@ public class ObservationUI : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
         if (player == null) player = Player.Instance;
         if (learner == null && player != null) learner = player.GetComponent<ObservationLearner>();
 
