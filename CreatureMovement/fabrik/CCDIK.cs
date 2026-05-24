@@ -24,8 +24,12 @@ public class CCDIK : MonoBehaviour
     }
     void Update()
     {
+        if (tip == null || target == null || joints == null) return;
         foreach (CCDIKjoint joint in joints)
+        {
+            if (joint == null) continue;
             joint.evalute(tip, target);
+        }
     }
 
     public void SetTarget(Transform newTarget)

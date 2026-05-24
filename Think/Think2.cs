@@ -51,7 +51,6 @@ public class Think2 : MonoBehaviour
 
     [Header("Debug")]
     public bool drawEqsPoints = true;
-    public float migrationRange = 2f;
     protected Transform proxyTarget;
 
 

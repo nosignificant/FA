@@ -18,7 +18,7 @@ public class ObservationUI : MonoBehaviour
     public GameObject panelRoot;
 
     [Header("List (개체당 1개)")]
-    public ObservationEntry entryPrefab;
+    public Entry entryPrefab;
     public Transform listParent;
 
     [Header("Detail")]
@@ -31,7 +31,7 @@ public class ObservationUI : MonoBehaviour
     public float refreshInterval = 0.25f;
 
     private readonly List<Creature> shown = new();
-    private readonly List<ObservationEntry> pool = new();
+    private readonly List<Entry> pool = new();
     private int selected = 0;
     private float nextRefresh;
     private Interaction interaction;
@@ -131,7 +131,7 @@ public class ObservationUI : MonoBehaviour
     }
 
     // 필요한 만큼만 엔트리 풀에서 꺼내 쓰고 나머지는 비활성화
-    private ObservationEntry GetEntry(int index)
+    private Entry GetEntry(int index)
     {
         while (pool.Count <= index)
         {
