@@ -5,13 +5,6 @@ using CreatureTypes;
 
 public class Door : MonoBehaviour
 {
-    [Serializable]
-    public struct Condition
-    {
-        public CreatureData observingC;
-        public int howManyMore;
-    }
-
     [Header("References")]
     public Room roomA;
     public Room roomB;
@@ -23,11 +16,13 @@ public class Door : MonoBehaviour
     public Transform upperDoor;
     public Transform lowerDoor;
 
+    [Header("Condition")]
+    public CreatureData watchingCreature;
+
     [Header("State")]
     public bool isOpen = false;
     private bool conditionA = false;
     private bool conditionB = false;
-    public Condition roomCondition;
     private float originalUpperY;
     private float originalLowerY;
 
@@ -45,48 +40,22 @@ public class Door : MonoBehaviour
         if (self == null) self = GetComponent<Creature>();
     }
 
-    // roomB가 비어있으면 문 위치 기준으로 반대쪽 방 자동 탐색
-    private void ResolveRoomB()
-    {
-        if (roomB != null) return;
-
-        Vector3 p = transform.position;
-        Room best = null;
-        float bestDist = float.MaxValue;
-
-        foreach (var r in FindObjectsOfType<Room>())
-        {
-            if (r == null || r == roomA) continue;
-            Collider col = r.homeBound != null ? r.homeBound : r.GetComponent<Collider>();
-            if (col == null) continue;
-
-            // 문 위치를 포함하거나 가장 가까운 방
-            float d = (col.ClosestPoint(p) - p).sqrMagnitude;
-            if (d < bestDist) { bestDist = d; best = r; }
-        }
-
-        // 너무 멀면(인접 아님) 연결 안 함
-        if (best != null && bestDist <= 4f * 4f) roomB = best;
-    }
-
     void Start()
     {
         originalUpperY = upperDoor.position.y;
         originalLowerY = lowerDoor.position.y;
 
-        ResolveRoomB();   // roomB 자동 연결
+        if (roomA == null) Debug.LogWarning($"[Door {name}] roomA 미설정");
+        if (roomB == null) Debug.LogWarning($"[Door {name}] roomB 미설정 (인스펙터/RoomEditor에서 할당 필요)");
 
-        // 양쪽 방에 creature 등록
         if (roomA != null) roomA.RegisterCreature(self);
         if (roomB != null && roomB != roomA) roomB.RegisterCreature(self);
 
-        // 양쪽 방의 doors 리스트에 자기 등록 (비대칭 연결 방지 — 이주가 양방향으로 됨)
-        if (roomA != null && roomA.doors != null && !roomA.doors.Contains(this))
-            roomA.doors.Add(this);
-        if (roomB != null && roomB.doors != null && !roomB.doors.Contains(this))
-            roomB.doors.Add(this);
+        roomA?.RegisterDoor(this);
+        roomB?.RegisterDoor(this);
 
-        Debug.Log($"[Door {name}] Start. A={roomA?.roomID ?? "NULL"}, B={roomB?.roomID ?? "NULL"}, observingC={roomCondition.observingC?.name ?? "NULL"}");
+        // 인스펙터에서 isOpen을 켜둔 채 실행하면 열린 상태로 시작하도록 동기화
+        if (isOpen) DoorCloseAndOpen(true);
     }
 
     private void OnEnable()
@@ -137,12 +106,9 @@ public class Door : MonoBehaviour
         DoorCloseAndOpen(conditionA || conditionB);
     }
 
-    // 방의 최다 분해 생물이 이 문의 observingC면 열림 (1·2위 차 howManyMore 이상)
     private bool CheckCondition(CreatureData best, int diff)
     {
-        return best != null
-            && best == roomCondition.observingC
-            && diff >= roomCondition.howManyMore;
+        return best != null && best == watchingCreature;
     }
 
     public void DoorCloseAndOpen(bool open)
