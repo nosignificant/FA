@@ -6,6 +6,8 @@ namespace CreatureTypes
         Chase = 1,
         Flee = 2,
         Grabbed = 3,
+        Decomposed = 8,
+        Synthesized = 9,
         Decomposing = 4,
         Attack = 5,
         Synthesizing = 6,
