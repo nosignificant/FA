@@ -43,21 +43,15 @@ public class CreatureScanner : MonoBehaviour
     {
         nearby.Clear();
 
-        if (self == null) { Debug.LogWarning("[Scanner] self is null"); return; }
+        if (self == null || !self.rootTransform) return;
 
-        var room = self.currentRoom;
-        if (room == null) { Debug.LogWarning($"[Scanner] {self.name} currentRoom is null"); return; }
-
-        float sqRadius = scanRadius * scanRadius;
-        if (!self.rootTransform) { Debug.LogWarning($"[Scanner] {self.name} rootTransform is null"); return; }
-        Transform myPos = self.rootTransform;
-
-        //방 안에 있는 생물만 탐색
-        foreach (var c in room.creatureList)
+        //근처에 있는 모든 생물 스캔
+        Collider[] hits = Physics.OverlapSphere(self.rootTransform.position, scanRadius);
+        for (int i = 0; i < hits.Length; i++)
         {
-            if (c == null || c == self) continue;
-            if ((c.transform.position - myPos.position).sqrMagnitude <= sqRadius)
-                nearby.Add(c);
+            Creature c = hits[i].GetComponentInParent<Creature>();
+            if (c == null || c == self || nearby.Contains(c)) continue;
+            nearby.Add(c);
         }
 
         debugCreatures = new List<Creature>(nearby);
