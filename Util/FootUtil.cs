@@ -24,7 +24,6 @@ public static class FootUtil
     public static Vector3 SetTargetNearest(Vector3 targetPos, LayerMask ground, float searchRadius = 20.0f)
     {
         Collider[] colliders = Physics.OverlapSphere(targetPos, searchRadius, ground);
-
         if (colliders.Length == 0) return targetPos;
 
         Vector3 bestPoint = targetPos;
