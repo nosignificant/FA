@@ -77,8 +77,16 @@ public class Tutorial : MonoBehaviour
             case "tut_3":
                 co = StartCoroutine(Tut3Routine(room));
                 break;
+            case "tut_3-1":
+                co = StartCoroutine(Tut31Routine(room));
+                break;
+
             case "tut_4":
                 co = StartCoroutine(Tut4Routine(room));
+                break;
+            case "tut_5":
+                Time.timeScale = 1f;
+                UnityEngine.SceneManagement.SceneManager.LoadScene("production");
                 break;
             case "pro_main":
                 SetTutorialVisible(false);
@@ -134,7 +142,6 @@ public class Tutorial : MonoBehaviour
         tmp.text = "ESC로 관찰을 해제할 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);
         tmp.text = "다음 방으로 이동하십시오.";
-        yield return new WaitForSeconds(messageInterval);
 
         OpenDoor(1);
 
@@ -149,8 +156,11 @@ public class Tutorial : MonoBehaviour
         tmp.text = "어떤 생물은 다른 생물을 생산하고 합성할 수 있습니다.";
         while (!LockedOn(CreatureID.L)) yield return null;
 
-        tmp.text = "L은 S를 2마리 합쳐 SS를 만들 수 있습니다.";
+        tmp.text = "생물 L은 S를 2마리 합쳐 SS를 만들 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);
+        tmp.text = "L을 관찰하십시오.";
+        yield return new WaitForSeconds(messageInterval);
+
 
         tmp.text = "C를 눌러 방 안에 어떤 생물이 있는지 확인하십시오.";
         while (ObservationUI.Instance == null || !ObservationUI.Instance.IsOpen) yield return null;
@@ -158,32 +168,15 @@ public class Tutorial : MonoBehaviour
         tmp.text = "스페이스바를 눌러 커서를 이동시키십시오.";
         yield return new WaitForSeconds(messageInterval);
 
-        while (!room.creatureList.Exists(c => c != null && c.data != null && c.data.creatureID == CreatureID.SS)
-               && room.decomposedCounts.Values.Sum() <= 1)
-            yield return null;
-        tmp.text = "SS에 커서를 둔 후 E를 눌러 락온하십시오.";
+        tmp.text = "커서를 이동시킨 후 E를 눌러 락온하십시오.";
         yield return new WaitForSeconds(messageInterval);
 
-        while (!LockedOn(CreatureID.SS)) yield return null;
-        tmp.text = "SS는 특정 생물을 분해할 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
 
-        tmp.text = "이제 L이 생물을 합성하는 것을 관찰하십시오.";
-        while (!room.creatureList.Exists(c =>
-                   c != null && c.data != null &&
-                   c.data.creatureID == CreatureID.L && c.possessable)) yield return null;
-
-        tmp.text = "생물의 핵심 행동을 관찰하면 해당 생물을 조종할 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "F를 눌러 L을 조종하십시오. E, Q로 고도를 조절하십시오.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "조종 중 F를 다시 눌러 조종을 해제하십시오.";
         yield return new WaitForSeconds(messageInterval);
 
         tmp.text = "다음 방으로 이동하십시오.";
         yield return new WaitForSeconds(messageInterval);
+
 
         OpenDoor(2);
         doneRooms.Add(room.roomID);
@@ -199,8 +192,13 @@ public class Tutorial : MonoBehaviour
         tmp.text = "AA가 같은 방에 있으면, L은 다른 방으로 가려고 합니다.";
         yield return new WaitForSeconds(messageInterval);
 
-        tmp.text = "어떤 생물이 어떤 생물을 좋아하고 싫어하는지 알아내십시오.";
+        tmp.text = "하지만 생물을 조종해 떠나는 것을 막을 수도 있습니다. F를 눌러 생물 L을 조종하십시오.";
         yield return new WaitForSeconds(messageInterval);
+
+        tmp.text = "E, Q로 고도를 조절하십시오.";
+        yield return new WaitForSeconds(10f);
+
+        tmp.text = "조종 중 F를 다시 눌러 조종을 해제하십시오.";
 
         tmp.text = "다음 방으로 이동하십시오.";
         OpenDoor(3);
@@ -209,6 +207,12 @@ public class Tutorial : MonoBehaviour
 
         doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
+    }
+    IEnumerator Tut31Routine(Room room)
+    {
+        tmp.text = "원래 있던 곳으로 돌아가십시오.";
+        yield return new WaitForSeconds(messageInterval);
+
     }
     IEnumerator Tut4Routine(Room room)
     {
@@ -221,13 +225,12 @@ public class Tutorial : MonoBehaviour
         int decomposedBefore = room.decomposedCounts.Values.Sum();
         while (room.decomposedCounts.Values.Sum() <= decomposedBefore) yield return null;
 
-        tmp.text = "분해된 생물은 현 시설의 에너지로 사용됩니다.";
+        tmp.text = "D가 분해한 생물은 문을 개방하고, 현 시설의 에너지로 사용됩니다.";
         yield return new WaitForSeconds(messageInterval);
 
-        tmp.text = "에너지 부족으로 인해 현재 시설이 오작동을 일으키고 있습니다.";
+        tmp.text = "다양한 생물을 관찰하고 조작해서 더 넓은 곳의 방을 관리하십시오. ";
         yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "다양한 생물을 관찰하고 조작해서 다양한 종류의 생물을 분해해 에너지를 생산하십시오. 생산된 에너지를 통해 건물이 올바르게 작동하도록 하십시오.";
+        tmp.text = "다양한 종류의 생물을 분해해 에너지를 생산하십시오.";
         yield return new WaitForSeconds(messageInterval);
         OpenDoor(4);
 
