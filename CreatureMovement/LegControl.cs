@@ -60,7 +60,7 @@ public class LegControl : MonoBehaviour
 
     public bool CheckValidFootPos(Vector3 destPos, Leg legAdding)
     {
-        // 너무 가까운 스텝은 무시
+        // 너무 가까운 스텝은 무시ㅋ
         if ((destPos - legAdding.tipTarget.position).sqrMagnitude < 0.1f * 0.1f)
             return false;
 

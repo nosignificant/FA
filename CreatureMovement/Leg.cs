@@ -11,7 +11,7 @@ public class Leg : MonoBehaviour
     public Transform[] parts;
     public Transform tipTarget;
     public Transform target;
-    public LegControl legControl;
+    public LegHead lh;
 
     [Header("Settings")]
     public float stride = 2f;
@@ -43,7 +43,7 @@ public class Leg : MonoBehaviour
         maxBodyLength = stride * 0.5f;
 
         line = GetComponent<LineRender>();
-        legControl = GetComponentInParent<LegControl>();
+        lh = GetComponentInParent<LegHead>();
 
         //초기 위치
         if (tipTarget != null)
@@ -92,25 +92,27 @@ public class Leg : MonoBehaviour
         // top은 target에 바로 붙음
         top.position = target.position;
 
-        // weed면 몸 길이 clamp
-        if (isWeed)
-        {
-            Vector3 dir = top.position - foot.position;
-            if (dir.magnitude > weedMaxLength)
-                top.position = foot.position + dir.normalized * weedMaxLength;
-        }
+
+        Vector3 dir = top.position - foot.position;
+        if (dir.magnitude > weedMaxLength)
+            top.position = foot.position + dir.normalized * weedMaxLength;
+
     }
 
     IEnumerator MoveFoot()
     {
         Vector3 dirToTarget = (target.position - foot.position).normalized;
-        //목표 지점은 머리 기준이 아닌 발 기준으로
         Vector3 destPos = foot.position + (dirToTarget * stride);
+        destPos = foot.position + new Vector3(
+             dirToTarget.x * stride + Random.Range(-2f, 2f),
+             foot.position.y + 100f,
+             dirToTarget.z * stride + Random.Range(-2f, 2f)
+         );
 
-        targetPos = FootUtil.SetTargetNearest(destPos, ground);
+        targetPos = FootUtil.SetTargetGround(destPos, ground);
 
-        if (legControl != null)
-            if (!legControl.CheckValidFootPos(targetPos, this)) { yield break; }
+        if (lh != null)
+            if (!lh.CheckValidFootPos(targetPos, this)) { yield break; }
 
         isMoving = true;
 
