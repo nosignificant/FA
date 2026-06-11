@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEngine;
 using CreatureTypes;
 
@@ -10,7 +9,6 @@ public class RoomMigration : MonoBehaviour
     public Think2 think;
 
     [Header("Config")]
-    public bool canMigrate = false;
     public float migrateCooldown = 8f;
 
     [Tooltip("문에 이 거리 이내로 붙으면 반대쪽 방으로 전환")]
@@ -18,8 +16,8 @@ public class RoomMigration : MonoBehaviour
 
     [System.NonSerialized] public float lastMigrateTime = -999f;
     [System.NonSerialized] public Vector3 migrateTargetPoint; //state쪽에서 사용
-    [System.NonSerialized] public bool isApproachingCenter = false;  // 문 관통~새 방 진입 중(아직 옛 방 소속)
-    [System.NonSerialized] public Room migrateTargetRoom;            // 진입 목표 방(경계 진입 시 소속 변경)
+    [System.NonSerialized] public bool isMigrating = false;  // 문 통과 중(소속 갱신 전) → KeepCreaturesInBounds 예외
+    private Room lastKnownRoom;
 
     public bool MigrateOnCooldown => Time.time - lastMigrateTime < migrateCooldown;
 
@@ -29,43 +27,40 @@ public class RoomMigration : MonoBehaviour
         if (think == null) think = GetComponent<Think2>();
     }
 
+    private void Update()
+    {
+        // 최초 방 배정은 쿨다운으로 치지 않음
+        if (lastKnownRoom == null) { lastKnownRoom = self.currentRoom; return; }
+
+        // bounds 기반 소속이 실제로 바뀌면 → 이주 완료 처리 + 쿨다운 시작
+        if (self.currentRoom != lastKnownRoom)
+        {
+            lastKnownRoom = self.currentRoom;
+            lastMigrateTime = Time.time;
+            isMigrating = false;
+        }
+    }
+
     public bool TickMigration()
     {
-        if (isApproachingCenter)
-        {
-            if (migrateTargetRoom == null)
-            {
-                isApproachingCenter = false;
-                return false;
-            }
-            Debug.Log(self.data.name + " : Approaching center");
-            Vector3 pos = self.rootTransform.position;
-
-            if (think.IsInsideBounds(pos, migrateTargetRoom.homeBound.bounds)) RegisterToOtherRoom();
-
-            return true;
-        }
-
-        if (self.currentRoom == null) return false;
-        if (MigrateOnCooldown) return false;
+        if (self.currentRoom == null || MigrateOnCooldown) return false;
 
         Door bestDoor = CalculateDoor(out float bestDist);
-
         if (bestDoor == null) return false;
 
         Room nextR = bestDoor.GetOtherRoom(self.currentRoom);
-        Vector3 doorPos = bestDoor.self.rootTransform.position;
 
-
-        if (bestDist > migrateDoorReachDist)//문쪽까지 가기
+        if (bestDist > migrateDoorReachDist)
         {
-            migrateTargetPoint = doorPos;
+            // 아직 문까지 거리가 멀면 문으로 향함
+            migrateTargetPoint = bestDoor.self.rootTransform.position;
+            isMigrating = false;
         }
-        else //문까지갔으면 다음 방으로 가기
+        else
         {
-            migrateTargetRoom = nextR;
+            // 문에 붙었으면 옆방 중심으로 관통 (소속 변경은 bounds 넘는 순간 Creature가 처리)
             migrateTargetPoint = nextR.transform.position;
-            isApproachingCenter = true;
+            isMigrating = true;
         }
 
         return true;
@@ -118,17 +113,5 @@ public class RoomMigration : MonoBehaviour
             if (dist < bestDist) { bestDist = dist; bestDoor = d; }
         }
         return bestDoor;
-    }
-
-    void RegisterToOtherRoom()
-    {
-        self.currentRoom.UnregisterCreature(self);
-        migrateTargetRoom.RegisterCreature(self);
-        self.transform.SetParent(migrateTargetRoom.transform, true);
-        lastMigrateTime = Time.time;
-        Debug.Log($"[RoomMigration] {self.name} → {migrateTargetRoom.name}");
-
-        migrateTargetRoom = null;
-        isApproachingCenter = false;
     }
 }

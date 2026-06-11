@@ -19,12 +19,10 @@ public class Creature : MonoBehaviour
 
     [Header("bool")]
     public bool isAttached = false;
-    public bool wantToMigrate = false;
-    public bool grabbable = true;   // 인스턴스별 grab 가능 여부 (면역 쿨다운용)
-
+    public bool grabbable = true;
+    public bool canMigrate = true;
     private Coroutine _grabImmunityCo;
 
-    /// <summary>일정 시간 동안 grab 면역 (예: L에서 풀린 직후 재포획 방지)</summary>
     public void SetGrabImmunity(float seconds)
     {
         if (_grabImmunityCo != null) StopCoroutine(_grabImmunityCo);
@@ -40,41 +38,12 @@ public class Creature : MonoBehaviour
     }
 
 
-    [Header("Migration")]
-    public bool canMigrate = false;
-    [Min(0f)] public float migrateInterval = 8f;
-    [Min(0f)] public float migrateWantDuration = 5f;
-    [Range(0f, 1f)] public float migrateChance = 0.5f;
-    [Tooltip("방 이동 후 이 시간 동안 재이동 금지")]
-    public float migrateCooldown = 8f;
-    [System.NonSerialized] public float lastMigrateTime = -999f;
-    public bool MigrateOnCooldown => Time.time - lastMigrateTime < migrateCooldown;
-    [Tooltip("이 종들 중 하나라도 같은 방에 있으면 다른 방으로 가고 싶어함")]
-    public CreatureID[] avoidCreatureIDs;
-
-    public bool AvoidedKindInRoom()
-    {
-        if (avoidCreatureIDs == null || avoidCreatureIDs.Length == 0) return false;
-        if (currentRoom == null || currentRoom.creatureList == null) return false;
-
-        for (int i = 0; i < currentRoom.creatureList.Count; i++)
-        {
-            var c = currentRoom.creatureList[i];
-            if (c == null || c == this || c.data == null) continue;
-
-            for (int j = 0; j < avoidCreatureIDs.Length; j++)
-                if (c.data.creatureID == avoidCreatureIDs[j]) return true;
-        }
-        return false;
-    }
 
     [Header("Instance")]
     public int currentHP;
     public bool IsDead => currentHP <= 0;
+    public bool IsGrabbed => intent == CreatureIntent.Decomposed || intent == CreatureIntent.Synthesized;
 
-    // 인스턴스별 관찰 상태 — 대표 행동을 N번 목격하면 possessable=true (빙의 가능)
-    [System.NonSerialized] public int observeCount;
-    [System.NonSerialized] public bool possessable;
 
     public event Action<Creature, CreatureID> Died;
 
@@ -92,53 +61,6 @@ public class Creature : MonoBehaviour
         if (interact == null) interact = gameObject.AddComponent<Interaction>();
 
         currentHP = data.maxHP;
-
-        if (canMigrate) StartCoroutine(MigrateLoop());
-    }
-
-    // 서브클래스가 상황별로 확률을 바꾸려면 오버라이드 (예: AA는 옆방에 L 있으면 ↑)
-    protected virtual float GetMigrateChance()
-    {
-        // 피하고 싶은 종이 방에 있으면 무조건 떠나고 싶어함
-        if (AvoidedKindInRoom()) return 1f;
-        return migrateChance;
-    }
-
-    private IEnumerator MigrateLoop()
-    {
-        while (!IsDead)
-        {
-            // 방 이동 직후 쿨타임 동안은 이주 의향 끔
-            if (MigrateOnCooldown)
-            {
-                wantToMigrate = false;
-                yield return null;
-                continue;
-            }
-
-            if (intent == CreatureIntent.Flee)
-            {
-                // 도망 중엔 무조건 다른 방으로 탈출 시도
-                wantToMigrate = true;
-                yield return null;
-            }
-            else if (intent == CreatureIntent.Wander)
-            {
-                if (UnityEngine.Random.value < GetMigrateChance())
-                {
-                    wantToMigrate = true;
-                    yield return new WaitForSeconds(migrateWantDuration);
-                    wantToMigrate = false;
-                }
-                yield return new WaitForSeconds(migrateInterval);
-            }
-            else
-            {
-                // 잡힘/합성/분해 등 — 이주 안 함
-                wantToMigrate = false;
-                yield return null;
-            }
-        }
     }
 
     public void TakeDamage(int amount, Creature who)
@@ -180,14 +102,16 @@ public class Creature : MonoBehaviour
     }
     public virtual void AttachedTo(Transform attachPoint)
     {
-        intent = CreatureIntent.Grabbed;
+        intent = grabbedBy != null && grabbedBy.data?.creatureID == CreatureID.D
+            ? CreatureIntent.Decomposed
+            : CreatureIntent.Synthesized;
 
-        // 자기 자신 처리
-        Rigidbody rb = GetComponentInChildren<Rigidbody>();
-        if (rb != null) rb.isKinematic = true;
+        foreach (var rb in GetComponentsInChildren<Rigidbody>())
+            rb.isKinematic = true;
 
-        transform.SetParent(attachPoint);
+        transform.SetParent(attachPoint, false);
         transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.identity;
 
         foreach (var mono in GetComponentsInChildren<MonoBehaviour>())
         {
@@ -203,27 +127,52 @@ public class Creature : MonoBehaviour
             && kabschIn != null)
         {
             kabschIn.localPosition = Vector3.zero;
-            // kabschIn 하위 오브젝트들도 전부 localPosition 0
             foreach (var t in kabschIn.GetComponentsInChildren<Transform>())
                 t.localPosition = Vector3.zero;
         }
 
-        // OLD 방식: rootTransform은 부모 안 바꾸고 localPosition만 0
         if (rootTransform != null) rootTransform.localPosition = Vector3.zero;
     }
 
-    // 누가 날 잡았는지 (D 분해 / 촉수 grab 등). 이게 사라지면 Grabbed 자동 해제
     [System.NonSerialized] public Creature grabbedBy;
 
-    private void Update()
+    void Update()
     {
-        if (intent == CreatureIntent.Grabbed)
+        if (IsGrabbed)
         {
-            // 잡은 주체가 파괴됐거나(Unity null) 죽었으면 → 스스로 풀림
             if (grabbedBy == null || grabbedBy.IsDead)
             {
                 grabbedBy = null;
                 Release();
+            }
+        }
+
+        UpdateRoomMembership();
+    }
+
+    // 방 소속은 hierarchy/intent와 무관하게 오직 위치(bounds)로 결정 — 모든 생물 공통 단일 경로
+    void UpdateRoomMembership()
+    {
+        if (RoomManager.Instance == null || rootTransform == null) return;
+        if (data == null) return;
+        if (data.creatureID == CreatureID.Player || data.creatureID == CreatureID.Door) return;
+        if (IsGrabbed) return;   // 잡힌 동안은 위치 기반 소속 갱신 안 함
+
+        Vector3 pos = rootTransform.position;
+
+        // 이미 현재 방 안이면 빠른 종료 (대부분의 프레임)
+        if (currentRoom != null && currentRoom.homeBound != null &&
+            currentRoom.homeBound.bounds.Contains(pos)) return;
+
+        foreach (var kvp in RoomManager.Instance.rooms)
+        {
+            Room r = kvp.Value;
+            if (r == null || r == currentRoom || r.homeBound == null) continue;
+            if (r.homeBound.bounds.Contains(pos))
+            {
+                currentRoom?.UnregisterCreature(this);
+                r.RegisterCreature(this);
+                return;
             }
         }
     }
@@ -233,10 +182,9 @@ public class Creature : MonoBehaviour
         grabbedBy = null;
         intent = CreatureIntent.Wander;
 
-        Rigidbody rb = GetComponentInChildren<Rigidbody>();
-        if (rb != null) rb.isKinematic = false;
+        foreach (var rb in GetComponentsInChildren<Rigidbody>())
+            rb.isKinematic = false;
 
-        // OLD 방식: transform만 떼면 됨 (rootTransform은 애초에 안 옮겼음)
         transform.SetParent(null);
 
         foreach (var mono in GetComponentsInChildren<MonoBehaviour>())
@@ -246,7 +194,6 @@ public class Creature : MonoBehaviour
             mono.enabled = true;
         }
 
-        // AttachedTo에서 끈 콜라이더 복구
         foreach (var col in GetComponentsInChildren<Collider>())
             col.enabled = true;
     }
