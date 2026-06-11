@@ -25,10 +25,11 @@ public abstract class TentacleThink : Think2
         return base.GetThinkState(intent);
     }
 
+    // 촉수 양쪽에 생물을 잡았는지 확인
     protected bool CanSynthesize()
     {
         if (tentacleGrab == null || tentacleGrab.tentacles == null) return false;
-
+        //잡은 개수 확인
         int grabbedCount = 0;
         for (int i = 0; i < tentacleGrab.tentacles.Length; i++)
         {

@@ -19,6 +19,7 @@ public class Think2 : MonoBehaviour
     public Creature self;
     public CreatureScanner scanner;
     public TargetControl targetControl;
+    public RoomMigration migration;
     protected IReadOnlyList<Creature> detected;
 
     [Header("Vision")]
@@ -49,21 +50,22 @@ public class Think2 : MonoBehaviour
     [Tooltip("점에 이만큼 가까워지면 새 wander 점")]
     public float wanderReachThreshold = 5f;
 
+
     [Header("Debug")]
     public bool drawEqsPoints = true;
     protected Transform proxyTarget;
-
-
-    private void SyncRoomFromPosition() { }
 
     protected virtual void Awake()
     {
         if (scanner == null) scanner = GetComponent<CreatureScanner>();
         if (self == null) self = GetComponent<Creature>();
         if (targetControl == null) targetControl = GetComponent<TargetControl>();
+        if (migration == null) migration = GetComponent<RoomMigration>();
 
         initStates();
         EnsureProxyTarget();
+
+        if (targetControl != null) targetControl.SetMovementTarget(proxyTarget);
 
         currentTarget = new ThinkTarget
         {
@@ -82,12 +84,9 @@ public class Think2 : MonoBehaviour
 
     private IEnumerator ThinkLoop()
     {
-        // 생물마다 시작 타이밍 분산 → 같은 프레임에 몰리는 부하 스파이크 방지
-        yield return new WaitForSeconds(UnityEngine.Random.Range(0f, waitInterval));
-
+        while (self.currentRoom == null) yield return null;
         while (true)
         {
-            if (self != null) SyncRoomFromPosition();
             LetsThink();
             yield return new WaitForSeconds(waitInterval);
         }
@@ -95,35 +94,43 @@ public class Think2 : MonoBehaviour
 
     private void Update()
     {
-        if (currentLockTime >= lockTime) LockThink(false);
+        if (isLocked)
+        {
+            currentLockTime += Time.deltaTime;
+            if (currentLockTime >= lockTime) LockState(false);
+        }
+
     }
 
-    public void LockThink(bool setLock)
+    //상태 잠금 
+    public void LockState(bool setLock)
     {
         if (setLock == false) currentLockTime = 0f;
         isLocked = setLock;
     }
 
-    // 플레이어 조종 모드 — AI 판단 중지, proxyTarget을 외부(플레이어)가 제어
     [System.NonSerialized] public bool manualControl = false;
     public Transform ProxyTarget => proxyTarget;
 
-    /// <summary>수동 조종 on/off. 켜면 AI 정지하고 proxyTarget을 직접 움직이면 됨</summary>
+    //플레이어가 조종하는 거 어떤 타겟을 가리키고 있든 프록시 타겟을 따라가게 만듦
     public void SetManualControl(bool on)
     {
         manualControl = on;
         if (on && targetControl != null && proxyTarget != null)
-            targetControl.SetMovementTarget(proxyTarget);   // 이동 스택은 계속 proxy 따라감
+            targetControl.SetMovementTarget(proxyTarget);
     }
 
     private void LetsThink()
     {
-        if (manualControl) return;          // 수동 조종 중엔 AI 안 돎
-        if (self.intent == CreatureIntent.Grabbed) return;
+        if (manualControl) return;
+        if (self.IsGrabbed) return;
+        if (self.currentRoom != null && !self.currentRoom.isActive) return;
+        //방 기준 아니고 주변 전체 기준
         detected = scanner.Results;
         var newIntent = DetermineIntent();
         var newState = GetThinkState(newIntent);
 
+        //상태 다르면 이전 상태값 넘겨줌
         if (newState != currentState)
         {
             ThinkTarget carry = currentState?.Exit() ?? default;
@@ -131,27 +138,15 @@ public class Think2 : MonoBehaviour
             currentState = newState;
             self.intent = newIntent;
         }
-
+        //상태 같으면 다시 생각함 
         currentState.Refresh(BuildQueryPoints());
-        currentTarget = currentState.newTarget; // ← Refresh 후에 업데이트
-        MoveProxy(currentTarget.point, 10f);
-
-
-        if (targetControl != null)
-            targetControl.SetMovementTarget(proxyTarget);
-    }
-
-    private void UpdateCurrentTarget()
-    {
-        if (currentState != null)
-            currentTarget = currentState.newTarget;
+        //상태마다 타겟 가짐
+        currentTarget = currentState.newTarget;
+        MoveProxy(currentTarget.point);
     }
 
     protected virtual CreatureIntent DetermineIntent()
     {
-        // 회피 대상(avoidCreatureIDs)이 같은 방에 있으면 하던 일 멈추고 이주(Wander→GetMigrateChance=1)
-        if (self != null && self.AvoidedKindInRoom()) return CreatureIntent.Wander;
-
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
         else if (DoesNeedToChase()) return CreatureIntent.Chase;
         return CreatureIntent.Wander;
@@ -159,7 +154,7 @@ public class Think2 : MonoBehaviour
     protected virtual bool DoesNeedToFlee()
     {
         if (detected == null) return false;
-        if (self.intent == CreatureIntent.Flee && isLocked) return true;
+        if (self.intent == CreatureIntent.Flee && isLocked && currentTarget.creature != null) return true;
         for (int i = 0; i < detected.Count; i++)
         {
             var t = detected[i];
@@ -171,11 +166,13 @@ public class Think2 : MonoBehaviour
     protected virtual bool DoesNeedToChase()
     {
         if (detected == null) return false;
-        if (self.intent == CreatureIntent.Chase && isLocked) return true;
+        if (self.intent == CreatureIntent.Chase && isLocked && currentTarget.creature != null) return true;
         for (int i = 0; i < detected.Count; i++)
         {
             var t = detected[i];
             if (!IsValidTarget(t)) continue;
+            if (t.IsGrabbed) continue;   // 이미 잡힌 건 안 쫓음
+            if (t.currentRoom != self.currentRoom) continue;    // 다른 방 생물은 안 쫓음
             if (self.HasAction(t.data.creatureID, InteractionAction.Chase)) return true;
         }
         return false;
@@ -183,7 +180,8 @@ public class Think2 : MonoBehaviour
 
     public bool IsValidTarget(Creature target)
     {
-        return target != null && target != self && !target.IsDead && target.data != null;
+        if (target == null || target == self || target.IsDead || target.data == null) return false;
+        return true;
     }
 
     //state//
@@ -209,98 +207,6 @@ public class Think2 : MonoBehaviour
         };
     }
 
-
-
-    private Door FindOpenDoorTo(Room targetRoom)
-    {
-        if (self.currentRoom == null || targetRoom == null) return null;
-
-        Door bestDoor = null;
-        float bestDist = float.MaxValue;
-        foreach (var d in self.currentRoom.doors)
-        {
-            //내 방의 문이 targetRoom으로 이어져야함
-            if (d == null || !d.isOpen) continue;
-            if (d.GetOtherRoom(self.currentRoom) != targetRoom) continue;
-
-            float dist = Vector3.Distance(self.rootTransform.position, d.transform.position);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                bestDoor = d;
-            }
-        }
-        return bestDoor;
-    }
-    protected virtual bool ShouldAvoidRoom(Room room) => false;
-
-    // 이주 목표(문) 위치 — WanderState가 이걸 EQS 대신 추적함
-    [System.NonSerialized] public bool hasMigrateTarget = false;
-    [System.NonSerialized] public Vector3 migrateTargetPoint;
-    [Tooltip("이주 시 문 너머 반대쪽 방 안쪽으로 얼마나 들어간 지점을 목표로 할지")]
-    public float migrateThroughDepth = 5f;
-    [Tooltip("문에 이 거리 이내로 붙으면 반대쪽 방으로 전환 + 방 교체 (생물 몸집 고려해 너무 작게 두면 영영 도달 못함)")]
-    public float migrateDoorReachDist = 2f;
-
-    public bool TryMigrateRoom()
-    {
-        hasMigrateTarget = false;
-        if (self.currentRoom == null) return false;
-
-        Door bestDoor = null;
-        float bestDist = float.MaxValue;
-
-        foreach (var d in self.currentRoom.doors)
-        {
-            if (!d.isOpen) continue;
-            Room other = d.GetOtherRoom(self.currentRoom);
-            if (other == null) continue;
-            if (ShouldAvoidRoom(other)) continue;
-
-            Vector3 dp = (d.self != null && d.self.rootTransform != null)
-                ? d.self.rootTransform.position : d.transform.position;
-            float dist = Vector3.Distance(self.rootTransform.position, dp);
-            if (dist < bestDist) { bestDist = dist; bestDoor = d; }
-        }
-
-        if (bestDoor == null)
-        {
-            // 지금 갈 문이 없을 뿐 — 의향은 MigrateLoop이 관리. 여기서 끄지 않음
-            hasMigrateTarget = false;
-            return false;
-        }
-
-        Room nextR = bestDoor.GetOtherRoom(self.currentRoom);
-        Vector3 doorPos = (bestDoor.self != null && bestDoor.self.rootTransform != null)
-            ? bestDoor.self.rootTransform.position
-            : bestDoor.transform.position;
-
-        hasMigrateTarget = true;
-
-        if (bestDist > migrateDoorReachDist)
-        {
-            // 1단계: 아직 문에서 멀다 → 문 자체를 목표
-            migrateTargetPoint = doorPos;
-        }
-        else
-        {
-            // 2단계: 문 똑바로 관통 → 두 방 중심을 잇는 축 방향으로
-            Vector3 intoNext = (nextR.transform.position - self.currentRoom.transform.position);
-            intoNext.y = 0f;
-            intoNext = intoNext.sqrMagnitude > 0.001f ? intoNext.normalized : Vector3.zero;
-            migrateTargetPoint = doorPos + intoNext * migrateThroughDepth;
-
-            self.currentRoom.UnregisterCreature(self);
-            nextR.RegisterCreature(self);
-            self.transform.SetParent(nextR.transform, true);   // 새 방 자식으로
-            self.lastMigrateTime = Time.time;                   // 재이동 쿨타임 시작
-            Debug.Log("move to room: " + nextR);
-            self.wantToMigrate = false;
-            hasMigrateTarget = false;
-        }
-
-        return true;
-    }
     /////////////
     //build proxy codes
     ////////////
@@ -308,22 +214,31 @@ public class Think2 : MonoBehaviour
     private List<Vector3> BuildQueryPoints()
     {
         List<Vector3> points = new();
-        float r = Mathf.Max(0.1f, scanner.scanRadius * 1.5f);
+        //스캐너 반경만큼
+        float r = Mathf.Max(0.1f, scanner.scanRadius);
+        // 이만큼의 간격에 
         float s = Mathf.Max(0.5f, pointSpacing);
+        //내 rootTransform을 중심으로 해서
         Vector3 center = self.rootTransform.position;
+        // 내 방 있는지 확인
+        bool hasBounds = self.currentRoom != null;
+
+        //이 개수만큼 점을 찍음 
         for (int i = 0; i < maxPoints; i++)
         {
             Vector3 p = center + Random.insideUnitSphere * r;
-            if (!IsInsideBounds(p)) continue;
+            //내 방이 있을 때 벗어나면 제외, 내 방 없으면 그냥 돌아다니게 
+            if (hasBounds && !IsInsideBounds(p, self.currentRoom.homeBound.bounds, 0f)) continue;
+            //걷는 생물이면 y높이 제한 
+            if (self.data != null && self.data.walkingCreature) { if (p.y > center.y + 15 || p.y < center.y - 15) continue; }
             points.Add(p);
         }
         return points;
     }
 
-    private bool IsInsideBounds(Vector3 p, float shrink = 0f)
+    public bool IsInsideBounds(Vector3 p, Bounds b, float shrink = 3f)
     {
         if (self.currentRoom == null) return false;
-        Bounds b = self.currentRoom.homeBound.bounds;
 
         // bounds를 shrink만큼 줄이기
         Vector3 min = b.min + Vector3.one * shrink;
@@ -333,15 +248,12 @@ public class Think2 : MonoBehaviour
                p.y > min.y && p.y < max.y &&
                p.z > min.z && p.z < max.z;
     }
-    public void MoveProxy(Vector3 p, float speed)
+    public void MoveProxy(Vector3 p)
     {
-        // ThinkLoop는 waitInterval마다 호출됨. deltaTime이 아니라 waitInterval 기준으로 보간
-        float t = 1f - Mathf.Exp(-speed * waitInterval);
-        proxyTarget.position = Vector3.Lerp(proxyTarget.position, p, t);
+        proxyTarget.position = p;
     }
     private void OnDestroy()
     {
-        // 독립 루트 오브젝트라 생물 죽어도 안 지워짐 → 직접 정리
         if (proxyTarget != null) Destroy(proxyTarget.gameObject);
     }
 

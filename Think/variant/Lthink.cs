@@ -6,28 +6,11 @@ using System.Linq;
 
 public class Lthink : TentacleThink
 {
-    // L은 다른 L이 있는 방으로는 이주하지 않음
-    protected override bool ShouldAvoidRoom(Room room)
-    {
-        if (room == null || room.creatureList == null) return false;
-        return room.creatureList.Any(x =>
-            x != null && x.data != null && x.data.creatureID == CreatureID.L);
-    }
-
-    private bool AAInRoom()
-    {
-        var room = self.currentRoom;
-        if (room == null || room.creatureList == null) return false;
-        return room.creatureList.Any(c =>
-            c != null && c != self && c.data != null && c.data.creatureID == CreatureID.AA);
-    }
-
     protected override CreatureIntent DetermineIntent()
     {
-        // 같은 방에 AA 있으면 하던 일 다 제치고 이주 (Wander → GetMigrateChance=1)
-        if (AAInRoom()) return CreatureIntent.Wander;
-
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
+        var tc = self as TentacleCreature;
+        if (tc != null && tc.isSynthesizing) return CreatureIntent.Synthesizing;
         else if (DoesNeedToChase())
         {
             if (CanSynthesize()) return CreatureIntent.Synthesizing;
@@ -37,8 +20,19 @@ public class Lthink : TentacleThink
     }
     protected override bool DoesNeedToFlee()
     {
+        //스캐너 동작안하면 false
         if (detected == null) return false;
+        // 도망으로 lock되어있으면 도망
         if (self.intent == CreatureIntent.Flee && isLocked) return true;
+
+        //스캐너 안에 생물 중에 flee가 있는지 확인
+        for (int i = 0; i < detected.Count; i++)
+        {
+            var t = detected[i];
+            if (t == null || t.data == null) continue;
+            bool flee = self.HasAction(t.data.creatureID, InteractionAction.Flee);
+        }
+
         for (int i = 0; i < detected.Count; i++)
         {
             var t = detected[i];
@@ -69,9 +63,8 @@ public class Lthink : TentacleThink
             if (c.currentRoom != self.currentRoom)
             {
                 if (!IsValidTarget(c) || IsGrabbedByMe(c)) return false;
-                if (c.currentRoom.creatureList.Any(x =>
-                        x != null && x.data != null && x.data.creatureID == CreatureID.L))
-                    return false;
+                if (migration == null) return false;
+                if (migration.ShouldAvoidRoom(c.currentRoom)) return false;
             }
             return true;
         }
@@ -80,6 +73,8 @@ public class Lthink : TentacleThink
         {
             var t = detected[i];
             if (!IsValidTarget(t)) continue;
+            if (t.IsGrabbed) continue;
+            if (t.currentRoom != self.currentRoom) continue;
             if (self.HasAction(t.data.creatureID, InteractionAction.Chase)) return true;
         }
         return false;
