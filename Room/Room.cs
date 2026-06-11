@@ -1,7 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using CreatureTypes;
+
+//방에 필요한거
+//콜라이더 설정 
+
 
 public class Room : MonoBehaviour
 {
@@ -15,7 +20,6 @@ public class Room : MonoBehaviour
 
     public string roomID;
     public bool isActive = false;
-    [Tooltip("튜토리얼 방 — 문 열려도 자동 isActive 안 됨 (플레이어가 직접 들어와야)")]
     public bool isTutorial = false;
 
     [Header("room bounds")]
@@ -25,10 +29,22 @@ public class Room : MonoBehaviour
     [Header("walls")]
     public WallSlot[] wallSlots = new WallSlot[4];
 
-    [Header("room outside")]
+    [Header("Doors")]
     public List<Door> doors = new();
 
-    [Header("room inside")]
+    public void RegisterDoor(Door d)
+    {
+        if (d == null) return;
+        if (!doors.Contains(d)) doors.Add(d);
+    }
+
+    public void UnregisterDoor(Door d)
+    {
+        if (d == null) return;
+        doors.Remove(d);
+    }
+
+    [Header("creature")]
     public List<Creature> creatureList = new();
     public int maxCreaturesInRoom = 5;
     public Dictionary<CreatureData, int> decomposedCounts = new();
@@ -36,8 +52,7 @@ public class Room : MonoBehaviour
 
     [Header("initial spawn")]
     public CreatureDatabase creatureDB;
-    [Tooltip("이 방에 D 생물을 항상 최소 1마리 유지")]
-    public bool keepOneD = true;
+    [Min(0)] public int minDCount = 1;
     public SpawnEntry[] spawnEntries;
 
     [Serializable]
@@ -53,23 +68,15 @@ public class Room : MonoBehaviour
         InitWallSlots();
     }
 
+    //방 처음 만들때 실행 
     private void InitWallSlots()
     {
-        // 배열 크기 보장 (N/S/E/W/Up/Down = DirectionExt.All)
         Direction[] dirs = DirectionExt.All;
         if (wallSlots == null || wallSlots.Length != dirs.Length)
         {
             wallSlots = new WallSlot[dirs.Length];
             for (int i = 0; i < dirs.Length; i++)
                 wallSlots[i].direction = dirs[i];
-        }
-
-        // door 리스트 동기화: WallSlot.door → doors
-        doors.Clear();
-        foreach (var ws in wallSlots)
-        {
-            if (ws.door != null && !doors.Contains(ws.door))
-                doors.Add(ws.door);
         }
     }
 
@@ -122,34 +129,82 @@ public class Room : MonoBehaviour
         OnCreatureDecomposed?.Invoke(target, decomposerID);
     }
 
-    // ── lifecycle ────────────────────────────────────────────────────────
 
     void Start()
     {
         roomID = gameObject.name;
         if (RoomManager.Instance != null) RoomManager.Instance.Register(this);
-        // 이미 자식으로 배치된 생물들 자동 등록
-        foreach (Creature c in GetComponentsInChildren<Creature>()) RegisterCreature(c);
+
+        // hierarchy 부모가 아니라 위치(bounds) 기준으로 소속 결정
+        RegisterCreaturesInBounds();
 
         EnsureOneD();
-        if (keepOneD) StartCoroutine(DKeepAliveLoop());
+        if (minDCount > 0) StartCoroutine(DKeepAliveLoop());
     }
 
-    [Tooltip("D 존재 체크 주기(초)")]
+    // bounds 안에 있는 모든 생물을 이 방 소속으로 등록 (Door의 self 포함)
+    private void RegisterCreaturesInBounds()
+    {
+        if (homeBound == null) return;
+        Bounds b = homeBound.bounds;
+        foreach (Creature c in FindObjectsOfType<Creature>())
+        {
+            if (c == null || c.rootTransform == null) continue;
+            if (c.data != null && c.data.creatureID == CreatureID.Player) continue;
+            if (b.Contains(c.rootTransform.position)) RegisterCreature(c);
+        }
+    }
+
     public float dCheckInterval = 2f;
 
-    private System.Collections.IEnumerator DKeepAliveLoop()
+    private IEnumerator DKeepAliveLoop()
     {
         var wait = new WaitForSeconds(dCheckInterval);
         while (true)
         {
-            KillStrayD();   // 방 밖으로 나간 D는 즉시 사망 처리
-            EnsureOneD();   // 없으면 새로 스폰
+            KillStrayD();
+            EnsureOneD();
+            KeepCreaturesInBounds();
             yield return wait;
         }
     }
 
-    // 방 collider(homeBound) 밖으로 벗어난 D를 사망 처리 + 리스트에서 제거
+    [Tooltip("방 콜라이더 안쪽으로 이만큼 여유두고 밀어넣음")]
+    public float boundsPushPadding = 2f;
+
+    // 방 밖으로 벗어난 생물(D 제외)을 콜라이더 안쪽으로 즉시 이동
+    private void KeepCreaturesInBounds()
+    {
+        if (homeBound == null) return;
+        Bounds b = homeBound.bounds;
+
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c == null || c.IsDead) continue;
+            if (c.data == null) continue;
+            if (c.data.creatureID == CreatureID.D) continue;     // D는 KillStrayD가 처리
+            if (c.data.creatureID == CreatureID.Door) continue;  // 문은 경계에 있으니 제외
+
+            // 이주 중이면 건드리지 않음 (문 통과 중일 수 있음)
+            var mig = c.GetComponent<RoomMigration>();
+            if (mig != null && mig.isMigrating) continue;
+
+            Transform t = c.rootTransform != null ? c.rootTransform : c.transform;
+            Vector3 p = t.position;
+            if (b.Contains(p)) continue;
+
+            // 가장 가까운 안쪽 점으로 끌어들이기 + 중심 방향으로 살짝 더
+            Vector3 inside = b.ClosestPoint(p);
+            Vector3 toCenter = b.center - inside;
+            toCenter.y = 0f;
+            if (toCenter.sqrMagnitude > 0.001f)
+                inside += toCenter.normalized * boundsPushPadding;
+
+            t.position = new Vector3(inside.x, p.y, inside.z);
+        }
+    }
+
     private void KillStrayD()
     {
         if (homeBound == null) return;
@@ -170,21 +225,23 @@ public class Room : MonoBehaviour
         }
     }
 
-    private bool HasD()
+    private int CountD()
     {
+        int count = 0;
         for (int i = 0; i < creatureList.Count; i++)
         {
             var c = creatureList[i];
             if (c != null && !c.IsDead && c.data != null && c.data.creatureID == CreatureID.D)
-                return true;
+                count++;
         }
-        return false;
+        return count;
     }
 
     public void EnsureOneD()
     {
-        if (!keepOneD || creatureDB == null || homeBound == null) return;
-        if (HasD()) return;
+        if (minDCount <= 0 || creatureDB == null || homeBound == null) return;
+        int current = CountD();
+        if (current >= minDCount) return;
 
         CreatureData data = creatureDB.GetByID(CreatureID.D);
         GameObject prefab = data?.prefab;
@@ -195,17 +252,20 @@ public class Room : MonoBehaviour
         }
 
         Bounds b = homeBound.bounds;
-        Vector3 pos = new Vector3(
-            UnityEngine.Random.Range(b.min.x, b.max.x),
-            b.min.y + data.spawnYOffset,
-            UnityEngine.Random.Range(b.min.z, b.max.z));
+        int toSpawn = minDCount - current;
+        for (int i = 0; i < toSpawn; i++)
+        {
+            Vector3 pos = new Vector3(
+                UnityEngine.Random.Range(b.min.x, b.max.x),
+                b.min.y + data.spawnYOffset,
+                UnityEngine.Random.Range(b.min.z, b.max.z));
 
-        GameObject obj = Instantiate(prefab, pos, Quaternion.identity, transform);
-        Creature dc = obj.GetComponent<Creature>();
-        if (dc != null) RegisterCreature(dc);
+            GameObject obj = Instantiate(prefab, pos, Quaternion.identity, CreatureRoot.Container);
+            Creature dc = obj.GetComponent<Creature>();
+            if (dc != null) RegisterCreature(dc);
+        }
     }
 
-    /// <summary>spawnEntries대로 생물을 즉시 Room 자식으로 스폰 (에디터/런타임 공용)</summary>
     public void SpawnInitialCreatures()
     {
         if (spawnEntries == null || creatureDB == null || homeBound == null) return;
@@ -233,12 +293,13 @@ public class Room : MonoBehaviour
                     b.min.y + yOffset,
                     UnityEngine.Random.Range(b.min.z, b.max.z));
 
+                Transform container = CreatureRoot.Container;
 #if UNITY_EDITOR
                 GameObject obj = !Application.isPlaying
-                    ? (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, transform)
-                    : Instantiate(prefab, pos, Quaternion.identity, transform);
+                    ? (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, container)
+                    : Instantiate(prefab, pos, Quaternion.identity, container);
 #else
-                GameObject obj = Instantiate(prefab, pos, Quaternion.identity, transform);
+                GameObject obj = Instantiate(prefab, pos, Quaternion.identity, container);
 #endif
                 obj.transform.position = pos;
                 obj.transform.rotation = Quaternion.identity;
@@ -252,8 +313,6 @@ public class Room : MonoBehaviour
             }
         }
     }
-
-    /// <summary>방 벽 상태를 초기 상태(모든 벽 noDoor)로 되돌리고 doors 비움</summary>
     public void ResetWalls()
     {
         for (int i = 0; i < wallSlots.Length; i++)
@@ -294,14 +353,4 @@ public class Room : MonoBehaviour
         UnregisterCreature(c);
         c.Died -= OnCreatureDied;
     }
-
-    // ── gizmo ────────────────────────────────────────────────────────────
-
-#if UNITY_EDITOR
-    private void OnDrawGizmosSelected()
-    {
-        Gizmos.color = new Color(0f, 1f, 1f, 0.3f);
-        Gizmos.DrawWireCube(transform.position, roomSize);
-    }
-#endif
 }
