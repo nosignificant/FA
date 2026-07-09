@@ -23,10 +23,7 @@ public class ObservationUI : MonoBehaviour
     [Header("Detail")]
     public TMP_Text detailText;
 
-    [Header("Options")]
-    public KeyCode toggleKey = KeyCode.C;
-    public KeyCode navKey = KeyCode.Space;     // 누를 때마다 아래로 이동, 맨 아래면 첫 칸으로
-    public KeyCode lockOnKey = KeyCode.E;
+
     public float refreshInterval = 0.25f;
 
     private readonly List<Creature> shown = new();
@@ -35,7 +32,7 @@ public class ObservationUI : MonoBehaviour
     private float nextRefresh;
     private Interaction interaction;
     private readonly StringBuilder sb = new();
-    public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
+    public bool IsOnOff => panelRoot != null && panelRoot.activeSelf;
 
     private static int escConsumedFrame = -1;
     public static bool EscConsumedThisFrame => escConsumedFrame == Time.frameCount;
@@ -48,7 +45,7 @@ public class ObservationUI : MonoBehaviour
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
-    private void SetOpen(bool on)
+    private void OnOff(bool on)
     {
         if (panelRoot != null) panelRoot.SetActive(on);
         if (on) { selected = 0; Refresh(); }
@@ -56,32 +53,6 @@ public class ObservationUI : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(toggleKey))
-        {
-            SetOpen(!IsOpen);
-            return;
-        }
-
-        // ESC: 열려있으면 먼저 닫기 (이 프레임 ESC 소비 — 순서 무관하게 마커로)
-        if (IsOpen && Input.GetKeyDown(KeyCode.Escape))
-        {
-            escConsumedFrame = Time.frameCount;
-            SetOpen(false);
-            return;
-        }
-
-        if (!IsOpen) return;
-
-        // 스페이스바: 한 칸 아래로, 맨 아래면 첫 칸으로 순환
-        if (Input.GetKeyDown(navKey)) Move(1);
-
-        // E: 선택한 생물로 락온하고 UI 닫기
-        if (Input.GetKeyDown(lockOnKey))
-        {
-            LockOnSelected();
-            return;
-        }
-
         if (Time.time >= nextRefresh)
         {
             nextRefresh = Time.time + refreshInterval;
@@ -99,7 +70,7 @@ public class ObservationUI : MonoBehaviour
         PlayerLockOn pl = player != null ? player.pl : null;
         if (pl != null) pl.ForceLock(c);
 
-        SetOpen(false);
+        OnOff(false);
     }
 
     private void Move(int dir)
@@ -112,11 +83,13 @@ public class ObservationUI : MonoBehaviour
     // 플레이어가 있는 방의 생물 개체로 목록 구성
     private void RebuildShown()
     {
+        //새로 만들기 전에 비우기 
         shown.Clear();
 
         Room room = player != null ? player.currentRoom : null;
         if (room == null || room.creatureList == null) return;
 
+        //방에 있는 생물 목록 > 인스턴스화
         foreach (var c in room.creatureList)
         {
             if (c == null || c.data == null) continue;
@@ -127,7 +100,6 @@ public class ObservationUI : MonoBehaviour
         }
     }
 
-    // 필요한 만큼만 엔트리 풀에서 꺼내 쓰고 나머지는 비활성화
     private Entry GetEntry(int index)
     {
         while (pool.Count <= index)

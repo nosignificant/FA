@@ -16,11 +16,4 @@ public class Entry : MonoBehaviour
         if (label != null) label.text = itemLabel;
         if (border != null) border.color = selected ? selectedColor : normalColor;
     }
-
-    public void Set(string creatureName, string signature, bool selected)
-    {
-        if (label != null)
-            label.text = $"{creatureName}  [{signature}]";
-        if (border != null) border.color = selected ? selectedColor : normalColor;
-    }
 }

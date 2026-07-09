@@ -22,9 +22,6 @@ public class Player : MonoBehaviour
     public bool isTracking = false;
     public bool canTracking = true;
 
-    // ESC로 락온 해제한 프레임 기록 — 같은 ESC가 EscMenu를 여는 것 방지
-    [System.NonSerialized] public int lastUnlockFrame = -1;
-
     private CreatureData originalData;
     private CreatureData data;
 
@@ -51,40 +48,6 @@ public class Player : MonoBehaviour
             }
         }
     }
-
-    void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Tab))
-        {
-            if (!isTracking && canTracking)
-            {
-                bool locked = pl != null && pl.TryLock();
-                if (locked) isTracking = true;
-            }
-            else if (isTracking)
-            {
-                pl?.CycleNext();
-            }
-        }
-
-
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            if (isTracking)
-            {
-                isTracking = false;
-                pl?.Unlock();
-                lastUnlockFrame = Time.frameCount;
-                return;
-            }
-        }
-        CreaturePossess cp = GetComponent<CreaturePossess>();
-        if (cp != null) { UI_f.SetActive(cp.IsPossessing); }
-
-
-    }
-
-
 
     //room setting
     public void SetRoom(Room r)

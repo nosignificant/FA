@@ -30,32 +30,6 @@ public class EscMenu : MonoBehaviour
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
-    private void Update()
-    {
-        if (IsOpen)
-        {
-            if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
-            if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))
-                Move(-1);
-            if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
-                Move(1);
-            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-                Confirm();
-            return;
-        }
-
-        if (Input.GetKeyDown(KeyCode.Escape) && CanOpen())
-            Open();
-    }
-
-    private bool CanOpen()
-    {
-        bool observing = ObservationUI.Instance.IsOpen;
-        bool tracking = Player.Instance.isTracking;
-        // 이번 프레임에 ESC로 락온을 막 해제했다면 같은 ESC로 메뉴 열지 않음
-        bool justUnlocked = Player.Instance.lastUnlockFrame == Time.frameCount;
-        return !observing && !tracking && !justUnlocked;
-    }
 
     private void Open()
     {
@@ -74,7 +48,6 @@ public class EscMenu : MonoBehaviour
         selected = (selected + dir + items.Length) % items.Length;
         UpdateVisual();
     }
-
 
     private void Confirm()
     {
