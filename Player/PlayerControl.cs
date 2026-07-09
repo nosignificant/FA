@@ -89,13 +89,15 @@ public class PlayerControl : MonoBehaviour
     {
         if (Player.Instance.isTracking)
         {
+            // 락온 중엔 PlayerLockOn이 카메라 회전을 전담.
+            // 여기선 언락 대비 값만 동기화하고 회전은 건드리지 않음 (이중 제어로 인한 떨림 방지).
+            // yaw·pitch 모두 월드 기준으로 읽어야 언락 시 복원식(Euler(0,y,0)*Euler(x,0,0))과 일치.
+            // localEulerAngles.x는 몸 yaw 차이로 pitch가 오염돼서 시점이 튐.
             rotation.y = cameraTransform.eulerAngles.y;
 
-            float currentX = cameraTransform.localEulerAngles.x;
+            float currentX = cameraTransform.eulerAngles.x;
             if (currentX > 180) currentX -= 360;
             rotation.x = currentX;
-            transform.rotation = Quaternion.Euler(0f, rotation.y, 0f);
-            cameraTransform.localRotation = Quaternion.Euler(rotation.x, 0f, 0f);
 
             return;
         }

@@ -31,6 +31,8 @@ public class Interaction : MonoBehaviour
         }
     }
 
+    // h,s: L/AA로부터 도망, 플레이어 따라감
+
     private static int GetActionForHS(CreatureID targetID, InteractionAction action)
     {
         if (targetID == CreatureID.Player && action == InteractionAction.Chase) return 100;
@@ -72,6 +74,11 @@ public class Interaction : MonoBehaviour
             if (action == InteractionAction.Attack) return 100;
         }
 
+        if (targetID == L)
+        {
+            if (action == InteractionAction.Chase) return 50;
+        }
+
         if (targetID == H || targetID == S || targetID == A || targetID == AH || targetID == AS)
         {
             if (action == InteractionAction.Chase) return 70;
@@ -103,9 +110,11 @@ public class Interaction : MonoBehaviour
         return int.MinValue;
     }
 
-    // L: 적대 없음. h/s/a 잡아 합성 (h+h=hh, s+s=ss, a 포함=aa)
+    // L: aa/l 기피. h/s/a 잡아 합성 (h+h=hh, s+s=ss, a 포함=aa)
     private static int GetActionForL(CreatureID targetID, InteractionAction action)
     {
+        if ((targetID == AA || targetID == L) && action == InteractionAction.Flee) return 100;
+
         if (targetID == H || targetID == S || targetID == A)
         {
             if (action == InteractionAction.Chase) return 50;

@@ -10,6 +10,7 @@ public class TentacleCreature : Creature
 
     [Header("Synthesize Behavior")]
     public float synthesisCooldown = 13f;
+    public float synthHoldTime = 3f;
     public bool isSynthesizing = false;
 
     protected override void Awake()

@@ -133,11 +133,8 @@ public class Tutorial : MonoBehaviour
         tmp.text = "관찰 중 탭을 눌러 관찰 중인 생물을 전환할 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);
 
-        if (LockedOn(CreatureID.Door))
-        {
-            tmp.text = "문을 관찰하면, 문을 열 수 있는 조건을 알 수 있습니다.";
-            yield return new WaitForSeconds(messageInterval);
-        }
+        tmp.text = "문을 관찰하면, 문을 열 수 있는 조건을 알 수 있습니다.";
+        yield return new WaitForSeconds(messageInterval);
 
         tmp.text = "ESC로 관찰을 해제할 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);

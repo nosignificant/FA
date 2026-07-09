@@ -11,7 +11,6 @@ public class CreatureHUD : MonoBehaviour
     public TMP_Text statusText;
     public TMP_Text nameText;
     public TMP_Text targetText;
-    public Tutorial tutorial;
 
 
     [Header("설정")]
@@ -104,8 +103,7 @@ public class CreatureHUD : MonoBehaviour
         if (targetCreature.data.creatureID == CreatureID.Door)
         {
             Door d = targetCreature.GetComponent<Door>();
-            if (tutorial.doors.Contains(d)) statusText.text = "-";
-            else statusText.text = $"{d.roomCondition.observingC.creatureName} + {d.roomCondition.howManyMore.ToString()}";
+            statusText.text = d.watchingCreature != null ? d.watchingCreature.creatureName : "-";
         }
         else
         {

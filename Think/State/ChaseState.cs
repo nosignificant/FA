@@ -5,7 +5,7 @@ using CreatureTypes;
 class ChaseState : ThinkState
 {
     public int currentPriority;
-    public float runThreshold = 20f;
+    public float runThreshold = 10f;
     public bool needToChase = false;
     public bool targetChangedRoom = false;
     public ChaseState(Think2 think) : base(think) { }
@@ -13,9 +13,6 @@ class ChaseState : ThinkState
     public override void Enter(ThinkTarget prev)
     {
         base.Enter(prev);
-        // 새로 chase 진입 시 lock 해제: 첫 Refresh가 전체 경로를 타서
-        // newTarget.point가 반드시 세팅되도록 (안 그러면 Vector3.zero로 남음)
-        think.LockThink(false);
         if (prev.creature != null && think.IsValidTarget(prev.creature))
             newTarget = prev;
     }
@@ -24,22 +21,45 @@ class ChaseState : ThinkState
     {
         detected = think.scanner.Results;
 
-        // 현재 타겟이 잡혀버렸으면(또는 무효) 버리고 lock 해제 → 새 대상 찾게
         if (newTarget.creature != null &&
-            (newTarget.creature.intent == CreatureIntent.Grabbed ||
-             !think.IsValidTarget(newTarget.creature)))
+            (newTarget.creature.IsGrabbed ||
+             !think.IsValidTarget(newTarget.creature))) //쫓고 있던 대상이 유효하지 않으면 취소함
         {
             newTarget.creature = null;
-            think.LockThink(false);
+            think.LockState(false);
         }
 
         Creature temp = BestChaseTarget(detected);
-        if (temp == null || temp.data == null) return;
+        if (temp == null || temp.data == null)
+        {
+            // 같은 방엔 쫓을 대상이 없지만, 잠금된 타겟이 다른 방으로 갔으면 migration으로 따라감
+            // (안 그러면 BestChaseTarget가 옆방 타겟을 빼버려서 proxy가 얼어붙음 = EQS 멈춤)
+            Creature lockedTarget = newTarget.creature;
+            if (lockedTarget != null && lockedTarget.currentRoom != think.self.currentRoom)
+            {
+                var mig = think.migration;
+                if (mig != null && think.self.canMigrate && mig.TickMigration())
+                {
+                    newTarget.point = mig.migrateTargetPoint;
+                    return;
+                }
+            }
+            return;
+        }
 
-        // lock은 "타겟 교체"만 막음. 같은 타겟이면 위치는 계속 갱신.
         bool locked = think.isLocked && newTarget.creature != null;
         if (locked && temp != newTarget.creature)
         {
+            if (newTarget.creature.currentRoom != think.self.currentRoom)
+            {
+                var mig = think.migration;
+                if (mig != null && think.self.canMigrate && mig.TickMigration())
+                {
+                    //mig의 point로 proxy 이동시킴
+                    newTarget.point = mig.migrateTargetPoint;
+                    return;
+                }
+            }
             // 더 우선순위 높은 대상이면 lock 시간 소모(곧 풀림)
             int priority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Chase);
             if (priority < currentPriority)
@@ -50,7 +70,18 @@ class ChaseState : ThinkState
         {
             // 미잠금 or 같은 타겟 → 타겟 갱신/확정
             newTarget.creature = temp;
-            think.LockThink(true);
+
+            // 잠금 상태고 쫓고 있는 대상이 다른 방으로 이동했으면 같이 이동 
+            if (newTarget.creature.currentRoom != think.self.currentRoom)
+            {
+                var mig = think.migration;
+                if (mig != null && think.self.canMigrate && mig.TickMigration())
+                {
+                    newTarget.point = mig.migrateTargetPoint;
+                    return;
+                }
+            }
+            think.LockState(true);
             currentPriority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Chase);
         }
 
@@ -81,7 +112,7 @@ class ChaseState : ThinkState
         {
             var t = detected[i];
             if (!think.IsValidTarget(t)) continue;
-            if (t.intent == CreatureIntent.Grabbed) continue;   // 이미 잡힌 건 안 쫓음
+            if (t.IsGrabbed) continue;   // 이미 잡힌 건 안 쫓음
             if (t.currentRoom != self.currentRoom) continue;    // 다른 방 생물은 안 쫓음 (방 밖으로 새는 것 방지)
             if (!self.HasAction(t.data.creatureID, InteractionAction.Chase)) continue;
 

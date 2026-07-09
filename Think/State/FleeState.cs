@@ -14,41 +14,42 @@ class FleeState : ThinkState
     public override void Enter(ThinkTarget prev)
     {
         base.Enter(prev);
-        // 새로 도망 시작할 때 lock 초기화 (첫 Refresh가 point 세팅하도록)
         currentPriority = 0;
-        think.LockThink(false);
     }
     public override void Refresh(List<Vector3> points)
     {
         detected = think.scanner.Results;
 
-        // 도망 중 다른 방으로 탈출
-        if (think.self.wantToMigrate)
+        // 도망 중 다른 방으로 탈출 시도
+        var mig = think.migration;
+        if (mig != null && think.self.canMigrate && mig.TickMigration())
         {
-            think.TryMigrateRoom();
-            if (think.hasMigrateTarget)
-            {
-                newTarget.point = think.migrateTargetPoint;
-                return;
-            }
+            //mig의 point로 proxy 이동시킴
+            newTarget.point = mig.migrateTargetPoint;
+            return;
         }
 
+        //현재 가장 도망쳐야하는 타겟 받아옴 
         Creature temp = BestFleeTarget(detected);
-        if (temp == null) return;
+        if (temp == null)
+        {
+            think.LockState(false);
+            return;
+        }
 
-        // lock은 "타겟 교체"만 막음. 같은 타겟이면 위치/도망점은 계속 갱신.
+        // lock은 "타겟 교체"만 막음
         bool locked = think.isLocked && newTarget.creature != null;
         if (locked && temp != newTarget.creature)
         {
             int priority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Flee);
             if (priority < currentPriority)
                 think.currentLockTime += think.waitInterval;
-            // 교체 안 함, 기존 타겟 기준으로 아래 진행
         }
         else
         {
+            // 새 타겟 찾아옴
             newTarget.creature = temp;
-            think.LockThink(true);
+            think.LockState(true);
             currentPriority = think.self.GetActionPriority(temp.data.creatureID, InteractionAction.Flee);
         }
 
@@ -59,7 +60,6 @@ class FleeState : ThinkState
         float d = Vector3.Distance(think.self.rootTransform.position, ft.rootTransform.position);
         needToFlee = d < runThreshold;
 
-        // Flee 상태면 항상 위협 반대 방향 점으로 (위협 위치로 가지 않음)
         newTarget.point = GetNewPoint(points);
     }
 

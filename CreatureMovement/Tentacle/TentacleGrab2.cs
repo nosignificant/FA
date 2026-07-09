@@ -32,7 +32,7 @@ public class TentacleGrab2 : MonoBehaviour
     {
         if (target.IsDead || target.data == null) return;
         if (!target.data.isGrabable || !target.grabbable) return;
-        if (target.intent == CreatureIntent.Grabbed || target.intent == CreatureIntent.Decomposing) return;
+        if (target.IsGrabbed || target.intent == CreatureIntent.Decomposing) return;
         if (forcedTargetID != CreatureID.Player && target.data.creatureID != forcedTargetID) return;
         if (!self.HasAction(target.data.creatureID, InteractionAction.Grab)) return;
 
@@ -66,7 +66,7 @@ public class TentacleGrab2 : MonoBehaviour
         yield return new WaitForSeconds(holdTime);
 
         tentacles[i].isPending = false;
-        if (c == null || c.IsDead || c.intent == CreatureIntent.Grabbed) yield break;
+        if (c == null || c.IsDead || c.IsGrabbed) yield break;
         AttachToSlot(i, c);
     }
 

@@ -10,25 +10,23 @@ public class Player : MonoBehaviour
 
     public PlayerLockOn pl;
     public PlayerControl pctrl;
+    public GameObject UI_f;
     public Creature pc;
-    public PlayerLearnedUI plUI;
     public Room currentRoom;
 
 
     [Header("stat")]
-
-    public int spawnerToken = 0;
     public string roomID = "aaaa";
 
     [Header("bool")]
     public bool isTracking = false;
-    public bool isInteract = false;
     public bool canTracking = true;
+
+    // ESC로 락온 해제한 프레임 기록 — 같은 ESC가 EscMenu를 여는 것 방지
+    [System.NonSerialized] public int lastUnlockFrame = -1;
 
     private CreatureData originalData;
     private CreatureData data;
-
-    public List<CreatureData> learnedForms = new();
 
     //event actions
     public event Action<Room> roomChanged;
@@ -38,7 +36,6 @@ public class Player : MonoBehaviour
         if (pl == null) pl = GetComponent<PlayerLockOn>();
         if (pc == null) pc = GetComponent<Creature>();
 
-        if (plUI == null) Debug.Log("[playerLearnedUI] canvas에서 찾아와서 할당해주세요 ㅠㅠ");
         Instance = this;
     }
 
@@ -57,20 +54,15 @@ public class Player : MonoBehaviour
 
     void Update()
     {
-        // StoryUI가 열려있으면 Player 입력 전부 양보
-        if (StoryUI.Instance != null && StoryUI.Instance.IsOpen) return;
-
         if (Input.GetKeyDown(KeyCode.Tab))
         {
             if (!isTracking && canTracking)
             {
-                // 처음 락온
                 bool locked = pl != null && pl.TryLock();
                 if (locked) isTracking = true;
             }
             else if (isTracking)
             {
-                // 이미 추적 중 → 다음 후보로 순환
                 pl?.CycleNext();
             }
         }
@@ -82,9 +74,14 @@ public class Player : MonoBehaviour
             {
                 isTracking = false;
                 pl?.Unlock();
+                lastUnlockFrame = Time.frameCount;
                 return;
             }
         }
+        CreaturePossess cp = GetComponent<CreaturePossess>();
+        if (cp != null) { UI_f.SetActive(cp.IsPossessing); }
+
+
     }
 
 

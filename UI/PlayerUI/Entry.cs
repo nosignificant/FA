@@ -17,14 +17,10 @@ public class Entry : MonoBehaviour
         if (border != null) border.color = selected ? selectedColor : normalColor;
     }
 
-    public void Set(string creatureName, string signature, int cur, int req, bool learned, bool selected)
+    public void Set(string creatureName, string signature, bool selected)
     {
         if (label != null)
-        {
-            label.text = learned
-                ? $"{creatureName}  [{signature}]  조종 가능"
-                : $"{creatureName}  [{signature}]  조종 불가  {cur}/{req}";
-        }
+            label.text = $"{creatureName}  [{signature}]";
         if (border != null) border.color = selected ? selectedColor : normalColor;
     }
 }

@@ -92,28 +92,40 @@ public class RoomEditor : Editor
     {
         EditorGUILayout.LabelField("Doors", EditorStyles.boldLabel);
 
-        foreach (var slot in room.wallSlots)
+        // doors[] 기준으로 그리기 — 양쪽 방 모두에 자기 등록돼 있어서 어느 쪽에서도 보임
+        foreach (var d in room.doors)
         {
-            Door d = slot.wall != null ? slot.wall.door : null;
             if (d == null) continue;
 
+            // 이 문이 내 wallSlot에 있는지 찾기 (방향 표시용, 없으면 "-")
+            string dirLabel = "-";
+            foreach (var slot in room.wallSlots)
+            {
+                if (slot.wall != null && slot.wall.door == d)
+                {
+                    dirLabel = slot.direction.ToString();
+                    break;
+                }
+            }
+
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField($"{slot.direction}", GUILayout.Width(30));
+            EditorGUILayout.LabelField(dirLabel, GUILayout.Width(30));
 
             // 조건 옵저빙 생물
             EditorGUI.BeginChangeCheck();
             CreatureData newObs = (CreatureData)EditorGUILayout.ObjectField(
-                d.roomCondition.observingC, typeof(CreatureData), false, GUILayout.MinWidth(80));
-            int newCount = EditorGUILayout.IntField(d.roomCondition.howManyMore, GUILayout.Width(40));
+                d.watchingCreature, typeof(CreatureData), false, GUILayout.MinWidth(80));
             if (EditorGUI.EndChangeCheck())
             {
                 Undo.RecordObject(d, "Edit Door Condition");
-                var cond = d.roomCondition;
-                cond.observingC = newObs;
-                cond.howManyMore = newCount;
-                d.roomCondition = cond;
+                d.watchingCreature = newObs;
                 EditorUtility.SetDirty(d);
             }
+
+            // 연결된 반대편 방 표시
+            Room other = (d.roomA == room) ? d.roomB : d.roomA;
+            string otherName = other != null ? other.name : "(미연결)";
+            EditorGUILayout.LabelField($"→ {otherName}", GUILayout.MinWidth(100));
 
             // 강제 열기/닫기 버튼
             GUI.backgroundColor = d.isOpen ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.7f, 0.7f);
@@ -137,13 +149,19 @@ public class RoomEditor : Editor
         int undoGroup = Undo.GetCurrentGroup();
         Undo.SetCurrentGroupName("Clear Creatures");
 
-        // 자식 중 Creature 컴포넌트 가진 것만 제거 (Door, Wall 등은 보존)
+        // 생물은 더 이상 방 자식이 아니라 컨테이너에 있으므로 bounds로 판정
         var toRemove = new System.Collections.Generic.List<GameObject>();
-        foreach (var c in room.GetComponentsInChildren<Creature>(true))
+        if (room.homeBound != null)
         {
-            // Door의 self Creature는 보존
-            if (c.GetComponent<Door>() != null) continue;
-            toRemove.Add(c.gameObject);
+            Bounds b = room.homeBound.bounds;
+            foreach (var c in Object.FindObjectsOfType<Creature>(true))
+            {
+                if (c == null) continue;
+                // Door의 self Creature는 보존
+                if (c.GetComponent<Door>() != null) continue;
+                Transform rt = c.rootTransform != null ? c.rootTransform : c.transform;
+                if (b.Contains(rt.position)) toRemove.Add(c.gameObject);
+            }
         }
 
         foreach (var go in toRemove)
@@ -158,14 +176,15 @@ public class RoomEditor : Editor
         int undoGroup = Undo.GetCurrentGroup();
         Undo.SetCurrentGroupName("Spawn Creatures");
 
-        // 스폰 전 자식 수 기억
-        int before = room.transform.childCount;
+        // 생물은 공용 컨테이너에 스폰되므로 컨테이너 자식 수로 추적
+        Transform container = CreatureRoot.Container;
+        int before = container.childCount;
         room.SpawnInitialCreatures();
-        int after = room.transform.childCount;
+        int after = container.childCount;
 
         // 새로 생긴 자식들 Undo에 등록
         for (int i = before; i < after; i++)
-            Undo.RegisterCreatedObjectUndo(room.transform.GetChild(i).gameObject, "Spawn Creatures");
+            Undo.RegisterCreatedObjectUndo(container.GetChild(i).gameObject, "Spawn Creatures");
 
         Undo.CollapseUndoOperations(undoGroup);
         EditorUtility.SetDirty(room);

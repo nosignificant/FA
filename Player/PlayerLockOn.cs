@@ -15,6 +15,17 @@ public class PlayerLockOn : MonoBehaviour
     [Header("설정")]
     public float rotationSpeed = 5f;
     public Vector3 aimOffset = new Vector3(0, 1.0f, 0);
+    [Tooltip("이 반경 안의 생물은 방이 달라도 락온 후보에 포함")]
+    public float lockRadius = 30f;
+
+    [Tooltip("락온 대상 떨림 보정 시간(클수록 부드럽지만 반응 느림). 0이면 보정 없음")]
+    public float aimSmoothTime = 0.12f;
+    [Tooltip("카메라 회전 보정 시간")]
+    public float rotationSmoothTime = 0.1f;
+    private Vector3 smoothedAimPos;
+    private Vector3 aimVelocity;
+    private Vector3 rotationVelocity;
+    private bool aimInitialized = false;
 
     public event Action<Creature> targetChanged;
 
@@ -86,6 +97,7 @@ public class PlayerLockOn : MonoBehaviour
     private void SetTarget(Creature target)
     {
         targetCreature = target;
+        aimInitialized = false;   // 새 대상으로 바꾸면 보정값 스냅
         targetChanged?.Invoke(targetCreature);
         LookAtTarget();
     }
@@ -107,6 +119,8 @@ public class PlayerLockOn : MonoBehaviour
         Vector3 playerPos = transform.position;
         Vector2 screenCenter = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
         List<Creature> lockables = new();
+
+        // 현재 방 + 문 생물
         if (room.creatureList != null)
             lockables.AddRange(room.creatureList);
 
@@ -117,6 +131,15 @@ public class PlayerLockOn : MonoBehaviour
                 if (door != null && door.self != null && !lockables.Contains(door.self))
                     lockables.Add(door.self);
             }
+        }
+
+        // 반경 안의 생물은 방이 달라도 후보에 추가 (CreatureScanner와 동일 방식)
+        Collider[] hits = Physics.OverlapSphere(playerPos, lockRadius);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Creature c = hits[i].GetComponentInParent<Creature>();
+            if (c == null || lockables.Contains(c)) continue;
+            lockables.Add(c);
         }
 
         candidates = lockables
@@ -149,17 +172,27 @@ public class PlayerLockOn : MonoBehaviour
     {
         if (targetCreature == null || cam == null) return;
 
-        Vector3 targetPos = GetLockPosition(targetCreature) + aimOffset;
-        Vector3 dir = targetPos - cam.transform.position;
+        Vector3 rawPos = GetLockPosition(targetCreature) + aimOffset;
+
+        // 대상 바디 진동 흡수: 조준점을 SmoothDamp로 부드럽게
+        if (!aimInitialized) { smoothedAimPos = rawPos; aimInitialized = true; }
+        smoothedAimPos = aimSmoothTime > 0f
+            ? Vector3.SmoothDamp(smoothedAimPos, rawPos, ref aimVelocity, aimSmoothTime)
+            : rawPos;
+
+        Vector3 dir = smoothedAimPos - cam.transform.position;
 
         if (dir.sqrMagnitude <= 0.000001f) return;
 
         Quaternion targetRot = Quaternion.LookRotation(dir.normalized, Vector3.up);
-        cam.transform.rotation = Quaternion.Slerp(
-            cam.transform.rotation,
-            targetRot,
-            rotationSpeed * Time.deltaTime
+        Vector3 currentEuler = cam.transform.rotation.eulerAngles;
+        Vector3 targetEuler = targetRot.eulerAngles;
+        Vector3 smoothed = new Vector3(
+            Mathf.SmoothDampAngle(currentEuler.x, targetEuler.x, ref rotationVelocity.x, rotationSmoothTime),
+            Mathf.SmoothDampAngle(currentEuler.y, targetEuler.y, ref rotationVelocity.y, rotationSmoothTime),
+            Mathf.SmoothDampAngle(currentEuler.z, targetEuler.z, ref rotationVelocity.z, rotationSmoothTime)
         );
+        cam.transform.rotation = Quaternion.Euler(smoothed);
     }
 
     private Vector3 GetLockPosition(Creature creature)

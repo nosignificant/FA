@@ -22,6 +22,8 @@ public abstract class ThinkState
         oldTarget = prevTarget;
         newTarget = default;
         think.currentLockTime = 0f;
+        think.LockState(false);
+
     }
     public virtual void Refresh(List<Vector3> points) { }
 

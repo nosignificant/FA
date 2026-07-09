@@ -11,6 +11,7 @@ public class CreatureData : ScriptableObject
     public float spawnYOffset = 0f;
     public bool canAttackThis = true;
     public bool isGrabable = true;
+    public bool controllable = true;   // 플레이어 조종(possess) 가능 여부
 
     public bool walkingCreature = false;
 

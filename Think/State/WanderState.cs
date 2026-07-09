@@ -33,10 +33,11 @@ class WanderState : ThinkState
         // 옆방에 Chase 대상이 있거나 랜덤값 이상이 나오면 이주 시도
         var mig = think.migration;
         float r = Random.Range(1, 10) * think.self.data.wanderWeight;
-        if (mig != null && mig.canMigrate && mig.TickMigration())
+        if (mig != null && think.self.canMigrate && mig.TickMigration())
         {
-            if (r > goToOtherRoom && mig.HasChaseTargetInAdjacentRoom())
-                newTarget.point = mig.migrateTargetPoint;
+            if (mig.HasChaseTargetInAdjacentRoom())
+            { newTarget.point = mig.migrateTargetPoint; return; }
+            else if (r > goToOtherRoom) newTarget.point = mig.migrateTargetPoint;
             return;
         }
 

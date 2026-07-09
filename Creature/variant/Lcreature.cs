@@ -6,17 +6,6 @@ using CreatureTypes;
 
 public class Lcreature : TentacleCreature
 {
-    // 같은 방에 AA 또는 (자기 말고) 다른 L 있으면 무조건 다른 방으로
-    protected override float GetMigrateChance()
-    {
-        if (currentRoom != null && currentRoom.creatureList != null &&
-            currentRoom.creatureList.Any(c =>
-                c != null && c != this && c.data != null &&
-                (c.data.creatureID == CreatureID.AA || c.data.creatureID == CreatureID.L)))
-            return 1f;
-        return base.GetMigrateChance();
-    }
-
     [Header("LBehavior")]
 
     public float releaseInterval = 13f;
@@ -32,6 +21,7 @@ public class Lcreature : TentacleCreature
         if (needToSpawn)
         {
             tentacleGrab.reservedForSpawn = spawnCreatureAtTentacleIndex;
+            tentacleGrab.forcedTargetID = currentSpawn;
             StartCoroutine(Lbehaviour());
         }
     }
@@ -134,5 +124,9 @@ public class Lcreature : TentacleCreature
         return currentRoom.creatureDB.GetPrefab(idx);
     }
 
-    public void SetLSpawnCreature(CreatureID idx) { currentSpawn = idx; }
+    public void SetLSpawnCreature(CreatureID idx)
+    {
+        currentSpawn = idx;
+        if (tentacleGrab != null) tentacleGrab.forcedTargetID = idx;
+    }
 }

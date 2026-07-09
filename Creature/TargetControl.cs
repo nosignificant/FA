@@ -16,6 +16,7 @@ public sealed class TargetControl : MonoBehaviour
     public bool isEngineLeg = false;
     public bool isQuadLeg = false;
     public bool isFollowingRB = false;
+    public bool isLegHead = false;
     [Tooltip("flee 또는 migrate 중일 때 moveSpeed에 더해줄 가속량")]
     public float urgentSpeedBonus = 5f;
     public event Action<Transform> TargetChanged;
@@ -47,12 +48,11 @@ public sealed class TargetControl : MonoBehaviour
         if (movementTarget == null) return;
 
         // 도망/이주 중이면 다리 속도 +bonus
-        bool urgent = self != null &&
-            (self.intent == CreatureIntent.Flee || self.wantToMigrate);
+        bool urgent = self != null && self.intent == CreatureIntent.Flee;
         float add = urgent ? urgentSpeedBonus : 0f;
 
         if (engineLegs != null) engineLegs.moveSpeed = engineBaseSpeed + add;
-        if (quadLegs != null)   quadLegs.moveSpeed   = quadBaseSpeed + add;
+        if (quadLegs != null) quadLegs.moveSpeed = quadBaseSpeed + add;
     }
 
     public void SetMovementTarget(Transform newTarget)
@@ -65,6 +65,7 @@ public sealed class TargetControl : MonoBehaviour
         if (isEngineLeg) SetEngineTarget();
         if (isQuadLeg) SetQuadTarget();
         if (isFollowingRB) SetFollowingRBTarget();
+        if (isLegHead) SetLegHead();
 
     }
     public void GoToTarget()
@@ -106,5 +107,11 @@ public sealed class TargetControl : MonoBehaviour
         if (rb == null) return;
         rb.target = movementTarget;
 
+    }
+
+    public void SetLegHead()
+    {
+        LegHead lh = GetComponentInChildren<LegHead>();
+        lh.target = movementTarget;
     }
 }

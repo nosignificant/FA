@@ -11,7 +11,6 @@ public class ObservationUI : MonoBehaviour
     public static ObservationUI Instance;
 
     [Header("Refs")]
-    public ObservationLearner learner;
     public Player player;
 
     [Tooltip("C로 켜고 끌 루트")]
@@ -38,7 +37,6 @@ public class ObservationUI : MonoBehaviour
     private readonly StringBuilder sb = new();
     public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
 
-    // ESC를 이 프레임에 ObservationUI가 소비했는지 (실행 순서 무관)
     private static int escConsumedFrame = -1;
     public static bool EscConsumedThisFrame => escConsumedFrame == Time.frameCount;
 
@@ -46,7 +44,6 @@ public class ObservationUI : MonoBehaviour
     {
         Instance = this;
         if (player == null) player = Player.Instance;
-        if (learner == null && player != null) learner = player.GetComponent<ObservationLearner>();
 
         if (panelRoot != null) panelRoot.SetActive(false);
     }
@@ -158,10 +155,7 @@ public class ObservationUI : MonoBehaviour
 
             string n = string.IsNullOrEmpty(c.data.creatureName)
                 ? c.data.creatureID.ToString() : c.data.creatureName;
-            int req = Mathf.Max(1, c.data.observationsToLearn);
-
-            e.Set(n, c.data.signatureIntent.ToString(),
-                  c.observeCount, req, c.possessable, i == selected);
+            e.Set(n, i == selected);
         }
 
         // 남는 엔트리 끄기
@@ -184,9 +178,6 @@ public class ObservationUI : MonoBehaviour
         var data = self.data;
         string sn = string.IsNullOrEmpty(data.creatureName) ? data.creatureID.ToString() : data.creatureName;
         sb.AppendLine($"<b>{sn} 행동</b>");
-        sb.AppendLine(self.possessable
-            ? "<color=#6fdc6f>관찰 완료 — 빙의 가능</color>"
-            : $"관찰 {self.observeCount}/{Mathf.Max(1, data.observationsToLearn)}");
 
         if (interaction == null) { sb.AppendLine("(Interaction 없음)"); return sb.ToString(); }
 

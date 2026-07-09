@@ -1,9 +1,6 @@
 using UnityEngine;
 using CreatureTypes;
 
-// 방에 있는 생물 1마리를 골라 직접 조종.
-// 대상 Think2를 수동 모드로 돌리고, WASD로 그 생물의 EQS proxy를 움직이면
-// TargetControl/RBpart/다리 이동 스택이 그대로 따라감.
 public class CreaturePossess : MonoBehaviour
 {
     [Header("입력")]
@@ -11,9 +8,6 @@ public class CreaturePossess : MonoBehaviour
     public float proxyMoveSpeed = 8f;
     public Transform cameraTransform;          // 이동 방향 기준 (비우면 Camera.main)
 
-    [Header("빙의 콜라이더")]
-    [Tooltip("빙의 중 proxy에 붙일 콜라이더 반지름 — 벽/문에 물리로 막히게 함")]
-    public float proxyColliderRadius = 1f;
 
     [Header("탑승")]
     [Tooltip("빙의 중 플레이어를 생물 자식으로 둬서 같이 이동")]
@@ -21,11 +15,12 @@ public class CreaturePossess : MonoBehaviour
 
     private Think2 controlled;
     private Transform proxy;
-    private Transform playerOriginalParent;
-    private bool hierarchySaved = false;
+
+
     private Rigidbody playerRb;
     private bool rbWasKinematic;
     private Transform camOriginalParent;
+    private Vector3 camLocalPos;
 
     private Rigidbody proxyRb;
     private SphereCollider proxyCol;
@@ -37,6 +32,7 @@ public class CreaturePossess : MonoBehaviour
     {
         if (cameraTransform == null && Camera.main != null)
             cameraTransform = Camera.main.transform;
+        camLocalPos = cameraTransform.localPosition;
     }
 
     private void Update()
@@ -45,6 +41,16 @@ public class CreaturePossess : MonoBehaviour
         {
             if (IsPossessing) Release();
             else TryPossessLockedTarget();
+        }
+
+        // 조종 생물이 잡히거나(합성/분해) 파괴되면 즉시 해제.
+        // (합성은 Died 이벤트 없이 Destroy하므로 여기서 잡아야 proxy 파괴로 카메라가 딸려가는 걸 막음)
+        if (IsPossessing &&
+            (controlledCreature == null || controlledCreature.IsDead || controlledCreature.IsGrabbed))
+        {
+            ToastUI.Instance?.Show("조종하던 생물을 빼앗겼습니다");
+            Release();
+            return;
         }
 
         if (IsPossessing) DriveProxy();
@@ -56,23 +62,30 @@ public class CreaturePossess : MonoBehaviour
         proxyRb.linearVelocity = driveDir * proxyMoveSpeed;
     }
 
+
+
     // 플레이어가 락온 중인 생물을 빙의
     private void TryPossessLockedTarget()
     {
-        var pl = Player.Instance != null ? Player.Instance.pl : null;
-        Creature target = pl != null ? pl.targetCreature : null;
-        if (target == null) { Debug.Log("[Possess] 락온된 생물 없음"); return; }
+        Creature target = Player.Instance.pl.targetCreature;
+        if (target == null) return;
 
-        // 관찰을 끝낸 개체만 빙의 가능
-        if (!target.possessable)
+        // 조종 불가 생물이면 알림만 띄우고 중단
+        if (target.data != null && !target.data.controllable)
         {
-            Debug.Log("[Possess] 아직 관찰이 끝나지 않은 개체 — 빙의 불가");
+            ToastUI.Instance?.Show("이 생물은 당신이 조종할 수 없습니다");
             return;
         }
 
-        Think2 brain = target.GetComponentInChildren<Think2>();
-        if (brain == null) brain = target.GetComponentInParent<Think2>();
-        if (brain == null) { Debug.Log("[Possess] 대상에 Think2 없음"); return; }
+        // 다른 생물에게 잡혀있는(합성/분해 중) 생물은 조종 불가
+        if (target.IsGrabbed)
+        {
+            ToastUI.Instance?.Show("다른 생물에게 잡힌 생물은 조종할 수 없습니다");
+            return;
+        }
+
+        Think2 brain = target.GetComponent<Think2>();
+        if (brain == null) return;
 
         Possess(brain);
     }
@@ -81,14 +94,7 @@ public class CreaturePossess : MonoBehaviour
 
     public void Possess(Think2 brain)
     {
-        // Door / D 는 빙의 불가
-        if (brain.self != null && brain.self.data != null &&
-            (brain.self.data.creatureID == CreatureID.Door ||
-             brain.self.data.creatureID == CreatureID.D))
-        {
-            Debug.Log("[Possess] Door/D는 빙의할 수 없습니다");
-            return;
-        }
+        if (brain.self?.data == null || !brain.self.data.controllable) return;
 
         Release();   // 이전 거 해제
         controlled = brain;
@@ -103,31 +109,18 @@ public class CreaturePossess : MonoBehaviour
             controlledCreature.Died += OnControlledDied;
             controlledCreature.intent = CreatureIntent.Controlled;   // 조종 상태로
 
-            // 조종 중엔 그 생물로 락온 고정
-            var pl = Player.Instance != null ? Player.Instance.pl : null;
-            if (pl != null) pl.ForceLock(controlledCreature);
+            Player.Instance.pl.ForceLock(controlledCreature);
         }
 
         if (rideCreature && proxy != null)
         {
-            // 플레이어를 proxy 자식으로 — proxy는 회전 안 하니 카메라도 안 돎
-            Transform mount = proxy;
-
-            playerOriginalParent = transform.parent;
-            hierarchySaved = true;
-            transform.SetParent(mount, true);          // 월드 위치 유지하며 자식으로
+            transform.SetParent(proxy, true);          // 월드 위치 유지하며 자식으로
             transform.localPosition = Vector3.zero;    // 탑승 지점에 스냅
             PlayerControl.SetPlayerMove(false);        // 플레이어 자체 이동은 정지
 
-            // 물리 오브젝트는 부모를 안 따라감 → kinematic으로 바꿔야 실려 다님
             if (playerRb == null) playerRb = GetComponent<Rigidbody>();
-            if (playerRb != null)
-            {
-                rbWasKinematic = playerRb.isKinematic;
-                playerRb.isKinematic = true;
-            }
+            if (playerRb != null) { playerRb.isKinematic = true; }
 
-            // 카메라는 EQS proxy 자식으로 → proxy는 회전 안 하니 시점 안 돎
             if (cameraTransform != null && proxy != null)
             {
                 camOriginalParent = cameraTransform.parent;
@@ -138,7 +131,7 @@ public class CreaturePossess : MonoBehaviour
 
         SetupProxyPhysics();
 
-        Debug.Log($"[Possess] {controlled.name} 조종 시작");
+        Debug.Log($"[Possess] {controlled.name} 조종");
     }
 
     // proxy에 Rigidbody + Collider를 붙여 벽/문에 물리로 막히게 함
@@ -147,12 +140,10 @@ public class CreaturePossess : MonoBehaviour
         if (proxy == null) return;
         var go = proxy.gameObject;
 
-        proxyCol = go.GetComponent<SphereCollider>();
-        if (proxyCol == null) proxyCol = go.AddComponent<SphereCollider>();
-        proxyCol.radius = proxyColliderRadius;
+        proxyCol = go.AddComponent<SphereCollider>();
+        proxyCol.radius = 7f;
 
-        proxyRb = go.GetComponent<Rigidbody>();
-        if (proxyRb == null) proxyRb = go.AddComponent<Rigidbody>();
+        proxyRb = go.AddComponent<Rigidbody>();
         proxyRb.useGravity = false;
         proxyRb.isKinematic = false;
         proxyRb.constraints = RigidbodyConstraints.FreezeRotation;
@@ -179,6 +170,7 @@ public class CreaturePossess : MonoBehaviour
 
     private void OnControlledDied(Creature c, CreatureID who)
     {
+        ToastUI.Instance?.Show("조종하던 생물이 사라졌다");
         Release();   // 생물 파괴 전에 플레이어·카메라 분리
     }
 
@@ -190,29 +182,34 @@ public class CreaturePossess : MonoBehaviour
         TeardownProxyPhysics();
         driveDir = Vector3.zero;
 
+        // proxy와 rootTransform 중간 지점에 플레이어 내리기
+        if (controlledCreature != null && proxy != null)
+        {
+            Vector3 proxyPos = proxy.position;
+            Vector3 rootPos = controlledCreature.rootTransform != null
+                ? controlledCreature.rootTransform.position
+                : controlledCreature.transform.position;
+            transform.position = (proxyPos + rootPos) * 0.5f;
+        }
+
         if (controlledCreature != null)
         {
             controlledCreature.Died -= OnControlledDied;
-            // 조종 해제 → intent 복구 (AI 다시 판단하게)
             if (controlledCreature.intent == CreatureIntent.Controlled)
                 controlledCreature.intent = CreatureIntent.Wander;
             controlledCreature = null;
         }
+        Player.Instance.pl.Unlock();
 
-        // 락온 해제
-        var pl = Player.Instance != null ? Player.Instance.pl : null;
-        if (pl != null) pl.Unlock();
+        transform.SetParent(null, true);
+        PlayerControl.SetPlayerMove(true);
 
-        if (hierarchySaved)
+        if (playerRb != null) playerRb.isKinematic = false;
+
+        if (cameraTransform != null)
         {
-            transform.SetParent(playerOriginalParent, true);
-            hierarchySaved = false;
-            PlayerControl.SetPlayerMove(true);
-
-            if (playerRb != null) playerRb.isKinematic = rbWasKinematic;   // 물리 복구
-
-            if (cameraTransform != null)
-                cameraTransform.SetParent(camOriginalParent, true);        // 카메라 원위치
+            cameraTransform.SetParent(camOriginalParent, true);
+            cameraTransform.localPosition = camLocalPos;
         }
 
         Debug.Log($"[Possess] {controlled.name} 조종 해제");

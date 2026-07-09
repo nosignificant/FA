@@ -38,13 +38,13 @@ public class Door : MonoBehaviour
         // roomA가 비어있으면 부모에서 자동 할당
         if (roomA == null) roomA = GetComponentInParent<Room>();
         if (self == null) self = GetComponent<Creature>();
+
+        if (upperDoor != null) originalUpperY = upperDoor.position.y;
+        if (lowerDoor != null) originalLowerY = lowerDoor.position.y;
     }
 
     void Start()
     {
-        originalUpperY = upperDoor.position.y;
-        originalLowerY = lowerDoor.position.y;
-
         if (roomA == null) Debug.LogWarning($"[Door {name}] roomA 미설정");
         if (roomB == null) Debug.LogWarning($"[Door {name}] roomB 미설정 (인스펙터/RoomEditor에서 할당 필요)");
 
@@ -90,6 +90,7 @@ public class Door : MonoBehaviour
 
     private void OnRoomADecomposed(Creature creature, CreatureID decomposerID)
     {
+        if (watchingCreature == null) return;
         if (decomposerID != CreatureID.D) return;
 
         var (best, diff) = roomA.MostDecomposedAndSecond();
@@ -99,6 +100,7 @@ public class Door : MonoBehaviour
 
     private void OnRoomBDecomposed(Creature creature, CreatureID decomposerID)
     {
+        if (watchingCreature == null) return;
         if (decomposerID != CreatureID.D) return;
 
         var (best, diff) = roomB.MostDecomposedAndSecond();
