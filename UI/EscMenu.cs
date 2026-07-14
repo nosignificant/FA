@@ -31,25 +31,25 @@ public class EscMenu : MonoBehaviour
     }
 
 
-    private void Open()
+    public void Open()
     {
         if (panelRoot != null) panelRoot.SetActive(true);
         Time.timeScale = 0f;
 
     }
 
-    private void Close()
+    public void Close()
     {
         if (panelRoot != null) panelRoot.SetActive(false);
         Time.timeScale = 1f;
     }
-    private void Move(int dir)
+    public void Move(int dir)
     {
         selected = (selected + dir + items.Length) % items.Length;
         UpdateVisual();
     }
 
-    private void Confirm()
+    public void Confirm()
     {
         if (items.Length == 0) return;
         switch (items[selected].label)

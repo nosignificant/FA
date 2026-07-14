@@ -40,15 +40,16 @@ public class RoomManager : MonoBehaviour
     {
         // 전부 비활성화
         foreach (var r in rooms.Values)
-            r.isActive = false;
+            if (r != null) r.isActive = false;
 
         if (playerRoom == null) return;
 
         // 플레이어 방 + 열린 문으로 연결된 방만 활성화
         playerRoom.isActive = true;
+        if (playerRoom.doors == null) return;
         foreach (var d in playerRoom.doors)
         {
-            if (!d.isOpen) continue;
+            if (d == null || !d.isOpen) continue;   // null 문 건너뜀 (이벤트 체인 끊기는 예외 방지)
             Room other = d.GetOtherRoom(playerRoom);
             // 튜토리얼 방은 문 열려도 자동 활성화 안 함
             if (other != null && !other.isTutorial) other.isActive = true;

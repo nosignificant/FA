@@ -4,7 +4,6 @@ using CreatureTypes;
 public class CreaturePossess : MonoBehaviour
 {
     [Header("입력")]
-    public KeyCode possessKey = KeyCode.F;     // 조준한 생물 빙의/해제
     public float proxyMoveSpeed = 8f;
     public Transform cameraTransform;          // 이동 방향 기준 (비우면 Camera.main)
 
@@ -37,12 +36,6 @@ public class CreaturePossess : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(possessKey))
-        {
-            if (IsPossessing) Release();
-            else TryPossessLockedTarget();
-        }
-
         // 조종 생물이 잡히거나(합성/분해) 파괴되면 즉시 해제.
         // (합성은 Died 이벤트 없이 Destroy하므로 여기서 잡아야 proxy 파괴로 카메라가 딸려가는 걸 막음)
         if (IsPossessing &&
@@ -54,6 +47,13 @@ public class CreaturePossess : MonoBehaviour
         }
 
         if (IsPossessing) DriveProxy();
+    }
+
+    // 빙의 토글 (PlayerInputManager의 F 키에서 호출)
+    public void TogglePossess()
+    {
+        if (IsPossessing) Release();
+        else TryPossessLockedTarget();
     }
 
     private void FixedUpdate()
@@ -84,6 +84,14 @@ public class CreaturePossess : MonoBehaviour
             return;
         }
 
+        // 빙의 즉시 사망 종: 실제 조종 없이 스토리만 올리고 죽임 (일회성 소모)
+        if (target.data != null && target.data.dieOnPossess)
+        {
+            StoryManager.Instance.TryAdvanceFromPossess(target);
+            if (!target.IsDead) target.TakeDamage(target.currentHP, Player.Instance.pc);
+            return;
+        }
+
         Think2 brain = target.GetComponent<Think2>();
         if (brain == null) return;
 
@@ -110,6 +118,9 @@ public class CreaturePossess : MonoBehaviour
             controlledCreature.intent = CreatureIntent.Controlled;   // 조종 상태로
 
             Player.Instance.pl.ForceLock(controlledCreature);
+
+            // advancesStory 종이면 스토리 단계 +1 (개체당 1회)
+            StoryManager.Instance.TryAdvanceFromPossess(controlledCreature);
         }
 
         if (rideCreature && proxy != null)

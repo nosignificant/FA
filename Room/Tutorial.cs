@@ -160,7 +160,7 @@ public class Tutorial : MonoBehaviour
 
 
         tmp.text = "C를 눌러 방 안에 어떤 생물이 있는지 확인하십시오.";
-        while (ObservationUI.Instance == null || !ObservationUI.Instance.IsOpen) yield return null;
+        while (ObservationUI.Instance == null || !ObservationUI.Instance.IsOnOff) yield return null;
 
         tmp.text = "스페이스바를 눌러 커서를 이동시키십시오.";
         yield return new WaitForSeconds(messageInterval);

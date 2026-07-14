@@ -135,6 +135,9 @@ public class Room : MonoBehaviour
         roomID = gameObject.name;
         if (RoomManager.Instance != null) RoomManager.Instance.Register(this);
 
+        // 에디터에서 직렬화됐다가 삭제된 문의 낡은(Missing) 참조 제거 — 런타임엔 각 Door가 RegisterDoor로 다시 등록
+        doors.RemoveAll(d => d == null);
+
         // hierarchy 부모가 아니라 위치(bounds) 기준으로 소속 결정
         RegisterCreaturesInBounds();
 

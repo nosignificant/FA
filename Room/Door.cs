@@ -64,6 +64,8 @@ public class Door : MonoBehaviour
         if (roomA != null) roomA.OnCreatureDecomposed += OnRoomADecomposed;
         if (roomB != null) roomB.OnCreatureDecomposed += OnRoomBDecomposed;
 
+        DoorManager.Instance.Register(this);
+
         EvaluateConditions();
     }
 
@@ -71,6 +73,8 @@ public class Door : MonoBehaviour
     {
         if (roomA != null) roomA.OnCreatureDecomposed -= OnRoomADecomposed;
         if (roomB != null) roomB.OnCreatureDecomposed -= OnRoomBDecomposed;
+
+        if (DoorManager.Instance != null) DoorManager.Instance.Unregister(this);
     }
 
     private void EvaluateConditions()
@@ -100,11 +104,15 @@ public class Door : MonoBehaviour
 
     private void OnRoomBDecomposed(Creature creature, CreatureID decomposerID)
     {
+        Debug.Log($"[DoorDbg] B핸들러 진입. watching={watchingCreature?.name} decomposer={decomposerID}");
         if (watchingCreature == null) return;
         if (decomposerID != CreatureID.D) return;
 
         var (best, diff) = roomB.MostDecomposedAndSecond();
         conditionB = CheckCondition(best, diff);
+        Debug.Log($"[DoorDbg] roomB={roomB?.name} best={best?.name}(id={best?.GetInstanceID()}) " +
+                  $"watching={watchingCreature?.name}(id={watchingCreature?.GetInstanceID()}) " +
+                  $"same={best == watchingCreature} condB={conditionB} → open={conditionA || conditionB}");
         DoorCloseAndOpen(conditionA || conditionB);
     }
 
@@ -115,6 +123,7 @@ public class Door : MonoBehaviour
 
     public void DoorCloseAndOpen(bool open)
     {
+        bool changed = isOpen != open;
         isOpen = open;
         if (playerBlockCollider != null)
             playerBlockCollider.enabled = !open;
@@ -123,6 +132,9 @@ public class Door : MonoBehaviour
 
         if (RoomManager.Instance != null && Player.Instance?.currentRoom != null)
             RoomManager.Instance.UpdateActiveRooms(Player.Instance.currentRoom);
+
+        // 열린 문 구성이 실제로 바뀌었으면 종별 카운트 갱신 알림
+        if (changed && DoorManager.Instance != null) DoorManager.Instance.NotifyDoorChanged();
     }
 
     private IEnumerator MoveDoor(bool open)

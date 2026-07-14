@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
 using TMPro;
 using CreatureTypes;
@@ -20,22 +19,13 @@ public class ObservationUI : MonoBehaviour
     public Entry entryPrefab;
     public Transform listParent;
 
-    [Header("Detail")]
-    public TMP_Text detailText;
-
-
     public float refreshInterval = 0.25f;
 
     private readonly List<Creature> shown = new();
     private readonly List<Entry> pool = new();
     private int selected = 0;
     private float nextRefresh;
-    private Interaction interaction;
-    private readonly StringBuilder sb = new();
     public bool IsOnOff => panelRoot != null && panelRoot.activeSelf;
-
-    private static int escConsumedFrame = -1;
-    public static bool EscConsumedThisFrame => escConsumedFrame == Time.frameCount;
 
     private void Awake()
     {
@@ -45,7 +35,7 @@ public class ObservationUI : MonoBehaviour
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
-    private void OnOff(bool on)
+    public void OnOff(bool on)
     {
         if (panelRoot != null) panelRoot.SetActive(on);
         if (on) { selected = 0; Refresh(); }
@@ -61,7 +51,7 @@ public class ObservationUI : MonoBehaviour
     }
 
     // 선택한 생물로 강제 락온 후 패널 닫기
-    private void LockOnSelected()
+    public void LockOnSelected()
     {
         if (shown.Count == 0) return;
         Creature c = shown[selected];
@@ -73,7 +63,7 @@ public class ObservationUI : MonoBehaviour
         OnOff(false);
     }
 
-    private void Move(int dir)
+    public void Move(int dir)
     {
         if (shown.Count == 0) return;
         selected = (selected + dir + shown.Count) % shown.Count;
@@ -95,7 +85,6 @@ public class ObservationUI : MonoBehaviour
             if (c == null || c.data == null) continue;
             if (c == (player != null ? player.pc : null)) continue;       // 플레이어 자신 제외
             if (c.data.creatureID == CreatureID.Door) continue;            // 문 제외
-            if (c.data.creatureID == CreatureID.D) continue;               // D 제외
             shown.Add(c);
         }
     }
@@ -121,54 +110,18 @@ public class ObservationUI : MonoBehaviour
 
         for (int i = 0; i < shown.Count; i++)
         {
+            //생물 정보 가져옴
             var c = shown[i];
+            //만들어놓은 엔트리 가져옴
             var e = GetEntry(i);
             e.gameObject.SetActive(true);
 
-            string n = string.IsNullOrEmpty(c.data.creatureName)
-                ? c.data.creatureID.ToString() : c.data.creatureName;
+            string n = $"{c.data.creatureName} ({c.intent})";
             e.Set(n, i == selected);
         }
 
         // 남는 엔트리 끄기
         for (int i = shown.Count; i < pool.Count; i++)
             pool[i].gameObject.SetActive(false);
-
-        if (detailText != null)
-            detailText.text = shown.Count > 0
-                ? BuildDetail(shown[selected])
-                : "(이 방에 관찰할 생물이 없습니다)";
-    }
-
-    private string BuildDetail(Creature self)
-    {
-        if (interaction == null)
-            interaction = (player != null && player.pc != null) ? player.pc.interact
-                                                                : FindObjectOfType<Interaction>();
-
-        sb.Clear();
-        var data = self.data;
-        string sn = string.IsNullOrEmpty(data.creatureName) ? data.creatureID.ToString() : data.creatureName;
-        sb.AppendLine($"<b>{sn} 행동</b>");
-
-        if (interaction == null) { sb.AppendLine("(Interaction 없음)"); return sb.ToString(); }
-
-        foreach (InteractionAction act in System.Enum.GetValues(typeof(InteractionAction)))
-        {
-            if (act == InteractionAction.Ignore) continue;
-
-            string targets = "";
-            foreach (CreatureID tid in System.Enum.GetValues(typeof(CreatureID)))
-            {
-                if (tid == data.creatureID) continue;
-                if (interaction.HasAction(data.creatureID, tid, act))
-                    targets += (targets.Length > 0 ? ", " : "") + tid;
-            }
-
-            if (targets.Length > 0)
-                sb.AppendLine($"· {act}: {targets}");
-        }
-
-        return sb.ToString();
     }
 }

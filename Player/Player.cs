@@ -49,6 +49,13 @@ public class Player : MonoBehaviour
         }
     }
 
+    // 락온 해제 (PlayerInputManager의 ESC 처리에서 호출)
+    public void Unlock()
+    {
+        isTracking = false;
+        pl?.Unlock();
+    }
+
     //room setting
     public void SetRoom(Room r)
     {
