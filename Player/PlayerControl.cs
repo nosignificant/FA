@@ -21,6 +21,11 @@ public class PlayerControl : MonoBehaviour
     public float lookXLimit = 60.0f;
     public Transform cameraTransform;
 
+    [Header("땅 감지")]
+    [Tooltip("발밑 판정 구의 중심 오프셋(아래로)")]
+    public float groundCheckOffset = 1.0f;
+    public float groundCheckRadius = 0.3f;
+
     Rigidbody rb;
     Vector2 rotation = Vector2.zero;
     bool isGrounded = false;
@@ -29,6 +34,9 @@ public class PlayerControl : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        // groundLayer 미설정이면 "Ground" 레이어로 자동 지정
+        if (groundLayer == 0) groundLayer = LayerMask.GetMask("Ground");
 
         if (cameraTransform == null) cameraTransform = Camera.main.transform;
 
@@ -58,7 +66,25 @@ public class PlayerControl : MonoBehaviour
 
     void FixedUpdate()
     {
+        UpdateGrounded();
         MoveLogicSnappy();
+
+        // 중력 배수 적용 (기본 중력 외 추가 하강력 → 묵직한 낙하)
+        if (gravityMultiplier > 1f)
+            rb.AddForce(Physics.gravity * (gravityMultiplier - 1f), ForceMode.Acceleration);
+    }
+
+    // 발밑 구 판정으로 접지 여부 갱신
+    void UpdateGrounded()
+    {
+        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
+        isGrounded = Physics.CheckSphere(origin, groundCheckRadius, groundLayer);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = isGrounded ? Color.green : Color.red;
+        Gizmos.DrawWireSphere(transform.position + Vector3.down * groundCheckOffset, groundCheckRadius);
     }
 
     void MoveLogicSnappy()

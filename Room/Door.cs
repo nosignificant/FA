@@ -9,6 +9,8 @@ public class Door : MonoBehaviour
     public Room roomA;
     public Room roomB;
     public Creature self;
+    public GameObject light;
+    public Rotate rot;
 
     [Header("Door")]
     public Collider playerBlockCollider;
@@ -53,6 +55,9 @@ public class Door : MonoBehaviour
 
         roomA?.RegisterDoor(this);
         roomB?.RegisterDoor(this);
+
+        // 조명을 현재 isOpen 상태에 맞춰 초기화 (닫힌 채 시작 시 조명 꺼짐)
+        if (light != null) light.SetActive(isOpen);
 
         // 인스펙터에서 isOpen을 켜둔 채 실행하면 열린 상태로 시작하도록 동기화
         if (isOpen) DoorCloseAndOpen(true);
@@ -130,6 +135,10 @@ public class Door : MonoBehaviour
         StopAllCoroutines();
         StartCoroutine(MoveDoor(open));
 
+        //불 켜기 
+        if (light != null) light.SetActive(open);
+        //회로 연결한 척 하기
+        rot.isSelfRotate = open;
         if (RoomManager.Instance != null && Player.Instance?.currentRoom != null)
             RoomManager.Instance.UpdateActiveRooms(Player.Instance.currentRoom);
 

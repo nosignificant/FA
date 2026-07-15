@@ -77,9 +77,6 @@ public class Tutorial : MonoBehaviour
             case "tut_3":
                 co = StartCoroutine(Tut3Routine(room));
                 break;
-            case "tut_3-1":
-                co = StartCoroutine(Tut31Routine(room));
-                break;
 
             case "tut_4":
                 co = StartCoroutine(Tut4Routine(room));
@@ -149,6 +146,8 @@ public class Tutorial : MonoBehaviour
     IEnumerator Tut2Routine(Room room)
     {
         SetTutorialVisible(true);
+        yield return new WaitForSeconds(messageInterval / 2);
+
         doors[1].DoorCloseAndOpen(false);
         tmp.text = "어떤 생물은 다른 생물을 생산하고 합성할 수 있습니다.";
         while (!LockedOn(CreatureID.L)) yield return null;
@@ -162,7 +161,7 @@ public class Tutorial : MonoBehaviour
         tmp.text = "C를 눌러 방 안에 어떤 생물이 있는지 확인하십시오.";
         while (ObservationUI.Instance == null || !ObservationUI.Instance.IsOnOff) yield return null;
 
-        tmp.text = "스페이스바를 눌러 커서를 이동시키십시오.";
+        tmp.text = "생물 목록이 활성화된 상태에서 C를 눌러 커서를 이동시키십시오.";
         yield return new WaitForSeconds(messageInterval);
 
         tmp.text = "커서를 이동시킨 후 E를 눌러 락온하십시오.";
@@ -182,6 +181,8 @@ public class Tutorial : MonoBehaviour
     IEnumerator Tut3Routine(Room room)
     {
         SetTutorialVisible(true);
+        yield return new WaitForSeconds(messageInterval / 2);
+
         doors[2].DoorCloseAndOpen(false);
 
         tmp.text = "L은 같은 방에 AA가 있는 것을 싫어합니다.";
@@ -189,7 +190,7 @@ public class Tutorial : MonoBehaviour
         tmp.text = "AA가 같은 방에 있으면, L은 다른 방으로 가려고 합니다.";
         yield return new WaitForSeconds(messageInterval);
 
-        tmp.text = "하지만 생물을 조종해 떠나는 것을 막을 수도 있습니다. F를 눌러 생물 L을 조종하십시오.";
+        tmp.text = "하지만 AA를 조종해 L에게서 멀리 떨어트려둘 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);
 
         tmp.text = "E, Q로 고도를 조절하십시오.";
@@ -205,30 +206,26 @@ public class Tutorial : MonoBehaviour
         doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
-    IEnumerator Tut31Routine(Room room)
-    {
-        tmp.text = "원래 있던 곳으로 돌아가십시오.";
-        yield return new WaitForSeconds(messageInterval);
-
-    }
     IEnumerator Tut4Routine(Room room)
     {
         SetTutorialVisible(true);
+        yield return new WaitForSeconds(messageInterval / 2);
+
         doors[3].DoorCloseAndOpen(false);
 
         tmp.text = "D는 방 안의 생물 수가 과도하게 많아지면 생물을 분해합니다.";
         yield return new WaitForSeconds(messageInterval);
+
         tmp.text = "D가 분해한 생물 수는 오른쪽 위에 표시됩니다.";
         int decomposedBefore = room.decomposedCounts.Values.Sum();
         while (room.decomposedCounts.Values.Sum() <= decomposedBefore) yield return null;
 
-        tmp.text = "D가 분해한 생물은 문을 개방하고, 현 시설의 에너지로 사용됩니다.";
+        tmp.text = "방은 내부에서 분해된 생물 수를 확인하고 가장 많이 분해된 생물을 확인하는 문을 개방합니다.";
         yield return new WaitForSeconds(messageInterval);
 
-        tmp.text = "다양한 생물을 관찰하고 조작해서 더 넓은 곳의 방을 관리하십시오. ";
+        tmp.text = "저는 생각합니다. 당신이 생물을 조작해 연 길에 따라.";
         yield return new WaitForSeconds(messageInterval);
-        tmp.text = "다양한 종류의 생물을 분해해 에너지를 생산하십시오.";
-        yield return new WaitForSeconds(messageInterval);
+
         OpenDoor(4);
 
         doneRooms.Add(room.roomID);

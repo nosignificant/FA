@@ -87,7 +87,7 @@ public class CreaturePossess : MonoBehaviour
         // 빙의 즉시 사망 종: 실제 조종 없이 스토리만 올리고 죽임 (일회성 소모)
         if (target.data != null && target.data.dieOnPossess)
         {
-            StoryManager.Instance.TryAdvanceFromPossess(target);
+            Player.Instance.TryAdvanceFromPossess(target);
             if (!target.IsDead) target.TakeDamage(target.currentHP, Player.Instance.pc);
             return;
         }
@@ -119,8 +119,8 @@ public class CreaturePossess : MonoBehaviour
 
             Player.Instance.pl.ForceLock(controlledCreature);
 
-            // advancesStory 종이면 스토리 단계 +1 (개체당 1회)
-            StoryManager.Instance.TryAdvanceFromPossess(controlledCreature);
+            // advancesStory 종이면 스토리 단계 +1
+            Player.Instance.TryAdvanceFromPossess(controlledCreature);
         }
 
         if (rideCreature && proxy != null)

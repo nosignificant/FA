@@ -26,6 +26,8 @@ public class BoidFlocking : MonoBehaviour
 
     [Header("draw")]
     public LineRender line;
+    [Tooltip("곡선 세그먼트 수 (많을수록 매끈)")]
+    public int curveResolution = 10;
 
 
     void Start()
@@ -82,7 +84,11 @@ public class BoidFlocking : MonoBehaviour
         for (int i = 0; i < neighbors.Count; i++)
             neighborTransforms[i] = neighbors[i].transform;
 
-        line.Draw(neighborTransforms);
+        // 이웃들을 곡선(Catmull-Rom)으로 이음 — 점 2개 미만이면 직선 폴백
+        if (neighborTransforms.Length >= 2)
+            line.DrawCurve(neighborTransforms, curveResolution);
+        else
+            line.Draw(neighborTransforms);
 
     }
 

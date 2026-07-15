@@ -38,6 +38,7 @@ namespace CreatureTypes
         L = 9,
         D = 10,
         Door = 97,
+        M = 98,
     }
 
 }

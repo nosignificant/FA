@@ -6,7 +6,6 @@ public class PlayerInputManager : MonoBehaviour
     public KeyCode lockOnKey = KeyCode.Tab;
     public KeyCode possessKey = KeyCode.F;
     public KeyCode observeKey = KeyCode.C;
-    public KeyCode observeNavKey = KeyCode.Space;
     public KeyCode observeConfirmKey = KeyCode.E;
 
     private CreaturePossess possess;
@@ -61,11 +60,11 @@ public class PlayerInputManager : MonoBehaviour
         var obs = ObservationUI.Instance;
         if (obs == null) return;
 
-        if (Input.GetKeyDown(observeKey)) { obs.OnOff(!obs.IsOnOff); return; }
+        if (Input.GetKeyDown(observeKey)) { obs.OnOff(true); return; }
 
         if (obs.IsOnOff)
         {
-            if (Input.GetKeyDown(observeNavKey)) obs.Move(1);
+            if (Input.GetKeyDown(observeKey)) obs.Move(1);
             if (Input.GetKeyDown(observeConfirmKey)) obs.LockOnSelected();
         }
     }

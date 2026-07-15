@@ -25,8 +25,22 @@ public class Player : MonoBehaviour
     private CreatureData originalData;
     private CreatureData data;
 
+    public int Stage { get; private set; }
+
     //event actions
     public event Action<Room> roomChanged;
+    public event Action<int> OnStageChanged;   // 스토리 단계 오를 때 발행
+
+    // advancesStory 종을 빙의하면 단계 +1 (CreaturePossess가 호출)
+    public void TryAdvanceFromPossess(Creature c)
+    {
+        if (c == null || c.data == null || !c.data.advancesStory) return;
+
+        Stage++;
+        Debug.Log($"[Story] 단계 +1 → {Stage} ({c.data.creatureName} 빙의)");
+        OnStageChanged?.Invoke(Stage);
+    }
+
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
