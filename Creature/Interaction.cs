@@ -102,7 +102,7 @@ public class Interaction : MonoBehaviour
     // hh: a/aa를 공격해 죽임
     private static int GetActionForHH(CreatureID targetID, InteractionAction action)
     {
-        if (targetID == A || targetID == AA)
+        if (targetID == A || targetID == AA || targetID == S || targetID == SS)
         {
             if (action == InteractionAction.Chase) return 90;
             if (action == InteractionAction.Attack) return 100;

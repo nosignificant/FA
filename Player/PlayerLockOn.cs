@@ -48,8 +48,9 @@ public class PlayerLockOn : MonoBehaviour
         BuildCandidateList(r);
         if (candidates.Count == 0) return false;
 
-        // 새 사이클 시작 → 방문기록 리셋
+        // 새 사이클 시작 → 방문기록 리셋 + 고정 해제(일반 락온은 순환 가능)
         visited.Clear();
+        IsPinned = false;
         Creature first = candidates[0];
         visited.Add(first);
         currentIndex = 0;
@@ -60,6 +61,8 @@ public class PlayerLockOn : MonoBehaviour
     // 다음 후보로 순환 (Tab 재입력) — 안 본 생물 우선
     public bool CycleNext()
     {
+        if (IsPinned) return false;   // ForceLock으로 고정된 동안엔 대상 변경 불가
+
         Room r = Player.Instance.currentRoom;
         if (r != null) BuildCandidateList(r);
 
@@ -91,6 +94,7 @@ public class PlayerLockOn : MonoBehaviour
         candidates.Clear();
         currentIndex = -1;
         visited.Clear();
+        IsPinned = false;              // 고정 해제
         targetChanged?.Invoke(null);
     }
 
@@ -102,11 +106,14 @@ public class PlayerLockOn : MonoBehaviour
         LookAtTarget();
     }
 
-    /// <summary>특정 생물로 강제 락온 (조종 중 고정용)</summary>
+    // ForceLock으로 고정된 상태 — Tab 순환으로 대상이 바뀌지 않음
+    public bool IsPinned { get; private set; }
+
     public void ForceLock(Creature target)
     {
         if (target == null) return;
         SetTarget(target);
+        IsPinned = true;                 // 고정
         if (Player.Instance != null) Player.Instance.isTracking = true;
     }
 

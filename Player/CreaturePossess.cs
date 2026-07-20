@@ -1,16 +1,18 @@
 using UnityEngine;
 using CreatureTypes;
 
+// tryPossess > possess에 해당 생물 넘김 , think 멈춤 
+// possess하면 proxy에 자식으로 이동, proxy에 rigidbody + collider 붙여서 방/문에 막히게 함
+
+//release하면 rigidbody + collider 없애고, think 다시 실행 
+
+
 public class CreaturePossess : MonoBehaviour
 {
     [Header("입력")]
     public float proxyMoveSpeed = 8f;
     public Transform cameraTransform;          // 이동 방향 기준 (비우면 Camera.main)
 
-
-    [Header("탑승")]
-    [Tooltip("빙의 중 플레이어를 생물 자식으로 둬서 같이 이동")]
-    public bool rideCreature = true;
 
     private Think2 controlled;
     private Transform proxy;
@@ -110,39 +112,125 @@ public class CreaturePossess : MonoBehaviour
         proxy = controlled.ProxyTarget;
         driveDir = Vector3.zero;
 
-        // 생물이 죽으면(분해 등) 파괴 직전에 풀어주기
         controlledCreature = controlled.self;
-        if (controlledCreature != null)
-        {
-            controlledCreature.Died += OnControlledDied;
-            controlledCreature.intent = CreatureIntent.Controlled;   // 조종 상태로
 
-            Player.Instance.pl.ForceLock(controlledCreature);
-
-            // advancesStory 종이면 스토리 단계 +1
-            Player.Instance.TryAdvanceFromPossess(controlledCreature);
-        }
-
-        if (rideCreature && proxy != null)
-        {
-            transform.SetParent(proxy, true);          // 월드 위치 유지하며 자식으로
-            transform.localPosition = Vector3.zero;    // 탑승 지점에 스냅
-            PlayerControl.SetPlayerMove(false);        // 플레이어 자체 이동은 정지
-
-            if (playerRb == null) playerRb = GetComponent<Rigidbody>();
-            if (playerRb != null) { playerRb.isKinematic = true; }
-
-            if (cameraTransform != null && proxy != null)
-            {
-                camOriginalParent = cameraTransform.parent;
-                cameraTransform.SetParent(proxy, true);
-            }
-        }
-
-
+        CreatureControlSetting(controlledCreature, true);
+        if (proxy != null) PlayerRideProxy(proxy, true);
         SetupProxyPhysics();
 
         Debug.Log($"[Possess] {controlled.name} 조종");
+    }
+
+
+
+    private void OnControlledDied(Creature c, CreatureID who)
+    {
+        ToastUI.Instance?.Show("조종하던 생물이 사라졌다");
+        Release();   // 생물 파괴 전에 플레이어·카메라 분리
+    }
+
+    [Tooltip("방 밖에서 내릴 때 경계 안쪽으로 밀어넣을 여유 거리")]
+    public float roomClampPadding = 2f;
+
+    // 하차 위치가 방(마지막으로 속한 방) 밖이면 경계 안쪽 최근접점으로 당김.
+    private Vector3 ClampToRoom(Vector3 pos)
+    {
+        Room room = Player.Instance != null ? Player.Instance.currentRoom : null;
+        if (room == null && controlledCreature != null) room = controlledCreature.currentRoom;
+        if (room == null || room.homeBound == null) return pos;   // 기준 방 없으면 그대로
+
+        Bounds b = room.homeBound.bounds;
+
+        bool insideXYZ = pos.x >= b.min.x && pos.x <= b.max.x &&
+                        pos.z >= b.min.z && pos.z <= b.max.z &&
+                        pos.y >= b.min.y && pos.y <= b.max.y;
+
+        if (insideXYZ) return pos;
+
+        Vector3 inside = b.ClosestPoint(pos);
+        Vector3 toCenter = b.center - inside;
+        toCenter.y = 0f;
+        if (toCenter.sqrMagnitude > 0.001f)
+            inside += toCenter.normalized * roomClampPadding;
+
+        return new Vector3(inside.x, inside.y, inside.z);
+    }
+
+    public void Release()
+    {
+        if (controlled == null) return;
+        controlled.SetManualControl(false);
+
+        TeardownProxyPhysics();
+        driveDir = Vector3.zero;
+
+        // 하차 위치 계산 (proxy가 아직 부모인 상태에서 월드 좌표로 미리 잡음)
+        Vector3? landingPos = proxy != null ? ClampToRoom(proxy.position) : null;
+
+        CreatureControlSetting(controlledCreature, false);
+        controlledCreature = null;
+
+        PlayerRideProxy(proxy, false);   // SetParent(null) 포함
+        if (landingPos.HasValue) transform.position = landingPos.Value;
+
+        Debug.Log($"[Possess] {controlled.name} 조종 해제");
+        controlled = null;
+        proxy = null;
+    }
+
+    private void PlayerRideProxy(Transform target, bool isRiding)
+    {
+        if (isRiding)
+        {
+            transform.SetParent(target, true);          // 현재 위치 유지하며 proxy 자식으로
+            transform.localPosition = Vector3.zero;      // proxy 지점으로 스냅
+
+            if (cameraTransform != null)
+            {
+                camOriginalParent = cameraTransform.parent;
+                cameraTransform.SetParent(target, true);
+            }
+        }
+        else
+        {
+            transform.SetParent(null, true);
+            if (cameraTransform != null)
+            {
+                cameraTransform.SetParent(camOriginalParent, true);
+                cameraTransform.localPosition = camLocalPos;
+            }
+        }
+
+        PlayerControl.SetPlayerMove(!isRiding);
+
+        if (playerRb == null) playerRb = GetComponent<Rigidbody>();
+        if (playerRb != null) playerRb.isKinematic = isRiding;
+    }
+
+    // 조종 대상 생물의 상태 설정(isRiding=true) / 해제(false)
+    private void CreatureControlSetting(Creature creature, bool isRiding)
+    {
+        if (creature == null) return;
+
+        if (isRiding)
+        {
+            creature.Died += OnControlledDied;
+            creature.intent = CreatureIntent.Controlled;
+
+            Player.Instance.pl.ForceLock(creature);
+
+            // advancesStory 종이면 스토리 단계 +1
+            Player.Instance.TryAdvanceFromPossess(creature);
+
+        }
+        else
+        {
+            creature.Died -= OnControlledDied;
+            if (creature.intent == CreatureIntent.Controlled)
+                creature.intent = CreatureIntent.Wander;
+
+            Player.Instance.pl.Unlock();
+        }
     }
 
     // proxy에 Rigidbody + Collider를 붙여 벽/문에 물리로 막히게 함
@@ -177,55 +265,6 @@ public class CreaturePossess : MonoBehaviour
     {
         if (proxyRb != null) { Destroy(proxyRb); proxyRb = null; }
         if (proxyCol != null) { Destroy(proxyCol); proxyCol = null; }
-    }
-
-    private void OnControlledDied(Creature c, CreatureID who)
-    {
-        ToastUI.Instance?.Show("조종하던 생물이 사라졌다");
-        Release();   // 생물 파괴 전에 플레이어·카메라 분리
-    }
-
-    public void Release()
-    {
-        if (controlled == null) return;
-        controlled.SetManualControl(false);
-
-        TeardownProxyPhysics();
-        driveDir = Vector3.zero;
-
-        // proxy와 rootTransform 중간 지점에 플레이어 내리기
-        if (controlledCreature != null && proxy != null)
-        {
-            Vector3 proxyPos = proxy.position;
-            Vector3 rootPos = controlledCreature.rootTransform != null
-                ? controlledCreature.rootTransform.position
-                : controlledCreature.transform.position;
-            transform.position = (proxyPos + rootPos) * 0.5f;
-        }
-
-        if (controlledCreature != null)
-        {
-            controlledCreature.Died -= OnControlledDied;
-            if (controlledCreature.intent == CreatureIntent.Controlled)
-                controlledCreature.intent = CreatureIntent.Wander;
-            controlledCreature = null;
-        }
-        Player.Instance.pl.Unlock();
-
-        transform.SetParent(null, true);
-        PlayerControl.SetPlayerMove(true);
-
-        if (playerRb != null) playerRb.isKinematic = false;
-
-        if (cameraTransform != null)
-        {
-            cameraTransform.SetParent(camOriginalParent, true);
-            cameraTransform.localPosition = camLocalPos;
-        }
-
-        Debug.Log($"[Possess] {controlled.name} 조종 해제");
-        controlled = null;
-        proxy = null;
     }
 
     // WASD: 수평 이동 / E: 상승 Q: 하강

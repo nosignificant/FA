@@ -58,6 +58,7 @@ public class Door : MonoBehaviour
 
         // 조명을 현재 isOpen 상태에 맞춰 초기화 (닫힌 채 시작 시 조명 꺼짐)
         if (light != null) light.SetActive(isOpen);
+        if (rot != null) rot.isSelfRotate = isOpen;
 
         // 인스펙터에서 isOpen을 켜둔 채 실행하면 열린 상태로 시작하도록 동기화
         if (isOpen) DoorCloseAndOpen(true);
@@ -138,7 +139,7 @@ public class Door : MonoBehaviour
         //불 켜기 
         if (light != null) light.SetActive(open);
         //회로 연결한 척 하기
-        rot.isSelfRotate = open;
+        if (rot != null) rot.isSelfRotate = open;
         if (RoomManager.Instance != null && Player.Instance?.currentRoom != null)
             RoomManager.Instance.UpdateActiveRooms(Player.Instance.currentRoom);
 

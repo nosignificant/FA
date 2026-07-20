@@ -68,8 +68,9 @@ public class Story : MonoBehaviour
 
     IEnumerator StartText()
     {
+        SetTutorialVisible(true);
 
-        tmp.text = "해당 생물은 조종을 시도하면 죽게 되는 듯합니다.";
+        tmp.text = "해당 생물은 연약하여 조종을 시도하면 죽게 되는 듯합니다.";
         yield return new WaitForSeconds(messageInterval);
 
         tmp.text = "대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.";
@@ -78,7 +79,6 @@ public class Story : MonoBehaviour
         tmp.text = "대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);
 
-        tmp.text = "이 생물이 추출된 원본의 생물은 기뻐하고 있네요. 현재의 삶에.";
-        yield return new WaitForSeconds(messageInterval);
+        SetTutorialVisible(false);
     }
 }

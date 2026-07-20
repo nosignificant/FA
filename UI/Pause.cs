@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class EscMenu : MonoBehaviour
+public class Pause : MonoBehaviour
 {
-    public static EscMenu Instance;
+    public static Pause Instance;
     public GameObject panelRoot;
 
     [System.Serializable]
@@ -55,16 +55,21 @@ public class EscMenu : MonoBehaviour
         switch (items[selected].label)
         {
             case "RETURN TO MAIN": LoadScene("title"); break;
-            case "ENCYCLOPEDIA": LoadScene("encyclopedia"); break;
+            case "RESTART_LEVEL": RestartLevel(); break;
             case "Quit": Application.Quit(); break;
         }
     }
 
-    // 씬 전환 전 timeScale 복구 (Open에서 0으로 멈춘 게 다음 씬까지 남는 것 방지)
     private static void LoadScene(string scene)
     {
         Time.timeScale = 1f;
         SceneManager.LoadScene(scene);
+    }
+
+    private static void RestartLevel()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
     private void UpdateVisual()
     {
@@ -77,6 +82,5 @@ public class EscMenu : MonoBehaviour
 
 
     public void OnStartButton() => LoadScene("title");
-    public void OnEncyclopediaButton() => LoadScene("encyclopedia");
     public void OnQuitButton() => Application.Quit();
 }

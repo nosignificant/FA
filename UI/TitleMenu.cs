@@ -50,12 +50,10 @@ public class TitleMenu : MonoBehaviour
         switch (items[selected].label)
         {
             case "START": SceneManager.LoadScene("tutorial"); break;
-            case "ENCYCLOPEDIA": SceneManager.LoadScene("encyclopedia"); break;
             case "Quit": Application.Quit(); break;
         }
     }
 
     public void OnStartButton() => SceneManager.LoadScene("tutorial");
-    public void OnEncyclopediaButton() => SceneManager.LoadScene("encyclopedia");
     public void OnQuitButton() => Application.Quit();
 }

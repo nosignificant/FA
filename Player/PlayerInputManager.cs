@@ -72,7 +72,7 @@ public class PlayerInputManager : MonoBehaviour
     // 메뉴 네비게이션 + ESC 우선순위 체인
     private void HandleEscape()
     {
-        var menu = EscMenu.Instance;
+        var menu = Pause.Instance;
 
         // 메뉴 열려있을 때만 W/S/Return 네비게이션
         if (menu != null && menu.IsOpen)
