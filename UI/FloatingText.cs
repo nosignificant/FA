@@ -10,11 +10,9 @@ public class FloatingText : MonoBehaviour
 
     [Header("Anim")]
     public float lifeTime = 1f;
-    [Tooltip("수명의 이 비율이 지나면 페이드 시작 (0~1)")]
-    [Range(0f, 1f)] public float fadeStart = 0.3f;
+
     [Tooltip("시간에 따른 감속 (1이면 등속, 클수록 빨리 멈춤)")]
     public float drag = 3f;
-
     private Vector3 velocity;
     private float t;
     private Camera cam;
@@ -41,9 +39,12 @@ public class FloatingText : MonoBehaviour
         transform.position += velocity * Time.deltaTime;
         velocity = Vector3.Lerp(velocity, Vector3.zero, drag * Time.deltaTime);
 
-        // 카메라 정면을 향하게 (빌보드)
+        // 빌보드: 캔버스 정면(+Z)이 카메라를 향하도록
+        // 카메라 → 나 방향을 forward로 잡아야 카메라가 앞면을 봄 (반대로 하면 뒷면이라 안 보임)
         if (cam == null) cam = Camera.main;
-        if (cam != null) transform.rotation = cam.transform.rotation;
+        if (cam != null)
+            transform.rotation = Quaternion.LookRotation(
+                transform.position - cam.transform.position, cam.transform.up);
 
         if (t >= lifeTime) Destroy(gameObject);
     }

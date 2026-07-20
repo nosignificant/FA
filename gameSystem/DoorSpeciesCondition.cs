@@ -23,7 +23,7 @@ public class DoorSpeciesCondition : MonoBehaviour
 
     private void OnDisable()
     {
-        if (DoorManager.Instance != null) DoorManager.Instance.OnOpenDoorsChanged -= Reevaluate;
+        if (DoorManager.Existing != null) DoorManager.Existing.OnOpenDoorsChanged -= Reevaluate;   // 정리 중 재생성 방지
     }
 
     private void Reevaluate()

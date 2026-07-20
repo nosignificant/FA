@@ -80,7 +80,7 @@ public class Door : MonoBehaviour
         if (roomA != null) roomA.OnCreatureDecomposed -= OnRoomADecomposed;
         if (roomB != null) roomB.OnCreatureDecomposed -= OnRoomBDecomposed;
 
-        if (DoorManager.Instance != null) DoorManager.Instance.Unregister(this);
+        if (DoorManager.Existing != null) DoorManager.Existing.Unregister(this);   // 정리 중 재생성 방지
     }
 
     private void EvaluateConditions()
@@ -144,7 +144,7 @@ public class Door : MonoBehaviour
             RoomManager.Instance.UpdateActiveRooms(Player.Instance.currentRoom);
 
         // 열린 문 구성이 실제로 바뀌었으면 종별 카운트 갱신 알림
-        if (changed && DoorManager.Instance != null) DoorManager.Instance.NotifyDoorChanged();
+        if (changed && DoorManager.Existing != null) DoorManager.Existing.NotifyDoorChanged();
     }
 
     private IEnumerator MoveDoor(bool open)

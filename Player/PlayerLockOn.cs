@@ -109,6 +109,9 @@ public class PlayerLockOn : MonoBehaviour
     // ForceLock으로 고정된 상태 — Tab 순환으로 대상이 바뀌지 않음
     public bool IsPinned { get; private set; }
 
+    // 고정만 풀고 락온 대상은 유지 (조종 해제 후에도 그 생물을 계속 바라보게)
+    public void Unpin() => IsPinned = false;
+
     public void ForceLock(Creature target)
     {
         if (target == null) return;

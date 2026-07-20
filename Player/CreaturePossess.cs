@@ -229,7 +229,7 @@ public class CreaturePossess : MonoBehaviour
             if (creature.intent == CreatureIntent.Controlled)
                 creature.intent = CreatureIntent.Wander;
 
-            Player.Instance.pl.Unlock();
+            Player.Instance.pl.Unpin();   // 고정만 해제 — 해제 후에도 그 생물을 계속 바라봄
         }
     }
 

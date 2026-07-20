@@ -1,12 +1,10 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using CreatureTypes;
 
 // 생물이 분해되면 그 위치에서 텍스트 여러 개가 랜덤 방향으로 터져나가는 연출.
 // 방향은 카메라 정면 평면 위로 흩뿌려서 플레이어 시점에서 잘 퍼져 보이게 함.
-public class DecomposePopup : MonoBehaviour
+public class Popup : MonoBehaviour
 {
     [Header("Prefab")]
     public FloatingText popupPrefab;
@@ -21,30 +19,26 @@ public class DecomposePopup : MonoBehaviour
     public float spawnScatter = 0.3f;
     public Vector3 offset = new Vector3(0f, 1f, 0f);
 
-    // (방, 핸들러) 쌍 보관 — 정리용
-    private readonly List<(Room room, Action<Creature, CreatureID> handler)> subs = new();
-
     private IEnumerator Start()
     {
-        yield return null;   // 모든 Room.Start(RoomManager 등록) 끝난 뒤
+        yield return null;
 
         if (RoomManager.Instance == null) yield break;
 
         foreach (var r in RoomManager.Instance.rooms.Values)
-        {
-            if (r == null) continue;
-            Action<Creature, CreatureID> h = (target, who) => Burst(target);
-            r.OnCreatureDecomposed += h;
-            subs.Add((r, h));
-        }
+            if (r != null) r.OnCreatureDecomposed += OnDecomposed;
     }
 
     private void OnDestroy()
     {
-        foreach (var s in subs)
-            if (s.room != null) s.room.OnCreatureDecomposed -= s.handler;
-        subs.Clear();
+        if (RoomManager.Instance == null) return;
+
+        foreach (var r in RoomManager.Instance.rooms.Values)
+            if (r != null) r.OnCreatureDecomposed -= OnDecomposed;
     }
+
+    // 어느 방에서든 분해가 나면 그 위치에 터뜨림
+    private void OnDecomposed(Creature target, CreatureID decomposerID) => Burst(target);
 
     private void Burst(Creature target)
     {
@@ -52,6 +46,9 @@ public class DecomposePopup : MonoBehaviour
 
         Transform t = target.rootTransform != null ? target.rootTransform : target.transform;
         Vector3 center = t.position + offset;
+
+        Debug.Log($"[PopupDbg] {target.name} / root={t.name} rootPos={t.position} " +
+                  $"creaturePos={target.transform.position} → center={center}");
 
         Camera cam = Camera.main;
         // 카메라 정면 평면의 축 (없으면 월드 축 폴백)
@@ -62,14 +59,16 @@ public class DecomposePopup : MonoBehaviour
         {
             // 원형으로 고르게 퍼지되 약간의 랜덤 (i번째 슬롯 + 지터)
             float angle = (i / (float)burstCount) * Mathf.PI * 2f
-                          + UnityEngine.Random.Range(-0.3f, 0.3f);
+                          + Random.Range(-0.3f, 0.3f);
             Vector3 dir = right * Mathf.Cos(angle) + up * Mathf.Sin(angle);
 
-            Vector3 pos = center + dir * UnityEngine.Random.Range(0f, spawnScatter);
-            float spd = speed * (1f + UnityEngine.Random.Range(-speedJitter, speedJitter));
+            Vector3 pos = center + dir * Random.Range(0f, spawnScatter);
+            float spd = speed * (1f + Random.Range(-speedJitter, speedJitter));
 
             var ft = Instantiate(popupPrefab, pos, Quaternion.identity);
             ft.Launch(message, dir, spd);
+
+            if (i == 0) Debug.Log($"[PopupDbg] 요청pos={pos} / 실제pos={ft.transform.position} parent={ft.transform.parent}");
         }
     }
 }

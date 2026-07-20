@@ -7,17 +7,24 @@ using UnityEngine;
 public class DoorManager : MonoBehaviour
 {
     private static DoorManager _instance;
+    private static bool quitting;   // 종료/씬 언로드 중이면 새로 만들지 않음
+
     public static DoorManager Instance
     {
         get
         {
             if (_instance != null) return _instance;
+            if (quitting) return null;   // 정리 도중엔 생성 금지 (유령 오브젝트 방지)
+
             _instance = FindObjectOfType<DoorManager>();
             if (_instance == null)
                 _instance = new GameObject("DoorManager").AddComponent<DoorManager>();
             return _instance;
         }
     }
+
+    // 자동 생성 없이 현재 인스턴스만 조회 (OnDisable/OnDestroy 정리용)
+    public static DoorManager Existing => _instance;
 
     private readonly HashSet<Door> doors = new();
 
@@ -28,7 +35,15 @@ public class DoorManager : MonoBehaviour
     {
         if (_instance != null && _instance != this) { Destroy(gameObject); return; }
         _instance = this;
+        quitting = false;
     }
+
+    private void OnDestroy()
+    {
+        if (_instance == this) { _instance = null; quitting = true; }
+    }
+
+    private void OnApplicationQuit() => quitting = true;
 
     public void Register(Door d) { if (d != null) doors.Add(d); }
     public void Unregister(Door d) { if (d != null) doors.Remove(d); }
