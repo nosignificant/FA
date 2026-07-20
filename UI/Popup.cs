@@ -47,9 +47,6 @@ public class Popup : MonoBehaviour
         Transform t = target.rootTransform != null ? target.rootTransform : target.transform;
         Vector3 center = t.position + offset;
 
-        Debug.Log($"[PopupDbg] {target.name} / root={t.name} rootPos={t.position} " +
-                  $"creaturePos={target.transform.position} → center={center}");
-
         Camera cam = Camera.main;
         // 카메라 정면 평면의 축 (없으면 월드 축 폴백)
         Vector3 right = cam != null ? cam.transform.right : Vector3.right;
@@ -67,8 +64,6 @@ public class Popup : MonoBehaviour
 
             var ft = Instantiate(popupPrefab, pos, Quaternion.identity);
             ft.Launch(message, dir, spd);
-
-            if (i == 0) Debug.Log($"[PopupDbg] 요청pos={pos} / 실제pos={ft.transform.position} parent={ft.transform.parent}");
         }
     }
 }
