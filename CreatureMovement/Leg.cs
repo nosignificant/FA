@@ -111,6 +111,17 @@ public class Leg : MonoBehaviour
 
         targetPos = FootUtil.SetTargetGround(destPos, ground);
 
+        // NaN/Infinity로 오염되면 발을 몸(top) 밑으로 리셋해 복구 — 안 그러면 NaN이 IK 전체로 퍼짐
+        if (!FootUtil.IsFinite(targetPos) || !FootUtil.IsFinite(foot.position))
+        {
+            Vector3 safe = FootUtil.IsFinite(top.position) ? top.position : Vector3.zero;
+            tipTarget.position = safe;
+            foot.position = safe;
+            targetPos = safe;
+            isMoving = false;
+            yield break;
+        }
+
         if (lh != null)
             if (!lh.CheckValidFootPos(targetPos, this)) { yield break; }
 

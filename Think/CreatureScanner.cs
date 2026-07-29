@@ -67,10 +67,4 @@ public class CreatureScanner : MonoBehaviour
 
     }
 
-    public void ForDebugList()
-    {
-        List<Creature> cs = new();
-        foreach (Creature n in nearby) cs.Add(n);
-        foreach (Creature n in cs) Debug.Log(n.data.creatureName + cs.Count);
-    }
 }

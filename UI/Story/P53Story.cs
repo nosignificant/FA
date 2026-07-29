@@ -5,31 +5,36 @@ using System.Linq;
 using System.Collections;
 using UnityEngine.UI;
 
-public class Tutorial : MonoBehaviour
+
+public class P53 : MonoBehaviour
 {
+    [Header("UI")]
     public GameObject tutorialUI;
+    public UISlidePanel slidePanel;
+    public CanvasGroup tutorialCanvasGroup;
+    private TextMeshProUGUI tmp;
+
+    [Header("튜토리얼 문")]
     public Door[] doors = new Door[0];
 
-    private TextMeshProUGUI tmp;
-    public UISlidePanel slidePanel;
-
-    public Image ProductionImage;
-    public CanvasGroup tutorialCanvasGroup;
-
     [Header("대사 간격")]
-    [Tooltip("튜토리얼 대사 전환 사이 대기 시간(초)")]
+    [Tooltip("대사 전환 사이 대기 시간(초)")]
     public float messageInterval = 3f;
 
     [Header("ProductionImage 페이드 설정")]
+    public Image ProductionImage;
     public float fadeInTime = 1.5f;
     public float holdTime = 2.0f;
     public float fadeOutTime = 1.5f;
     private bool productionPlayed = false;
 
+    // 튜토리얼(방) 상태
     private string lastRoom = "";
-    Coroutine co;
+    private Coroutine co;
     private readonly System.Collections.Generic.HashSet<string> doneRooms = new();
 
+    // 최초 1회 빙의 설명 대사용
+    private Coroutine storyCo;
 
     void Start()
     {
@@ -37,6 +42,15 @@ public class Tutorial : MonoBehaviour
         if (slidePanel == null) slidePanel = tutorialUI.GetComponent<UISlidePanel>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.GetComponent<CanvasGroup>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.AddComponent<CanvasGroup>();
+
+        // P53은 방 진입(Update의 room 트리거)으로 동작.
+        // 예외: 플레이어가 '처음으로' CreatureStory 단계를 올릴 때만 빙의 설명 대사 1회.
+        if (Player.Instance != null) Player.Instance.OnStageChanged += OnFirstStageAdvanced;
+    }
+
+    private void OnDestroy()
+    {
+        if (Player.Instance != null) Player.Instance.OnStageChanged -= OnFirstStageAdvanced;
     }
 
     private void SetTutorialVisible(bool visible)
@@ -46,6 +60,7 @@ public class Tutorial : MonoBehaviour
         else slidePanel.Hide();
     }
 
+    // ── 튜토리얼: 방 진입 트리거 ────────────────────────────────
     void Update()
     {
         if (Player.Instance == null) return;
@@ -65,26 +80,11 @@ public class Tutorial : MonoBehaviour
 
         switch (room.roomID)
         {
-            case "tut_0":
-                OpenDoor(0);
-                break;
-            case "tut_1":
-                co = StartCoroutine(Tut1Routine(room));
-                break;
-            case "tut_2":
-                co = StartCoroutine(Tut2Routine(room));
-                break;
-            case "tut_3":
-                co = StartCoroutine(Tut3Routine(room));
-                break;
-
-            case "tut_4":
-                co = StartCoroutine(Tut4Routine(room));
-                break;
-            case "tut_5":
-                Time.timeScale = 1f;
-                UnityEngine.SceneManagement.SceneManager.LoadScene("production");
-                break;
+            case "tut_0": OpenDoor(0); break;
+            case "tut_1": co = StartCoroutine(Tut1Routine(room)); break;
+            case "tut_2": co = StartCoroutine(Tut2Routine(room)); break;
+            case "tut_3": co = StartCoroutine(Tut3Routine(room)); break;
+            case "tut_4": co = StartCoroutine(Tut4Routine(room)); break;
             case "pro_main":
                 SetTutorialVisible(false);
                 if (!productionPlayed && ProductionImage != null)
@@ -154,30 +154,15 @@ public class Tutorial : MonoBehaviour
 
         tmp.text = "생물 L은 S를 2마리 합쳐 SS를 만들 수 있습니다.";
         yield return new WaitForSeconds(messageInterval);
-        tmp.text = "L을 관찰하십시오.";
-        yield return new WaitForSeconds(messageInterval);
-
-
-        tmp.text = "C를 눌러 방 안에 어떤 생물이 있는지 확인하십시오.";
-        while (ObservationUI.Instance == null || !ObservationUI.Instance.IsOnOff) yield return null;
-
-        tmp.text = "생물 목록이 활성화된 상태에서 C를 눌러 커서를 이동시키십시오.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "커서를 이동시킨 후 E를 눌러 락온하십시오.";
-        yield return new WaitForSeconds(messageInterval);
-
-
-        yield return new WaitForSeconds(messageInterval);
 
         tmp.text = "다음 방으로 이동하십시오.";
         yield return new WaitForSeconds(messageInterval);
-
 
         OpenDoor(2);
         doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
+
     IEnumerator Tut3Routine(Room room)
     {
         SetTutorialVisible(true);
@@ -206,6 +191,7 @@ public class Tutorial : MonoBehaviour
         doneRooms.Add(room.roomID);
         SetTutorialVisible(false);
     }
+
     IEnumerator Tut4Routine(Room room)
     {
         SetTutorialVisible(true);
@@ -229,7 +215,6 @@ public class Tutorial : MonoBehaviour
         OpenDoor(4);
 
         doneRooms.Add(room.roomID);
-
         SetTutorialVisible(false);
     }
 
@@ -252,7 +237,6 @@ public class Tutorial : MonoBehaviour
         col.a = 1f;
         ProductionImage.color = col;
 
-        // 유지
         yield return new WaitForSeconds(holdTime);
 
         // 페이드 아웃
@@ -268,5 +252,28 @@ public class Tutorial : MonoBehaviour
         ProductionImage.color = col;
 
         ProductionImage.gameObject.SetActive(false);
+    }
+
+    // ── 최초 1회: 첫 CreatureStory 단계 상승 시 빙의 설명 ──────────
+    private void OnFirstStageAdvanced(int stage)
+    {
+        // 한 번 뜬 뒤엔 다시 안 뜨게 바로 구독 해제
+        if (Player.Instance != null) Player.Instance.OnStageChanged -= OnFirstStageAdvanced;
+
+        if (storyCo != null) StopCoroutine(storyCo);
+        storyCo = StartCoroutine(StoryText());
+    }
+
+    IEnumerator StoryText()
+    {
+        SetTutorialVisible(true);
+
+        tmp.text = "해당 생물은 연약하여 조종을 시도하면 죽게 되는 듯합니다.";
+        yield return new WaitForSeconds(messageInterval);
+
+        tmp.text = "대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.";
+        yield return new WaitForSeconds(messageInterval);
+
+        SetTutorialVisible(false);
     }
 }

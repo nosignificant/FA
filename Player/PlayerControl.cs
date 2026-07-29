@@ -31,6 +31,9 @@ public class PlayerControl : MonoBehaviour
     bool isGrounded = false;
     private static bool canMove = true;
 
+    // 커서는 그대로 두고 이동/시점만 막는 게이트 (코덱스 등 오버레이 UI용)
+    public static bool inputBlocked = false;
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -53,8 +56,11 @@ public class PlayerControl : MonoBehaviour
     void Update()
     {
         if (!canMove) return;
+        if (Pause.Instance != null && Pause.Instance.IsOpen) return;   // 일시정지 중엔 시점 회전까지 차단
 
-        RotationLogic();
+        RotationLogic();   // 코덱스(inputBlocked) 중에도 마우스 시점 회전은 허용
+
+        if (inputBlocked) return;   // 이동/점프만 차단
 
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
         {
@@ -89,7 +95,7 @@ public class PlayerControl : MonoBehaviour
 
     void MoveLogicSnappy()
     {
-        if (canMove)
+        if (canMove && !inputBlocked)
         {
             float h = Input.GetAxisRaw("Horizontal");
             float v = Input.GetAxisRaw("Vertical");
@@ -108,7 +114,8 @@ public class PlayerControl : MonoBehaviour
 
             rb.linearVelocity = targetVel;
         }
-        else { rb.linearVelocity = new Vector3(0, rb.linearVelocity.y, 0); }
+        // canMove=false(빙의 등)면 Rigidbody를 아예 건드리지 않음.
+        // (조종 중 플레이어는 proxy 자식이라, 여기서 velocity를 세팅하면 proxy에서 떨어져 나감)
     }
 
     void RotationLogic()

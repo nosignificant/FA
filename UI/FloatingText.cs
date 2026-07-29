@@ -9,7 +9,7 @@ public class FloatingText : MonoBehaviour
     public TMP_Text label;
 
     [Header("Anim")]
-    public float lifeTime = 1f;
+    public float lifeTime = 1.5f;
 
     [Tooltip("시간에 따른 감속 (1이면 등속, 클수록 빨리 멈춤)")]
     public float drag = 3f;
@@ -24,11 +24,12 @@ public class FloatingText : MonoBehaviour
     }
 
     // 텍스트 + 초기 속도를 주고 발사
-    public void Launch(string text, Vector3 dir, float speed)
+    public void Launch(string text, Vector3 dir, float speed, float life)
     {
         if (label == null) label = GetComponentInChildren<TMP_Text>();
         if (label != null) label.text = text;
         velocity = dir.normalized * speed;
+        lifeTime = life;
     }
 
     private void Update()

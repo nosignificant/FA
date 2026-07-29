@@ -39,6 +39,9 @@ public class Player : MonoBehaviour
         Stage++;
         Debug.Log($"[Story] 단계 +1 → {Stage} ({c.data.creatureName} 빙의)");
         OnStageChanged?.Invoke(Stage);
+
+        // 그 생물 위치에 현재 단계 대사 줄들을 팝업으로 뿌림
+        Popup.Instance?.BurstStoryLines(c);
     }
 
     private void Awake()

@@ -13,13 +13,11 @@ public class CreaturePossess : MonoBehaviour
     public float proxyMoveSpeed = 8f;
     public Transform cameraTransform;          // 이동 방향 기준 (비우면 Camera.main)
 
-
     private Think2 controlled;
     private Transform proxy;
 
 
     private Rigidbody playerRb;
-    private bool rbWasKinematic;
     private Transform camOriginalParent;
     private Vector3 camLocalPos;
 
@@ -49,6 +47,12 @@ public class CreaturePossess : MonoBehaviour
         }
 
         if (IsPossessing) DriveProxy();
+    }
+
+    // 조종 중 플레이어를 proxy 위치에 맞춰 따라가게 (물리 이동 후에 덮어쓰도록 LateUpdate)
+    private void LateUpdate()
+    {
+        if (IsPossessing && proxy != null) transform.position = proxy.position;
     }
 
     // 빙의 토글 (PlayerInputManager의 F 키에서 호출)
@@ -170,20 +174,21 @@ public class CreaturePossess : MonoBehaviour
         CreatureControlSetting(controlledCreature, false);
         controlledCreature = null;
 
-        PlayerRideProxy(proxy, false);   // SetParent(null) 포함
-        if (landingPos.HasValue) transform.position = landingPos.Value;
+        PlayerRideProxy(proxy, false);   // 카메라를 플레이어에게 되돌림 + 이동/물리 복구
+        if (landingPos.HasValue) transform.position = landingPos.Value;   // 플레이어를 proxy 위치로 하차
 
         Debug.Log($"[Possess] {controlled.name} 조종 해제");
         controlled = null;
         proxy = null;
     }
 
+    // 플레이어는 Rigidbody가 있어 부모-자식으로 붙이면 물리(interpolation)와 충돌해 proxy를 안 따라감.
+    // 그래서 플레이어는 LateUpdate에서 매 프레임 위치를 직접 맞추고, 여기선 카메라만 proxy에 붙인다.
     private void PlayerRideProxy(Transform target, bool isRiding)
     {
         if (isRiding)
         {
-            transform.SetParent(target, true);          // 현재 위치 유지하며 proxy 자식으로
-            transform.localPosition = Vector3.zero;      // proxy 지점으로 스냅
+            transform.position = target.position;   // 탑승 지점으로 스냅
 
             if (cameraTransform != null)
             {
@@ -193,7 +198,6 @@ public class CreaturePossess : MonoBehaviour
         }
         else
         {
-            transform.SetParent(null, true);
             if (cameraTransform != null)
             {
                 cameraTransform.SetParent(camOriginalParent, true);
@@ -240,7 +244,7 @@ public class CreaturePossess : MonoBehaviour
         var go = proxy.gameObject;
 
         proxyCol = go.AddComponent<SphereCollider>();
-        proxyCol.radius = 7f;
+        proxyCol.radius = 2f;
 
         proxyRb = go.AddComponent<Rigidbody>();
         proxyRb.useGravity = false;

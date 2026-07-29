@@ -30,12 +30,6 @@ public class RoomManager : MonoBehaviour
         rooms[room.roomID] = room;
     }
 
-    public Room GetRoom(string id)
-    {
-        rooms.TryGetValue(id, out var room);
-        return room;
-    }
-
     public void UpdateActiveRooms(Room playerRoom)
     {
         // 전부 비활성화

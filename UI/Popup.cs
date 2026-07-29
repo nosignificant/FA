@@ -10,14 +10,21 @@ public class Popup : MonoBehaviour
     public FloatingText popupPrefab;
 
     [Header("연출")]
-    public string message = "분해됨";
     [Min(1)] public int burstCount = 5;
+    [Tooltip("팝업 하나씩 사이의 간격(초). 0이면 동시에 다 튀어나옴")]
+    public float spawnInterval = 2f;
+    public float fixedLifeTime = 1.5f;
+    public float storyLifeTime = 5f;
     public float speed = 2.5f;
     [Tooltip("속도 랜덤 편차 (0.3이면 ±30%)")]
-    [Range(0f, 1f)] public float speedJitter = 0.3f;
+    [Range(0f, 1f)] public float speedJitter = 0.5f;
     [Tooltip("생성 위치를 중심에서 이만큼 랜덤하게 흩음")]
     public float spawnScatter = 0.3f;
     public Vector3 offset = new Vector3(0f, 1f, 0f);
+
+    public static Popup Instance { get; private set; }
+
+    private void Awake() => Instance = this;
 
     private IEnumerator Start()
     {
@@ -26,7 +33,13 @@ public class Popup : MonoBehaviour
         if (RoomManager.Instance == null) yield break;
 
         foreach (var r in RoomManager.Instance.rooms.Values)
-            if (r != null) r.OnCreatureDecomposed += OnDecomposed;
+        {
+            if (r != null)
+            {
+                r.OnCreatureDecomposed += OnDecomposed;
+                r.OnCreatureSynthesized += OnSynthesized;
+            }
+        }
     }
 
     private void OnDestroy()
@@ -34,36 +47,74 @@ public class Popup : MonoBehaviour
         if (RoomManager.Instance == null) return;
 
         foreach (var r in RoomManager.Instance.rooms.Values)
-            if (r != null) r.OnCreatureDecomposed -= OnDecomposed;
+        {
+            if (r == null) continue;
+            r.OnCreatureDecomposed -= OnDecomposed;
+            r.OnCreatureSynthesized -= OnSynthesized;
+        }
     }
 
-    // 어느 방에서든 분해가 나면 그 위치에 터뜨림
-    private void OnDecomposed(Creature target, CreatureID decomposerID) => Burst(target);
+    private void OnDecomposed(Creature target, CreatureID by) => Burst(target, by);
+    private void OnSynthesized(Creature target, CreatureID by) => Burst(target, by);
 
-    private void Burst(Creature target)
+    // D/L 분해·합성 → 고정 문구 1종을 burstCount개 뿌림
+    private void Burst(Creature target, CreatureID by)
     {
-        if (popupPrefab == null || target == null) return;
+        string[] msgs = new string[burstCount];
+        for (int i = 0; i < burstCount; i++) msgs[i] = FixedMessage(by);
+        SpawnAt(target, msgs, fixedLifeTime);
+    }
+
+    // 스토리 생물 빙의 → 현재 단계 대사 줄들을 "줄당 하나씩" 뿌림 (외부에서 호출)
+    public void BurstStoryLines(Creature target)
+    {
+        if (CreatureStory.Instance == null) return;
+        // 뿌리는 순간 해당 단계를 '획득' 처리 → 코덱스 UI에 해금
+        SpawnAt(target, CreatureStory.Instance.CollectAndGetCurrentLines(), storyLifeTime);
+    }
+
+    // 대상 위치에서 messages를 하나씩 순차로 터뜨림 (시작 위치는 지금 고정 — 생물이 죽어도 안전)
+    private void SpawnAt(Creature target, string[] messages, float lifeTime)
+    {
+        if (popupPrefab == null || target == null || messages == null || messages.Length == 0) return;
 
         Transform t = target.rootTransform != null ? target.rootTransform : target.transform;
         Vector3 center = t.position + offset;
 
-        Camera cam = Camera.main;
-        // 카메라 정면 평면의 축 (없으면 월드 축 폴백)
-        Vector3 right = cam != null ? cam.transform.right : Vector3.right;
-        Vector3 up = cam != null ? cam.transform.up : Vector3.up;
+        StartCoroutine(SpawnRoutine(center, messages, lifeTime));
+    }
 
-        for (int i = 0; i < burstCount; i++)
+    private IEnumerator SpawnRoutine(Vector3 center, string[] messages, float lifeTime)
+    {
+        int count = messages.Length;
+        for (int i = 0; i < count; i++)
         {
-            // 원형으로 고르게 퍼지되 약간의 랜덤 (i번째 슬롯 + 지터)
-            float angle = (i / (float)burstCount) * Mathf.PI * 2f
-                          + Random.Range(-0.3f, 0.3f);
+            // 매번 카메라 축을 새로 읽어 현재 시점 기준으로 퍼지게
+            Camera cam = Camera.main;
+            Vector3 right = cam != null ? cam.transform.right : Vector3.right;
+            Vector3 up = cam != null ? cam.transform.up : Vector3.up;
+
+            // 원형으로 고르게 퍼지되 약간의 랜덤 (count로 나눠 한 바퀴에 균등 분포)
+            float angle = (i / (float)count) * Mathf.PI * 2f + Random.Range(-0.3f, 0.3f);
             Vector3 dir = right * Mathf.Cos(angle) + up * Mathf.Sin(angle);
 
             Vector3 pos = center + dir * Random.Range(0f, spawnScatter);
             float spd = speed * (1f + Random.Range(-speedJitter, speedJitter));
 
             var ft = Instantiate(popupPrefab, pos, Quaternion.identity);
-            ft.Launch(message, dir, spd);
+            ft.Launch(messages[i], dir, spd, lifeTime);
+
+            if (spawnInterval > 0f) yield return new WaitForSeconds(spawnInterval);
+        }
+    }
+
+    private string FixedMessage(CreatureID by)
+    {
+        switch (by)
+        {
+            case CreatureID.D: return "decomposed";
+            case CreatureID.L: return "synthesized";
+            default: return "";
         }
     }
 }

@@ -49,6 +49,7 @@ public class Room : MonoBehaviour
     public int maxCreaturesInRoom = 5;
     public Dictionary<CreatureData, int> decomposedCounts = new();
     public event Action<Creature, CreatureID> OnCreatureDecomposed;
+    public event Action<Creature, CreatureID> OnCreatureSynthesized;   // 합성 결과 생물, 합성한 종(L 등)
 
     [Header("initial spawn")]
     public CreatureDatabase creatureDB;
@@ -88,7 +89,8 @@ public class Room : MonoBehaviour
     }
 
     public Wall GetWall(Direction dir) => GetWallSlot(dir)?.wall;
-    public Door GetDoor(Direction dir) => GetWallSlot(dir)?.door;
+    // 문 참조는 Wall이 들고 있음 (slot.door가 아니라 slot.wall.door)
+    public Door GetDoor(Direction dir) => GetWall(dir)?.door;
 
     public void SetDoorWall(Direction dir, bool hasDoor)
     {
@@ -127,6 +129,12 @@ public class Room : MonoBehaviour
             Debug.Log($"[Room {roomID}] decomposed {target.data.name}, count={decomposedCounts[target.data]}");
         }
         OnCreatureDecomposed?.Invoke(target, decomposerID);
+    }
+
+    // 합성 결과 생물이 스폰됐을 때 SynthesizeState가 호출
+    public void NotifySynthesized(Creature result, CreatureID synthesizerID)
+    {
+        OnCreatureSynthesized?.Invoke(result, synthesizerID);
     }
 
 

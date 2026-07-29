@@ -3,6 +3,11 @@ using System.Collections;
 
 public static class FootUtil
 {
+    // NaN/Infinity 없는 유효한 좌표인지
+    public static bool IsFinite(Vector3 v) =>
+        !(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z) ||
+          float.IsInfinity(v.x) || float.IsInfinity(v.y) || float.IsInfinity(v.z));
+
     //레이캐스트로 땅 위치 찾기 - 아래로
     public static Vector3 SetTargetGround(Vector3 targetPos, LayerMask ground)
     {

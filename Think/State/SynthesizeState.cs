@@ -103,7 +103,10 @@ class SynthesizeState : ThinkState
                     GameObject obj = Object.Instantiate(prefab, spawnPos, Quaternion.identity);
                     Creature newCreature = obj.GetComponent<Creature>();
                     if (newCreature != null)
+                    {
                         tCreature.currentRoom?.RegisterCreature(newCreature);
+                        tCreature.currentRoom?.NotifySynthesized(newCreature, selfID);   // 합성 팝업용 이벤트
+                    }
                 }
             }
         }

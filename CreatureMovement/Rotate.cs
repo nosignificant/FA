@@ -39,15 +39,4 @@ public class Rotate : MonoBehaviour
         transform.position = target1.position;
         transform.rotation = targetRotation;
     }
-
-    void rotateEuler()
-    {
-        Vector3 currentRot = transform.eulerAngles;
-        currentRot.z += rotateSpeed * Time.deltaTime;
-        transform.eulerAngles = currentRot;
-    }
-    public Quaternion GetRotationDelta(Quaternion previousRot, Quaternion currentRot)
-    {
-        return currentRot * Quaternion.Inverse(previousRot);
-    }
 }

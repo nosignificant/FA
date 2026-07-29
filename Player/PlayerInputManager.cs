@@ -5,8 +5,9 @@ public class PlayerInputManager : MonoBehaviour
     [Header("Keys")]
     public KeyCode lockOnKey = KeyCode.Tab;
     public KeyCode possessKey = KeyCode.F;
-    public KeyCode observeKey = KeyCode.C;
-    public KeyCode observeConfirmKey = KeyCode.E;
+
+    [Header("Codex Keys")]
+    public KeyCode codexToggleKey = KeyCode.J;
 
     private CreaturePossess possess;
 
@@ -23,11 +24,28 @@ public class PlayerInputManager : MonoBehaviour
 
     private void Update()
     {
+        // 상태창은 이동 가능한 오버레이라 다른 입력을 막지 않음 (병렬 처리)
+        HandleCodex();
+
         HandleLockOn();
         HandlePossess();
-        HandleObservation();
         HandleEscape();
         SyncPossessUI();
+    }
+
+    // 상태창 입력. J로 토글, 열려 있으면 방향키(↑/↓)로 story 선택 이동.
+    // W/S는 이동에 쓰므로 여기선 방향키만 사용.
+    private void HandleCodex()
+    {
+        var codex = StatuesMenu.Instance;
+        if (codex == null) return;
+
+        if (Input.GetKeyDown(codexToggleKey)) codex.Toggle();
+
+        if (!StatuesMenu.AnyOpen) return;
+
+        if (Input.GetKeyDown(KeyCode.UpArrow)) codex.Navigate(-1);
+        else if (Input.GetKeyDown(KeyCode.DownArrow)) codex.Navigate(1);
     }
 
     // F: 빙의 토글
@@ -54,21 +72,6 @@ public class PlayerInputManager : MonoBehaviour
         }
     }
 
-    // C: 관찰창 토글 / (열렸을 때) Space 이동, E 락온 확정
-    private void HandleObservation()
-    {
-        var obs = ObservationUI.Instance;
-        if (obs == null) return;
-
-        if (Input.GetKeyDown(observeKey)) { obs.OnOff(true); return; }
-
-        if (obs.IsOnOff)
-        {
-            if (Input.GetKeyDown(observeKey)) obs.Move(1);
-            if (Input.GetKeyDown(observeConfirmKey)) obs.LockOnSelected();
-        }
-    }
-
     // 메뉴 네비게이션 + ESC 우선순위 체인
     private void HandleEscape()
     {
@@ -84,11 +87,9 @@ public class PlayerInputManager : MonoBehaviour
 
         if (!Input.GetKeyDown(KeyCode.Escape)) return;
 
-        // 우선순위: 메뉴 닫기 > 관찰창 닫기 > 락온 해제 > 메뉴 열기
+        // 우선순위: 메뉴 닫기 > 락온 해제 > 메뉴 열기
         if (menu != null && menu.IsOpen)
             menu.Close();
-        else if (ObservationUI.Instance != null && ObservationUI.Instance.IsOnOff)
-            ObservationUI.Instance.OnOff(false);
         else if (Player.Instance != null && Player.Instance.isTracking)
             Player.Instance.Unlock();
         else if (menu != null)

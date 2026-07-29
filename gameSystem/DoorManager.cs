@@ -61,16 +61,16 @@ public class DoorManager : MonoBehaviour
         return n;
     }
 
-    // 종 → 열린 문 개수 전체 (UI 등에서 사용)
+    // 현재 열린 문을 watching 종별로 합산 (statues UI용)
     public Dictionary<CreatureData, int> OpenDoorCountsBySpecies()
     {
-        var dict = new Dictionary<CreatureData, int>();
+        var map = new Dictionary<CreatureData, int>();
         foreach (var d in doors)
         {
             if (d == null || !d.isOpen || d.watchingCreature == null) continue;
-            dict.TryGetValue(d.watchingCreature, out int c);
-            dict[d.watchingCreature] = c + 1;
+            map.TryGetValue(d.watchingCreature, out int c);
+            map[d.watchingCreature] = c + 1;
         }
-        return dict;
+        return map;
     }
 }
