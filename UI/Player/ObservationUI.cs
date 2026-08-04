@@ -24,6 +24,11 @@ public class ObservationUI : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+    }
+
+    private void Start()
+    {
+        // 모든 Awake가 끝난 뒤라 Player.Instance가 세팅돼 있음
         if (player == null) player = Player.Instance;
     }
 

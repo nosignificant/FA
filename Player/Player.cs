@@ -37,6 +37,7 @@ public class Player : MonoBehaviour
         if (c == null || c.data == null || !c.data.advancesStory) return;
 
         Stage++;
+        StoryProgress.SaveStage(Stage);   // 씬 넘어가도 유지
         Debug.Log($"[Story] 단계 +1 → {Stage} ({c.data.creatureName} 빙의)");
         OnStageChanged?.Invoke(Stage);
 
@@ -51,6 +52,7 @@ public class Player : MonoBehaviour
         if (pc == null) pc = GetComponent<Creature>();
 
         Instance = this;
+        Stage = StoryProgress.LoadStage();   // 이전 씬까지의 진행 복원
     }
 
     void Start()

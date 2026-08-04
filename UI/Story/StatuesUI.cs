@@ -41,13 +41,13 @@ public class StatuesUI : MonoBehaviour
         if (text == null) return;
 
         var sb = new StringBuilder();
-        sb.AppendLine("-- 열린문 --");
+        sb.AppendLine("-- current open door --");
 
         var dm = DoorManager.Existing;
         if (dm != null)
         {
             var map = dm.OpenDoorCountsBySpecies();
-            if (map.Count == 0) sb.AppendLine("(없음)");
+            if (map.Count == 0) sb.AppendLine(" ");
             else
                 foreach (var kv in map)
                     sb.AppendLine($"{Name(kv.Key)} : {kv.Value}개");

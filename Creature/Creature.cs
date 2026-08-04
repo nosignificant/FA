@@ -105,9 +105,14 @@ public class Creature : MonoBehaviour
         intent = grabbedBy != null && grabbedBy.data?.creatureID == CreatureID.D
             ? CreatureIntent.Decomposed
             : CreatureIntent.Synthesized;
-
-        foreach (var rb in GetComponentsInChildren<Rigidbody>())
-            rb.isKinematic = true;
+        _grabBodies = GetComponentsInChildren<Rigidbody>();
+        _grabInterp = new RigidbodyInterpolation[_grabBodies.Length];
+        for (int k = 0; k < _grabBodies.Length; k++)
+        {
+            _grabInterp[k] = _grabBodies[k].interpolation;
+            _grabBodies[k].interpolation = RigidbodyInterpolation.None;
+            _grabBodies[k].isKinematic = true;
+        }
 
         transform.SetParent(attachPoint, false);
         transform.localPosition = Vector3.zero;
@@ -135,6 +140,10 @@ public class Creature : MonoBehaviour
     }
 
     [System.NonSerialized] public Creature grabbedBy;
+
+    // 잡힐 때 끈 Interpolation을 놓을 때 원복하기 위한 캐시
+    [System.NonSerialized] private Rigidbody[] _grabBodies;
+    [System.NonSerialized] private RigidbodyInterpolation[] _grabInterp;
 
     void Update()
     {
@@ -182,8 +191,24 @@ public class Creature : MonoBehaviour
         grabbedBy = null;
         intent = CreatureIntent.Wander;
 
-        foreach (var rb in GetComponentsInChildren<Rigidbody>())
-            rb.isKinematic = false;
+        // kinematic 해제 + 잡을 때 껐던 Interpolation 원복
+        if (_grabBodies != null)
+        {
+            for (int k = 0; k < _grabBodies.Length; k++)
+            {
+                if (_grabBodies[k] == null) continue;
+                _grabBodies[k].isKinematic = false;
+                if (_grabInterp != null && k < _grabInterp.Length)
+                    _grabBodies[k].interpolation = _grabInterp[k];
+            }
+            _grabBodies = null;
+            _grabInterp = null;
+        }
+        else
+        {
+            foreach (var rb in GetComponentsInChildren<Rigidbody>())
+                rb.isKinematic = false;
+        }
 
         transform.SetParent(null);
 

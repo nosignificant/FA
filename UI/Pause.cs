@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -9,12 +8,9 @@ public class Pause : MonoBehaviour
     public GameObject panelRoot;
     public Image bg;
 
-    [Header("Fade")]
+    [Header("표시")]
     [Tooltip("배경+메뉴를 함께 감싸는 오브젝트의 CanvasGroup. 알파가 같이 연동됨")]
     public CanvasGroup canvasGroup;
-    public float fadeTime = 0.2f;
-
-    private Coroutine fadeCo;
 
     [System.Serializable]
     public struct MenuItem
@@ -27,11 +23,6 @@ public class Pause : MonoBehaviour
 
     private int selected = 0;
 
-    private void Start()
-    {
-        UpdateVisual();
-    }
-
     public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
 
     private void Awake()
@@ -39,6 +30,12 @@ public class Pause : MonoBehaviour
         Instance = this;
         if (canvasGroup == null && panelRoot != null)
             canvasGroup = panelRoot.GetComponent<CanvasGroup>();
+
+        // 초기화는 Awake에서 (Start는 panelRoot 비활성 시 안 돌 수 있음)
+        UpdateVisual();
+        SetBgAlpha(0f);
+        if (canvasGroup != null) canvasGroup.alpha = 0f;
+
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
@@ -46,44 +43,26 @@ public class Pause : MonoBehaviour
     public void Open()
     {
         Time.timeScale = 0f;
+
         if (panelRoot != null) panelRoot.SetActive(true);
-        StartFade(1f);
+        if (canvasGroup != null) canvasGroup.alpha = 1f;
+        SetBgAlpha(0.7f);
     }
 
     public void Close()
     {
-        StartFade(0f, deactivateOnEnd: true);
+        if (canvasGroup != null) canvasGroup.alpha = 0f;
+        SetBgAlpha(0f);
+        if (panelRoot != null) panelRoot.SetActive(false);
         Time.timeScale = 1f;
     }
 
-    // CanvasGroup 알파를 unscaled time으로 페이드 (timeScale=0에서도 진행)
-    private void StartFade(float targetAlpha, bool deactivateOnEnd = false)
+    private void SetBgAlpha(float a)
     {
-        if (canvasGroup == null)
-        {
-            // CanvasGroup 없으면 즉시 처리
-            if (deactivateOnEnd && panelRoot != null) panelRoot.SetActive(false);
-            return;
-        }
-
-        if (fadeCo != null) StopCoroutine(fadeCo);
-        fadeCo = StartCoroutine(FadeRoutine(targetAlpha, deactivateOnEnd));
-    }
-
-    private IEnumerator FadeRoutine(float target, bool deactivateOnEnd)
-    {
-        float start = canvasGroup.alpha;
-        float t = 0f;
-        while (t < fadeTime)
-        {
-            t += Time.unscaledDeltaTime;
-            canvasGroup.alpha = Mathf.Lerp(start, target, fadeTime > 0f ? t / fadeTime : 1f);
-            yield return null;
-        }
-        canvasGroup.alpha = target;
-
-        if (deactivateOnEnd && panelRoot != null) panelRoot.SetActive(false);
-        fadeCo = null;
+        if (bg == null) return;
+        Color c = bg.color;
+        c.a = a;
+        bg.color = c;
     }
     public void Move(int dir)
     {

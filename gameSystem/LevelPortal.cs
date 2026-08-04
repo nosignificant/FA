@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using CreatureTypes;
 
 // 트리거 영역에 플레이어가 들어오면 지정한 씬으로 전환한다.
 // 레벨 전환 트리거를 이 한 스크립트로 관리 (전환할 영역마다 이 컴포넌트를 붙이면 됨).
@@ -13,6 +14,12 @@ public class LevelPortal : MonoBehaviour
     public string targetScene;
     [Tooltip("Additive면 현재 씬 위에 겹쳐 로드, 아니면 교체")]
     public bool additive = false;
+
+    [Header("엔딩 분기용 선택 기록")]
+    [Tooltip("이 포탈을 통과한 걸 '선택'으로 기록할지 (엔딩 분기용)")]
+    public bool recordAsChoice = false;
+    [Tooltip("이 문의 판정 종 (예: A문이면 A, L문이면 L)")]
+    public CreatureID choiceId = CreatureID.A;
 
     [Header("옵션")]
     [Tooltip("들어온 뒤 이 시간(초) 대기 후 전환 (0이면 즉시)")]
@@ -39,6 +46,9 @@ public class LevelPortal : MonoBehaviour
 
         triggered = true;
 
+        // 이 포탈로 다음 레벨에 갔다 = 이 문을 선택 → 기록 (엔딩 분기용)
+        if (recordAsChoice) ChoiceProgress.Record(choiceId);
+
         if (delay > 0f) StartCoroutine(LoadAfterDelay());
         else Load();
     }
@@ -59,7 +69,12 @@ public class LevelPortal : MonoBehaviour
         }
 
         if (restoreTimeScale) Time.timeScale = 1f;
-        SceneManager.LoadScene(targetScene, additive ? LoadSceneMode.Additive : LoadSceneMode.Single);
+
+        // 로딩바가 있으면 SceneLoader로 (additive는 로더 미지원 → 직접 로드)
+        if (!additive && SceneLoader.Instance != null)
+            SceneLoader.Instance.Load(targetScene);
+        else
+            SceneManager.LoadScene(targetScene, additive ? LoadSceneMode.Additive : LoadSceneMode.Single);
     }
 
     private void OnDrawGizmos()

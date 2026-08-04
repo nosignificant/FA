@@ -9,7 +9,6 @@ class WanderState : ThinkState
     public bool needToGetNewPoint = false;
     public bool hasTarget = false;
     private float lastRefreshTime;
-    private float goToOtherRoom = 5f;
 
     public WanderState(Think2 think) : base(think) { }
 
@@ -30,14 +29,12 @@ class WanderState : ThinkState
             hasTarget = true;
             lastRefreshTime = Time.time;
         }
-        // 옆방에 Chase 대상이 있거나 랜덤값 이상이 나오면 이주 시도
+        // 옆방에 Chase 대상이 있을 때만 이주 (랜덤 이주 없음)
         var mig = think.migration;
-        float r = Random.Range(1, 10) * think.self.data.wanderWeight;
-        if (mig != null && think.self.canMigrate && mig.TickMigration())
+        if (mig != null && think.self.canMigrate
+            && mig.HasChaseTargetInAdjacentRoom() && mig.TickMigration())
         {
-            if (mig.HasChaseTargetInAdjacentRoom())
-            { newTarget.point = mig.migrateTargetPoint; return; }
-            else if (r > goToOtherRoom) newTarget.point = mig.migrateTargetPoint;
+            newTarget.point = mig.migrateTargetPoint;
             return;
         }
 

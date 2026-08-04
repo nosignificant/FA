@@ -7,7 +7,7 @@ public class PlayerInputManager : MonoBehaviour
     public KeyCode possessKey = KeyCode.F;
 
     [Header("Codex Keys")]
-    public KeyCode codexToggleKey = KeyCode.J;
+    public KeyCode codexToggleKey = KeyCode.C;
 
     private CreaturePossess possess;
 

@@ -16,6 +16,9 @@ public class CreatureStory : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+
+        // 이전 씬까지의 획득 목록 복원
+        foreach (int s in StoryProgress.LoadCollected()) collected.Add(s);
     }
 
     // ── 데이터: stage → 그 단계에서 뿌릴 대사 줄들 ──────────────
@@ -24,6 +27,14 @@ public class CreatureStory : MonoBehaviour
         { 1, new[] { "세포가 죽는 경우", "외부적 문제에 의해 손상", "세포 스스로에 의해 조절되는 세포의 자살" , "세포가 스스로를 먹다가 죽는 경우"} },
         { 2, new[] { "첫째는 괴사(Necrosis)", "둘째는 세포자살(Apoptosis)", "셋째는 자가포식(Autophagy)" } },
         { 3, new[] { "세포자살",  "의 경우 괴사와 달리", "생물체에 해를", "끼치지 않으며", "생명주기에 유익한 것", } },
+        {4, new[] { "a",
+                    "일단 자살하기로 결심하면 그는 완전히 폐쇄되어",
+                    "난공불락이면서도 절대적인 확신을 주는 세계로 진입해 들어가게 된다",
+                    "이 세계 안에서는 가장 사소한 것 하나하나까지 모두 맞아 들어가고",
+                    "모든 일이 하나같이 그의 결심을 강화해 준다"}},
+        {5, new[] {"l" ,
+                    "삶 봄철에 티파사에는 신들이 내려와 산다",
+                    "슬픔과 기쁨을 만든다 삶은 조종할 수 없다"}}
     };
 
     // ── 수집 상태 ────────────────────────────────────────────
@@ -42,6 +53,7 @@ public class CreatureStory : MonoBehaviour
     {
         if (!storyline.ContainsKey(stage)) return;   // 데이터 없는 단계는 무시
         if (!collected.Add(stage)) return;           // 이미 있으면 중복 발행 안 함
+        StoryProgress.SaveCollected(collected);      // 씬 넘어가도 유지
         OnCollected?.Invoke(stage);
     }
 

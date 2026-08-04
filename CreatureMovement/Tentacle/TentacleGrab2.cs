@@ -28,6 +28,20 @@ public class TentacleGrab2 : MonoBehaviour
         initTentacles();
     }
 
+    public bool IsGrabbingAny
+    {
+        get
+        {
+            if (tentacles == null) return false;
+            for (int i = 0; i < tentacles.Length; i++)
+            {
+                if (tentacles[i].isPending) return true;
+                if (tentacles[i].isGrabbing && tentacles[i].grabbedCreature != null) return true;
+            }
+            return false;
+        }
+    }
+
     public void TryGrab(Creature target)
     {
         if (target.IsDead || target.data == null) return;
@@ -35,6 +49,10 @@ public class TentacleGrab2 : MonoBehaviour
         if (target.IsGrabbed || target.intent == CreatureIntent.Decomposing) return;
         if (forcedTargetID != CreatureID.Player && target.data.creatureID != forcedTargetID) return;
         if (!self.HasAction(target.data.creatureID, InteractionAction.Grab)) return;
+
+        // 다른 생물을 이미 잡고 있는 생물은 못 잡음
+        var targetGrab = target.GetComponentInChildren<TentacleGrab2>();
+        if (targetGrab != null && targetGrab.IsGrabbingAny) return;
 
         // 비어있는 슬롯에 잡기 시도
         for (int i = 0; i < tentacles.Length; i++)

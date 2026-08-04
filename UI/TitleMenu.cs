@@ -49,11 +49,21 @@ public class TitleMenu : MonoBehaviour
         if (items.Length == 0) return;
         switch (items[selected].label)
         {
-            case "START": SceneManager.LoadScene("tutorial"); break;
+            case "PRESS ENTER TO START": StartGame(); break;
             case "Quit": Application.Quit(); break;
         }
     }
 
-    public void OnStartButton() => SceneManager.LoadScene("tutorial");
+    // 데모: START는 새 시작 = 스토리 진행 초기화
+    private static void StartGame()
+    {
+        StoryProgress.Clear();
+        ChoiceProgress.Clear();
+
+        if (SceneLoader.Instance != null) SceneLoader.Instance.Load("tutorial1");
+        else SceneManager.LoadScene("tutorial1");
+    }
+
+    public void OnStartButton() => StartGame();
     public void OnQuitButton() => Application.Quit();
 }

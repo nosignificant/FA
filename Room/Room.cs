@@ -97,6 +97,17 @@ public class Room : MonoBehaviour
         GetWall(dir)?.SetDoor(hasDoor);
     }
 
+    // 이 방에 특정 종의 살아있는 생물이 있는가
+    public bool HasSpecies(CreatureID id)
+    {
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c != null && !c.IsDead && c.data != null && c.data.creatureID == id) return true;
+        }
+        return false;
+    }
+
     // ── decompose ────────────────────────────────────────────────────────
 
     public (CreatureData, int) MostDecomposedAndSecond()

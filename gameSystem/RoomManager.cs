@@ -14,8 +14,11 @@ public class RoomManager : MonoBehaviour
         Instance = this;
     }
 
-    private void Start()
+    private IEnumerator Start()
     {
+        // 한 프레임 대기: 모든 Room.Start(방 등록)·Door.Start(문 등록·isOpen 확정)가 끝난 뒤 계산
+        yield return null;
+
         if (Player.Instance != null)
         {
             Player.Instance.roomChanged += UpdateActiveRooms;
@@ -38,15 +41,30 @@ public class RoomManager : MonoBehaviour
 
         if (playerRoom == null) return;
 
-        // 플레이어 방 + 열린 문으로 연결된 방만 활성화
+        // 플레이어 방에서 "열린 문"으로 연결된 방 전체를 flood-fill(BFS)로 활성화 (다단계 포함)
+        var visited = new HashSet<Room>();
+        var queue = new Queue<Room>();
+
         playerRoom.isActive = true;
-        if (playerRoom.doors == null) return;
-        foreach (var d in playerRoom.doors)
+        visited.Add(playerRoom);
+        queue.Enqueue(playerRoom);
+
+        while (queue.Count > 0)
         {
-            if (d == null || !d.isOpen) continue;   // null 문 건너뜀 (이벤트 체인 끊기는 예외 방지)
-            Room other = d.GetOtherRoom(playerRoom);
-            // 튜토리얼 방은 문 열려도 자동 활성화 안 함
-            if (other != null && !other.isTutorial) other.isActive = true;
+            Room room = queue.Dequeue();
+            if (room.doors == null) continue;
+
+            foreach (var d in room.doors)
+            {
+                if (d == null || !d.isOpen) continue;
+                Room other = d.GetOtherRoom(room);
+                if (other == null || visited.Contains(other)) continue;
+                if (other.isTutorial) continue;   // 튜토리얼 방은 자동 활성화·통과 제외
+
+                other.isActive = true;
+                visited.Add(other);
+                queue.Enqueue(other);
+            }
         }
     }
 }

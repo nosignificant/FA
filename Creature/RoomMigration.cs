@@ -53,7 +53,9 @@ public class RoomMigration : MonoBehaviour
         if (bestDist > migrateDoorReachDist)
         {
             // 아직 문까지 거리가 멀면 문으로 향함
-            migrateTargetPoint = bestDoor.self.rootTransform.position;
+            Transform doorT = (bestDoor.self != null && bestDoor.self.rootTransform != null)
+                ? bestDoor.self.rootTransform : bestDoor.transform;
+            migrateTargetPoint = doorT.position;
             isMigrating = false;
         }
         else
@@ -107,8 +109,9 @@ public class RoomMigration : MonoBehaviour
             if (other == null) continue;
             if (ShouldAvoidRoom(other)) continue;
 
-            //door에 roottransform 있었던가?
-            Vector3 dp = d.self.rootTransform.position;
+            // 문 위치: self/rootTransform 미설정이면 문 오브젝트 transform으로 대체 (NRE 방지)
+            Transform doorT = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
+            Vector3 dp = doorT.position;
             float dist = Vector3.Distance(self.rootTransform.position, dp);
             if (dist < bestDist) { bestDist = dist; bestDoor = d; }
         }

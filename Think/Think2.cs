@@ -138,7 +138,7 @@ public class Think2 : MonoBehaviour
             currentState = newState;
             self.intent = newIntent;
         }
-        //상태 같으면 다시 생각함 
+        //상태 같으면 다시 생각함
         currentState.Refresh(BuildQueryPoints());
         //상태마다 타겟 가짐
         currentTarget = currentState.newTarget;

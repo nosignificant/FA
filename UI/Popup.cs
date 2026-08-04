@@ -13,6 +13,8 @@ public class Popup : MonoBehaviour
     [Min(1)] public int burstCount = 5;
     [Tooltip("팝업 하나씩 사이의 간격(초). 0이면 동시에 다 튀어나옴")]
     public float spawnInterval = 2f;
+    public float storyInterval = 2f;
+
     public float fixedLifeTime = 1.5f;
     public float storyLifeTime = 5f;
     public float speed = 2.5f;
@@ -70,21 +72,22 @@ public class Popup : MonoBehaviour
     {
         if (CreatureStory.Instance == null) return;
         // 뿌리는 순간 해당 단계를 '획득' 처리 → 코덱스 UI에 해금
-        SpawnAt(target, CreatureStory.Instance.CollectAndGetCurrentLines(), storyLifeTime);
+        SpawnAt(target, CreatureStory.Instance.CollectAndGetCurrentLines(), storyLifeTime, storyInterval);
     }
 
     // 대상 위치에서 messages를 하나씩 순차로 터뜨림 (시작 위치는 지금 고정 — 생물이 죽어도 안전)
-    private void SpawnAt(Creature target, string[] messages, float lifeTime)
+    // interval이 음수면 기본 spawnInterval 사용
+    private void SpawnAt(Creature target, string[] messages, float lifeTime, float interval = -1f)
     {
         if (popupPrefab == null || target == null || messages == null || messages.Length == 0) return;
 
         Transform t = target.rootTransform != null ? target.rootTransform : target.transform;
         Vector3 center = t.position + offset;
 
-        StartCoroutine(SpawnRoutine(center, messages, lifeTime));
+        StartCoroutine(SpawnRoutine(center, messages, lifeTime, interval < 0f ? spawnInterval : interval));
     }
 
-    private IEnumerator SpawnRoutine(Vector3 center, string[] messages, float lifeTime)
+    private IEnumerator SpawnRoutine(Vector3 center, string[] messages, float lifeTime, float interval)
     {
         int count = messages.Length;
         for (int i = 0; i < count; i++)
@@ -104,7 +107,7 @@ public class Popup : MonoBehaviour
             var ft = Instantiate(popupPrefab, pos, Quaternion.identity);
             ft.Launch(messages[i], dir, spd, lifeTime);
 
-            if (spawnInterval > 0f) yield return new WaitForSeconds(spawnInterval);
+            if (interval > 0f) yield return new WaitForSeconds(interval);
         }
     }
 
