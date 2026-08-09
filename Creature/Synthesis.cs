@@ -24,11 +24,11 @@ public class Synthesis : MonoBehaviour
         return SynthesisResult.None;
     }
 
-    // a + h → ah, a + s → as
+    // a + h → a 2개, a + s → a 2개
     SynthesisResult ResolveA(CreatureID idA)
     {
-        if (idA == CreatureID.H) return SynthesisResult.Of(CreatureID.AH, 1);
-        if (idA == CreatureID.S) return SynthesisResult.Of(CreatureID.AS, 1);
+        if (idA == CreatureID.H) return SynthesisResult.Of(CreatureID.A, 2);
+        if (idA == CreatureID.S) return SynthesisResult.Of(CreatureID.A, 2);
         return SynthesisResult.None;
     }
 

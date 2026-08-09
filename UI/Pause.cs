@@ -57,10 +57,13 @@ public class Pause : MonoBehaviour
         Time.timeScale = 1f;
     }
 
+    [Tooltip("배경 색 (알파는 코드가 페이드로 조절)")]
+    public Color bgColor = Color.black;
+
     private void SetBgAlpha(float a)
     {
         if (bg == null) return;
-        Color c = bg.color;
+        Color c = bgColor;   // RGB는 항상 bgColor(검정)로 강제
         c.a = a;
         bg.color = c;
     }
@@ -76,7 +79,7 @@ public class Pause : MonoBehaviour
         switch (items[selected].label)
         {
             case "RETURN TO MAIN": LoadScene("title"); break;
-            case "RESTART_LEVEL": RestartLevel(); break;
+            case "RESTART LEVEL": RestartLevel(); break;
             case "Quit": Application.Quit(); break;
         }
     }

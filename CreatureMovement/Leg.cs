@@ -109,7 +109,12 @@ public class Leg : MonoBehaviour
              dirToTarget.z * stride + Random.Range(-2f, 2f)
          );
 
-        targetPos = FootUtil.SetTargetGround(destPos, ground);
+        // 땅을 못 찾으면 발을 옮기지 않고 이전 위치 유지 (공중으로 튀는 것 방지)
+        if (!FootUtil.TryGround(destPos, ground, out targetPos))
+        {
+            isMoving = false;
+            yield break;
+        }
 
         // NaN/Infinity로 오염되면 발을 몸(top) 밑으로 리셋해 복구 — 안 그러면 NaN이 IK 전체로 퍼짐
         if (!FootUtil.IsFinite(targetPos) || !FootUtil.IsFinite(foot.position))

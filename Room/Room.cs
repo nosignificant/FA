@@ -46,10 +46,36 @@ public class Room : MonoBehaviour
 
     [Header("creature")]
     public List<Creature> creatureList = new();
-    public int maxCreaturesInRoom = 5;
     public Dictionary<CreatureData, int> decomposedCounts = new();
     public event Action<Creature, CreatureID> OnCreatureDecomposed;
     public event Action<Creature, CreatureID> OnCreatureSynthesized;   // 합성 결과 생물, 합성한 종(L 등)
+    public event Action OnCreatureCountChanged;   // 방 안 생물이 들어오거나 나갈 때 (문 조건 재평가용)
+
+    // 방 안 살아있는 생물을 종별로 집계 (D/Door/Player 제외). 문 조건·UI 공용.
+    public Dictionary<CreatureData, int> SpeciesCounts()
+    {
+        var counts = new Dictionary<CreatureData, int>();
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c == null || c.IsDead || c.data == null) continue;
+            if (c.data.excludeFromRoomCount) continue;   // weed 등 CreatureData에서 제외 체크
+            if (c.data.creatureID == CreatureID.Door || c.data.creatureID == CreatureID.Player) continue;
+            counts.TryGetValue(c.data, out int n);
+            counts[c.data] = n + 1;
+        }
+        return counts;
+    }
+
+    // 방 안에 살아있는 생물 중 가장 수가 많은 종. 문 열림 기준.
+    public CreatureData MostNumerousSpecies()
+    {
+        CreatureData best = null;
+        int bestCount = 0;
+        foreach (var kv in SpeciesCounts())
+            if (kv.Value > bestCount) { bestCount = kv.Value; best = kv.Key; }
+        return best;
+    }
 
     [Header("initial spawn")]
     public CreatureDatabase creatureDB;
@@ -362,12 +388,18 @@ public class Room : MonoBehaviour
 
         if (c.data.creatureID != CreatureID.Door && c.data.creatureID != CreatureID.Player)
             c.Died += OnCreatureDied;
+
+        OnCreatureCountChanged?.Invoke();
     }
 
     public void UnregisterCreature(Creature c)
     {
         c.Died -= OnCreatureDied;
-        if (creatureList.Contains(c)) creatureList.Remove(c);
+        if (creatureList.Contains(c))
+        {
+            creatureList.Remove(c);
+            OnCreatureCountChanged?.Invoke();
+        }
     }
 
     private void OnCreatureDied(Creature c, CreatureID who)

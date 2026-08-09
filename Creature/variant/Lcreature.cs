@@ -35,6 +35,13 @@ public class Lcreature : TentacleCreature
 
         while (!IsDead)
         {
+            // 비활성 방이면 소환 멈춤 (플레이어가 떠난 방에서 계속 뽑는 것 방지)
+            if (currentRoom == null || !currentRoom.isActive)
+            {
+                yield return null;
+                continue;
+            }
+
             if (intent == CreatureIntent.Synthesizing)
             {
                 yield return null;
@@ -72,6 +79,11 @@ public class Lcreature : TentacleCreature
     private Creature SpawnAndAttach(int idx)
     {
         GameObject spawnThis = WhichOneSpawn(currentSpawn);
+        if (spawnThis == null)
+        {
+            Debug.LogWarning($"[Lcreature] {name}: creatureDB에서 {currentSpawn} prefab을 못 찾음 (DB 등록 확인)");
+            return null;
+        }
         if (idx < 0 || idx >= tentacleGrab.tentacles.Length) return null;
 
         ref var slot = ref tentacleGrab.tentacles[idx];
@@ -115,7 +127,7 @@ public class Lcreature : TentacleCreature
         c.Release();
 
         // 풀리자마자 다시 잡히는 것 방지 — 10초 grab 면역
-        c.SetGrabImmunity(10f);
+        c.SetGrabImmunity(2f);
     }
 
     public GameObject WhichOneSpawn(CreatureID idx)

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using TMPro;
 
 // 한 방향으로 튀어나가며 페이드아웃되는 월드 공간 텍스트 (분해 연출용)
@@ -7,6 +8,8 @@ public class FloatingText : MonoBehaviour
 {
     [Header("Refs")]
     public TMP_Text label;
+    [Tooltip("텍스트 뒤 배경 Image (color 지정 시 이 배경색이 바뀜)")]
+    public Image background;
 
     [Header("Anim")]
     public float lifeTime = 1.5f;
@@ -23,11 +26,15 @@ public class FloatingText : MonoBehaviour
         cam = Camera.main;
     }
 
-    // 텍스트 + 초기 속도를 주고 발사
-    public void Launch(string text, Vector3 dir, float speed, float life)
+    // 텍스트 + 초기 속도를 주고 발사. color가 있으면 배경 Image를 그 색으로 (없으면 프리팹 기본색 유지)
+    public void Launch(string text, Vector3 dir, float speed, float life, Color? color = null)
     {
         if (label == null) label = GetComponentInChildren<TMP_Text>();
         if (label != null) label.text = text;
+
+        if (color.HasValue && background != null)
+            background.color = color.Value;   // 배경색만 바꿈 (텍스트는 그대로)
+
         velocity = dir.normalized * speed;
         lifeTime = life;
     }

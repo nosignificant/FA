@@ -106,6 +106,7 @@ class SynthesizeState : ThinkState
                     {
                         tCreature.currentRoom?.RegisterCreature(newCreature);
                         tCreature.currentRoom?.NotifySynthesized(newCreature, selfID);   // 합성 팝업용 이벤트
+                        newCreature.SetGrabImmunity(2f);   // 합성 직후 바로 다시 잡히지 않게
                     }
                 }
             }

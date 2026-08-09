@@ -29,6 +29,14 @@ public static class ChoiceProgress
 
     public static int Count => All().Count;
 
+    // 특정 종을 몇 번 선택했는지 (예: A문을 몇 개 열었나) — 엔딩 개수 분기용
+    public static int CountOf(CreatureID id)
+    {
+        int n = 0;
+        foreach (var c in All()) if (c == id) n++;
+        return n;
+    }
+
     // 기록된 선택이 minCount개 이상이고 전부 id면 true (예: 앞 3레벨 모두 A → AllChose(A, 3))
     public static bool AllChose(CreatureID id, int minCount)
     {

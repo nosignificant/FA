@@ -22,6 +22,12 @@ public class CreatureHUD : MonoBehaviour
     public float maxBoxWidth = 600;
     public float maxBoxHeight = 500;
 
+    [Header("따라가기 스무딩")]
+    [Tooltip("박스가 대상을 따라가는 속도. 클수록 딱 붙고(떨림↑), 작을수록 부드럽지만 지연↑")]
+    public float followSmooth = 25f;
+    [Tooltip("대상이 바뀌면 스무딩 없이 즉시 스냅")]
+    public bool snapOnTargetChange = true;
+
     private Camera mainCam;
     private PlayerLockOn pl;
     private CanvasGroup canvasGroup;
@@ -155,6 +161,8 @@ public class CreatureHUD : MonoBehaviour
         return any && minX != float.MaxValue && maxX != float.MinValue;
     }
 
+    private Creature lastTarget;
+
     private void ApplyRectSize()
     {
         float width = (maxX - minX) + padding * 2f;
@@ -163,10 +171,23 @@ public class CreatureHUD : MonoBehaviour
         width = Mathf.Clamp(width, 0f, maxBoxWidth);
         height = Mathf.Clamp(height, 0f, maxBoxHeight);
 
-        creatureBoxRect.sizeDelta = new Vector2(width, height);
+        Vector2 targetSize = new Vector2(width, height);
+        Vector3 targetPos = mainCam.WorldToScreenPoint(c.bounds.center);
 
-        // 중심점(스크린)
-        Vector3 screenCenter = mainCam.WorldToScreenPoint(c.bounds.center);
-        creatureBoxRect.position = screenCenter;
+        // 대상이 바뀌면 즉시 스냅, 아니면 스무딩으로 떨림 완화
+        bool snap = snapOnTargetChange && targetCreature != lastTarget;
+        lastTarget = targetCreature;
+
+        if (snap || followSmooth <= 0f)
+        {
+            creatureBoxRect.sizeDelta = targetSize;
+            creatureBoxRect.position = targetPos;
+        }
+        else
+        {
+            float k = Time.deltaTime * followSmooth;
+            creatureBoxRect.sizeDelta = Vector2.Lerp(creatureBoxRect.sizeDelta, targetSize, k);
+            creatureBoxRect.position = Vector3.Lerp(creatureBoxRect.position, targetPos, k);
+        }
     }
 }

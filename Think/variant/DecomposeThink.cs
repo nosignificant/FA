@@ -71,13 +71,6 @@ public class Dthink : Think2
 
     protected bool CanDecompose()
     {
-        // D: 방 포화 상태일 때만 / 그 외: 항상
-        Room current = self.currentRoom;
-        bool shouldDecompose = self.data.creatureID == CreatureID.D
-            ? (current != null && CountRoomCreatures(current) >= current.maxCreaturesInRoom)
-            : true;
-        if (!shouldDecompose) return false;
-
         // 쫓던 대상 유효성 확인
         Creature target = currentTarget.creature;
         if (target == null || target.IsDead || target.data == null) return false;
@@ -103,21 +96,6 @@ public class Dthink : Think2
         for (int i = 0; i < rules.Length; i++)
             if (rules[i].targetID == id) return true;
         return false;
-    }
-
-    private int CountRoomCreatures(Room room)
-    {
-        if (room == null || room.creatureList == null) return 0;
-        int count = 0;
-        for (int i = 0; i < room.creatureList.Count; i++)
-        {
-            Creature c = room.creatureList[i];
-            if (c == null || c.data == null) continue;
-            if (c.data.creatureID == CreatureID.Player) continue;
-            if (c.data.creatureID == CreatureID.Door) continue;
-            count++;
-        }
-        return count;
     }
 
     private void initDecomposeState()

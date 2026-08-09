@@ -4,10 +4,12 @@ using CreatureTypes;
 using System.Linq;
 using System.Collections;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
-// 튜토리얼 흐름 담당: 방 진입 트리거로 안내 대사를 재생하고 문을 연다.
-// 전용 패널(tutorialUI)을 쓰며, 방 이동 때 이 패널만 껐다 켠다.
-// (LevelIntro/엔딩은 별도 패널을 써야 겹치지 않음. 대사 데이터는 P53에.)
+// 스토리 표시 담당(구 TutorialGuide + LevelIntro 통합):
+//  - 씬 로드 시: 그 씬의 인트로 대사(P53.IntroLines[씬]) 재생
+//  - 방 진입 시: 씬→roomID 루틴으로 튜토리얼 진행 (문 열기·조건 대기 등)
+// 대사 데이터는 P53(순수 데이터), 표시·로직은 여기.
 public class TutorialGuide : MonoBehaviour
 {
     [Header("UI")]
@@ -22,6 +24,12 @@ public class TutorialGuide : MonoBehaviour
     [Header("대사 간격")]
     [Tooltip("대사 전환 사이 대기 시간(초)")]
     public float messageInterval = 3f;
+
+    [Header("씬 인트로 (LevelIntro 통합)")]
+    [Tooltip("씬 로드 후 인트로 대사 시작까지 대기")]
+    public float introStartDelay = 0.5f;
+    [Tooltip("인트로 끝나면 패널 숨김 (false면 마지막 줄 유지)")]
+    public bool introHideOnEnd = false;
 
     [Header("ProductionImage 페이드 설정")]
     public Image ProductionImage;
@@ -47,6 +55,41 @@ public class TutorialGuide : MonoBehaviour
 
         // 방 진입(Update)으로 동작. 예외: 플레이어가 '처음으로' 단계를 올릴 때만 빙의 설명 1회.
         if (Player.Instance != null) Player.Instance.OnStageChanged += OnFirstStageAdvanced;
+
+        // 씬 인트로 대사 재생 (구 LevelIntro 역할) — 그 씬의 P53 인트로가 있으면
+        StartCoroutine(PlaySceneIntro());
+    }
+
+    // 씬 로드 시 인트로 대사 (P53.IntroLines[씬 이름])를 순차 재생.
+    // level4는 인트로 뒤에 앞 레벨 선택(ChoiceProgress)에 따른 엔딩 대사를 이어 재생.
+    private IEnumerator PlaySceneIntro()
+    {
+        string scene = SceneManager.GetActiveScene().name;
+        string[] lines = P53.GetIntroLines(scene);
+
+        if (introStartDelay > 0f) yield return new WaitForSeconds(introStartDelay);
+
+        if (lines != null)
+            for (int i = 0; i < lines.Length; i++)
+                yield return SayLine(lines[i]);
+
+        if (scene == "level4")
+        {
+            string[] level4 = P53.GetLevel4();
+            for (int i = 0; i < level4.Length; i++)
+                yield return SayLine(level4[i]);
+        }
+
+        // ending 씬: level1,2,3 선택 순서 조합에 따라 다른 엔딩
+        if (scene == "ending")
+        {
+            string[] ending = P53.GetEnding();   // 조합 없으면 null
+            if (ending != null)
+                for (int i = 0; i < ending.Length; i++)
+                    yield return SayLine(ending[i]);
+        }
+
+        if (introHideOnEnd) SetTutorialVisible(false);
     }
 
     private void OnDestroy()
@@ -61,16 +104,29 @@ public class TutorialGuide : MonoBehaviour
         else slidePanel.Hide();
     }
 
-    // 대사를 세팅하면서 패널을 표시 (빈 패널이 뜨는 구간을 없애기 위해 텍스트+표시를 묶음)
+    // 대사를 세팅하면서 패널을 표시 (토큰 {possess} 등은 실제 키로 치환)
     private void Say(string text)
     {
-        if (tmp != null) tmp.text = text;
+        if (tmp != null) tmp.text = P53.Resolve(text);
         SetTutorialVisible(true);
     }
+
+    // 대사 표시 + 기본 간격(messageInterval) 대기를 한 줄로. `yield return SayLine("...")`로 사용
+    // wait을 넘기면 그 시간만큼 대기 (음수면 messageInterval)
+    private IEnumerator SayLine(string text, float wait = -1f)
+    {
+        Say(text);
+        yield return new WaitForSeconds(wait < 0f ? messageInterval : wait);
+    }
+
+    // 이 값이 true인 동안엔 방이 바뀌어도 무시 (빙의로 방 넘나드는 튜토리얼 중 대사 유지)
+    private bool keepAcrossRooms = false;
 
     // ── 방 진입 트리거 ──────────────────────────────────────────
     void Update()
     {
+        if (keepAcrossRooms) return;   // 방 전환 무시 (진행 중인 대사 유지)
+
         if (Player.Instance == null) return;
         var room = Player.Instance.currentRoom;
         if (room == null) return;
@@ -89,6 +145,17 @@ public class TutorialGuide : MonoBehaviour
             return;
         }
 
+        // 씬마다 같은 roomID를 쓰므로 씬으로 먼저 분기
+        switch (SceneManager.GetActiveScene().name)
+        {
+            case "tutorial1": DispatchTutorial1(room); break;
+            case "tutorial2": DispatchTutorial2(room); break;
+        }
+    }
+
+    // ── tutorial1 씬: roomID별 라우팅 ──────────────────────────
+    private void DispatchTutorial1(Room room)
+    {
         switch (room.roomID)
         {
             case "tut_0": StartCoroutine(Tut0Routine(room)); break;
@@ -104,8 +171,15 @@ public class TutorialGuide : MonoBehaviour
                     StartCoroutine(PlayProductionImage());
                 }
                 break;
-            default:
-                break;
+        }
+    }
+
+    // ── tutorial2 씬: roomID별 라우팅 (여기에 방 루틴 추가) ─────
+    private void DispatchTutorial2(Room room)
+    {
+        switch (room.roomID)
+        {
+            // 예: case "tut_0": co = StartCoroutine(T2_Room0(room)); break;
         }
     }
 
@@ -117,8 +191,7 @@ public class TutorialGuide : MonoBehaviour
     }
     IEnumerator Tut0Routine(Room room)
     {
-        Say("farewell apoptosis 회로 연산을 시작합니다.");
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine("farewell apoptosis 회로 연산을 시작합니다.");
         doors[0].DoorCloseAndOpen(true);
 
         doneRooms.Add(room.roomID);
@@ -131,88 +204,69 @@ public class TutorialGuide : MonoBehaviour
         while (!Player.Instance.isTracking) yield return null;
         doors[0].DoorCloseAndOpen(false);
 
-        tmp.text = "생물은 회로의 일부입니다. 생물을 관찰하면, 해당 생물을 락온합니다. 락온 중에는 생물이 관심 갖는 생물을 알 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = $"관찰 중 {pim.lockOnKey}을 한 번 더 눌러 관찰 중인 생물을 전환할 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "문을 관찰하면, 문을 열 수 있는 조건을 알 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "문은 회로의 게이트입니다. 어느 문을 열었냐에 따라 다른 연산 결과가 도출됩니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "ESC로 관찰을 해제할 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
+        yield return SayLine("생물은 회로의 일부입니다. 생물을 관찰하면, 해당 생물을 락온합니다. 락온 중에는 생물이 관심 갖는 생물을 알 수 있습니다.");
+        yield return SayLine($"관찰 중 {pim.lockOnKey}을 한 번 더 눌러 관찰 중인 생물을 전환할 수 있습니다.");
+        yield return SayLine("문을 관찰하면, 문을 열 수 있는 조건을 알 수 있습니다.");
+        yield return SayLine("문은 회로의 게이트입니다. 어느 문을 열었냐에 따라 다른 연산 결과가 도출됩니다.");
+        yield return SayLine("ESC로 관찰을 해제할 수 있습니다.");
+        yield return SayLine("다음 방으로 이동하십시오.");
         doors[1].DoorCloseAndOpen(true);
         yield return new WaitForSeconds(messageInterval);
 
         doneRooms.Add(room.roomID);
-        // 패널은 방을 떠날 때(Update의 방 전환 정리)에서 숨김 — 방에 있는 동안 유지
+
     }
 
     IEnumerator Tut2Routine(Room room)
     {
-        yield return new WaitForSeconds(messageInterval / 2);
 
         doors[1].DoorCloseAndOpen(false);
-        Say("어떤 생물은 다른 생물을 생산하고 합성하는 능력을 갖고 있습니다.");
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine("어떤 생물은 다른 생물을 생산하고 합성하는 능력을 갖고 있습니다.");
+        yield return SayLine("생물 L은 S를 2마리 합쳐 SS를 만들 수 있습니다.");
 
-        tmp.text = "생물 L은 S를 2마리 합쳐 SS를 만들 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "생물 L이 합성하는 모습을 관찰하십시오.";
+        Say("생물 L이 합성하는 모습을 관찰하십시오.");
         while (!room.HasSpecies(CreatureID.SS)) yield return null;
 
-        tmp.text = "이렇게 생물 L이 S생물 두 마리를 포획하면, SS로 합성할 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "생물은 각기 다른 특성을 갖고 있고, 종마다 그 특성을 공유하기도 합니다.";
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine("이렇게 생물 L이 S생물 두 마리를 포획하면, SS로 합성할 수 있습니다.");
+        yield return SayLine("생물은 각기 다른 특성을 갖고 있고, 종마다 그 특성을 공유하기도 합니다.");
 
         OpenDoor(2);
         doneRooms.Add(room.roomID);
-        // 패널은 방을 떠날 때(Update의 방 전환 정리)에서 숨김 — 방에 있는 동안 유지
+        yield return SayLine("다음 방으로 이동하십시오.");
     }
 
     IEnumerator Tut3Routine(Room room)
     {
+        // 빙의로 AA를 옮기면 플레이어 방이 바뀌므로, 이 루틴 동안은 방 전환을 무시해 대사 유지
+        keepAcrossRooms = true;
+
         yield return new WaitForSeconds(messageInterval / 2);
 
         doors[2].DoorCloseAndOpen(false);
 
-        Say("L은 같은 방에 AA가 있는 것을 싫어합니다.");
-        yield return new WaitForSeconds(messageInterval);
-        tmp.text = "AA가 같은 방에 있으면, L은 다른 방으로 가려고 합니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "하지만 AA를 조종해 L에게서 멀리 떨어트려둘 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine("L은 같은 방에 AA가 있는 것을 싫어합니다.");
+        yield return SayLine("AA가 같은 방에 있으면, L은 다른 방으로 가려고 합니다.");
+        yield return SayLine("하지만 AA를 조종해 L에게서 멀리 떨어트려둘 수 있습니다.");
 
         var pim = Player.Instance.GetComponent<PlayerInputManager>();
         var cp = Player.Instance.GetComponent<CreaturePossess>();
 
-        tmp.text = $"{pim.possessKey}를 눌러 생물을 조종하십시오.";
+        Say($"{pim.possessKey}를 눌러 생물을 조종하십시오.");
         while (!cp.IsPossessing) yield return null;
 
-        tmp.text = "생물을 조종하면, 생물의 상태가 controlled가 됩니다.";
-        yield return new WaitForSeconds(10f);
-
-        tmp.text = "E, Q로 고도를 조절하십시오.";
-        yield return new WaitForSeconds(10f);
-
-        tmp.text = "조종 중 F를 다시 눌러 조종을 해제하십시오.";
-
-        tmp.text = "다음 방으로 이동하십시오.";
+        yield return SayLine("생물을 조종하면, 생물의 상태가 controlled가 됩니다.", 10f);
+        yield return SayLine("E, Q로 고도를 조절하십시오.", 10f);
+        yield return SayLine("조종 중 F를 다시 눌러 조종을 해제하십시오.");
+        yield return SayLine("다음 방으로 이동하십시오.");
         OpenDoor(3);
 
-        yield return new WaitForSeconds(messageInterval);
-
         doneRooms.Add(room.roomID);
-        // 패널은 방을 떠날 때(Update의 방 전환 정리)에서 숨김 — 방에 있는 동안 유지
+
+        // 대사 끝 → 방 전환 감시 재개. lastRoom을 현재 방으로 맞춰 다음 방부터 정상 트리거
+        lastRoom = Player.Instance != null && Player.Instance.currentRoom != null
+            ? Player.Instance.currentRoom.roomID : lastRoom;
+        SetTutorialVisible(false);
+        keepAcrossRooms = false;
     }
 
     IEnumerator Tut4Routine(Room room)
@@ -221,21 +275,15 @@ public class TutorialGuide : MonoBehaviour
 
         doors[3].DoorCloseAndOpen(false);
 
-        Say("D는 방 안의 생물 수가 과도하게 많아지면 생물을 분해합니다.");
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine("D는 방 안의 생물 수가 과도하게 많아지면 생물을 분해합니다.");
 
-        tmp.text = "D가 분해한 생물 수는 오른쪽 위에 표시됩니다.";
+        Say("D가 분해한 생물 수는 오른쪽 위에 표시됩니다.");
         int decomposedBefore = room.decomposedCounts.Values.Sum();
         while (room.decomposedCounts.Values.Sum() <= decomposedBefore) yield return null;
 
-        tmp.text = "방은 내부에서 분해된 생물 수를 확인하고 가장 많이 분해된 생물을 확인하는 문을 개방합니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "문에 대한 정보는 하단의 방위 표시, 또는 관찰을 통해 알 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "생물은 회로의 일부이고 당신이 조작한 회로에 따라 저는 생각합니다.";
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine("방은 내부에서 분해된 생물 수를 확인하고 가장 많이 분해된 생물을 확인하는 문을 개방합니다.");
+        yield return SayLine("문에 대한 정보는 하단의 방위 표시, 또는 관찰을 통해 알 수 있습니다.");
+        yield return SayLine("생물은 회로의 일부이고 당신이 조작한 회로에 따라 저는 생각합니다.");
 
         OpenDoor(4);
 
@@ -290,15 +338,11 @@ public class TutorialGuide : MonoBehaviour
 
     IEnumerator StoryText()
     {
-        Say("해당 생물은 연약하여 조종을 시도하면 죽게 되는 듯합니다.");
-        yield return new WaitForSeconds(messageInterval);
-
-        tmp.text = "대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine("해당 생물은 연약하여 조종을 시도하면 죽게 되는 듯합니다.");
+        yield return SayLine("대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.");
 
         var pim = Player.Instance.GetComponent<PlayerInputManager>();
-        tmp.text = $"{pim.codexToggleKey}를 눌러 지금까지 모은 정보와 연 문의 개수를 확인할 수 있습니다.";
-        yield return new WaitForSeconds(messageInterval);
+        yield return SayLine($"{pim.codexToggleKey}를 눌러 지금까지 모은 정보와 연 문의 개수를 확인할 수 있습니다.");
 
         SetTutorialVisible(false);
     }

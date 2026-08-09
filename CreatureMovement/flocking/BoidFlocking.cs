@@ -64,15 +64,7 @@ public class BoidFlocking : MonoBehaviour
             Quaternion targetRot = Quaternion.LookRotation(lookDir);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * boid.rotSpeed);
         }
-
-        if (target != null)
-        {
-            float dist = Vector3.Distance(transform.position, target.position);
-
-            if (dist > boundaryRadius)
-                boid.velocity = Vector3.Lerp(boid.velocity, Vector3.zero, Time.deltaTime);
-        }
-
+        // 멀 때 감속하던 로직 제거 — KeepInBounds의 속도 매칭 arrival이 오버슛을 알아서 잡음
     }
 
     void LateUpdate()
@@ -174,16 +166,22 @@ public class BoidFlocking : MonoBehaviour
         return separationForce;
     }
 
-    //타겟 따라가게 하기 - 타겟 주변의 boundary를 나가면 중심방향으로, 중심 내에 있으면 감속 
+    // 타겟 추적 (arrival): 멀면 최고속으로 쫓고, boundaryRadius 안에서 선형 감속.
+    // "목표 속도 - 현재 속도"를 힘으로 줘서 오버슛하면 스스로 브레이크됨(감쇠 내장).
     private Vector3 KeepInBounds()
     {
         if (target == null) return Vector3.zero;
 
-        Vector3 centerOffset = target.position - transform.position;
-        float dist = centerOffset.magnitude;
+        Vector3 toTarget = target.position - transform.position;
+        float dist = toTarget.magnitude;
+        if (dist < 0.001f) return -boid.velocity;   // 도착 → 멈춤
 
-        //거리에 비례해서 중심 방향으로 힘을 줌 (경계 안팎 구분 없이 부드럽게)
-        return centerOffset.normalized * (dist / boundaryRadius) * boid.maxVelocity * 0.5f;
+        // 목표 속도: 멀면 maxVelocity, boundaryRadius 안에서 거리 비례로 감속
+        float desiredSpeed = boid.maxVelocity;
+        if (dist < boundaryRadius) desiredSpeed *= dist / boundaryRadius;
+
+        Vector3 desiredVel = toTarget / dist * desiredSpeed;
+        return desiredVel - boid.velocity;
     }
 
     private Vector3 CalculateNoise()

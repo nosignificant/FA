@@ -116,11 +116,16 @@ public class CreaturePossess : MonoBehaviour
         proxy = controlled.ProxyTarget;
         driveDir = Vector3.zero;
 
+        // 조종 시작 위치 = 플레이어가 서 있던 곳. proxy를 거기로 옮겨 생물이 그 지점부터 반응하게
+        if (proxy != null) proxy.position = transform.position;
+
         controlledCreature = controlled.self;
 
         CreatureControlSetting(controlledCreature, true);
         if (proxy != null) PlayerRideProxy(proxy, true);
         SetupProxyPhysics();
+
+        Popup.Instance?.BurstMessage(controlledCreature, "controlled", Color.red);   // 조종 시작 팝업(빨강)
 
         Debug.Log($"[Possess] {controlled.name} 조종");
     }

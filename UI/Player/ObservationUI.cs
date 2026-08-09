@@ -53,20 +53,21 @@ public class ObservationUI : MonoBehaviour
                 arealabel.text = sb.ToString();
                 sb.Clear();
 
-                AppendDecomposedList(room);
+                AppendCreatureList(room);
             }
 
             currentRoomlabel.text = sb.ToString();
         }
     }
 
-    // 현재 방에서 분해된 생물을 종별로 목록에 추가
-    private void AppendDecomposedList(Room room)
+    // 현재 방에 살아있는 생물을 종별로 목록에 추가 (문 열림 기준과 동일 집계)
+    private void AppendCreatureList(Room room)
     {
-        if (room.decomposedCounts == null || room.decomposedCounts.Count == 0) return;
+        var counts = room.SpeciesCounts();
+        if (counts.Count == 0) return;
 
-        sb.AppendLine("decomposed count");
-        foreach (var kv in room.decomposedCounts)
+        sb.AppendLine("creatures");
+        foreach (var kv in counts)
         {
             if (kv.Key == null || kv.Value <= 0) continue;
             sb.AppendLine($"{Name(kv.Key)}   x{kv.Value}");

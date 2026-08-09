@@ -60,45 +60,27 @@ class DecomposeState : ThinkState
         decomposeTarget = target;
         target.grabbedBy = think.self;          // D가 사라지면 타겟이 스스로 풀림
         target.intent = CreatureIntent.Decomposed;
+        target.SetMovementEnabled(false);       // 분해 중 타겟 정지 (다리·boid·물리 멈춤)
         think.StartCoroutine(AttachRoutine(target));
     }
 
     public override ThinkTarget Exit()
     {
-        // 강제 상태 이탈 시 붙어있던 것 정리
-        if (isAttached)
-        {
-            think.self.Release();
-            isAttached = false;
-        }
+        isAttached = false;
         decomposeTarget = null;
         return base.Exit();
     }
 
     // ── 핵심 루틴 ────────────────────────────────────────────────────────
 
+    // 분해자를 대상에 부착하지 않고(AttachedTo X), 제자리에서 시간 뒤 대상을 분해한다.
     private IEnumerator AttachRoutine(Creature target)
     {
         isAttached = true;
 
-        // 타겟의 rootTransform에 정확히 붙임
-        Transform attachTo = target.rootTransform != null ? target.rootTransform : target.transform;
-        think.self.AttachedTo(attachTo);
-
-        // D 본체 + 모든 자식 localPosition 0 → 타겟에 딱 겹치게
-        var st = think.self.transform;
-        st.localPosition = Vector3.zero;
-        foreach (var t in think.self.GetComponentsInChildren<Transform>(true))
-            t.localPosition = Vector3.zero;
-        if (think.self.rootTransform != null)
-            think.self.rootTransform.localPosition = Vector3.zero;
-
         yield return new WaitForSeconds(attachDuration);
 
-        // 먼저 타겟에서 떨어진다 (타겟이 죽으면 자식인 D도 같이 파괴되므로)
-        think.self.Release();
-
-        // 그 다음 분해 (타겟 사망 처리)
+        // 분해 (타겟 사망 처리)
         if (target != null && !target.IsDead)
             DoDecompose(target);
 

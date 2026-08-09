@@ -154,6 +154,7 @@ public class PlayerLockOn : MonoBehaviour
 
         candidates = lockables
             .Where(c => c != null && c.data != null && c.data.creatureID != CreatureID.Player)
+            .Where(c => c.data.lockable)   // 락온 불가 종(weed 등) 제외
             .Where(c =>
             {
                 Vector3 sp = cam.WorldToScreenPoint(GetLockPosition(c));

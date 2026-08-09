@@ -37,6 +37,8 @@ namespace CreatureTypes
         AS = 8,
         L = 9,
         D = 10,
+        Weed = 11,        // 상호작용 없음 — 다른 생물이 타겟 삼지 않음
+        WalkingWeed = 12, // 상호작용 없음
         Door = 97,
         M = 98,
     }

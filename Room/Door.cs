@@ -68,8 +68,9 @@ public class Door : MonoBehaviour
     private void OnEnable()
     {
         if (roomA == null) roomA = GetComponentInParent<Room>();
-        if (roomA != null) roomA.OnCreatureDecomposed += OnRoomADecomposed;
-        if (roomB != null) roomB.OnCreatureDecomposed += OnRoomBDecomposed;
+        // 생물 수가 바뀔 때마다 문 조건 재평가 (분해가 아니라 '방에 가장 많은 종' 기준)
+        if (roomA != null) roomA.OnCreatureCountChanged += Reevaluate;
+        if (roomB != null) roomB.OnCreatureCountChanged += Reevaluate;
 
         DoorManager.Instance.Register(this);
 
@@ -78,52 +79,27 @@ public class Door : MonoBehaviour
 
     private void OnDisable()
     {
-        if (roomA != null) roomA.OnCreatureDecomposed -= OnRoomADecomposed;
-        if (roomB != null) roomB.OnCreatureDecomposed -= OnRoomBDecomposed;
+        if (roomA != null) roomA.OnCreatureCountChanged -= Reevaluate;
+        if (roomB != null) roomB.OnCreatureCountChanged -= Reevaluate;
 
         if (DoorManager.Existing != null) DoorManager.Existing.Unregister(this);   // 정리 중 재생성 방지
     }
 
+    private void Reevaluate() => EvaluateConditions();
+
     private void EvaluateConditions()
     {
-        if (roomA != null)
-        {
-            var (best, diff) = roomA.MostDecomposedAndSecond();
-            conditionA = CheckCondition(best, diff);
-        }
-        if (roomB != null)
-        {
-            var (best, diff) = roomB.MostDecomposedAndSecond();
-            conditionB = CheckCondition(best, diff);
-        }
-        if (conditionA || conditionB) DoorCloseAndOpen(true);
+        if (watchingCreature == null) return;   // 조건 없는 문(튜토리얼 등)은 자동 개폐 안 함
+
+        conditionA = roomA != null && CheckCondition(roomA.MostNumerousSpecies());
+        conditionB = roomB != null && CheckCondition(roomB.MostNumerousSpecies());
+
+        bool shouldOpen = conditionA || conditionB;
+        if (shouldOpen != isOpen) DoorCloseAndOpen(shouldOpen);   // 상태 바뀔 때만
     }
 
-    private void OnRoomADecomposed(Creature creature, CreatureID decomposerID)
-    {
-        if (watchingCreature == null) return;
-        if (decomposerID != CreatureID.D) return;
-
-        var (best, diff) = roomA.MostDecomposedAndSecond();
-        conditionA = CheckCondition(best, diff);
-        DoorCloseAndOpen(conditionA || conditionB);
-    }
-
-    private void OnRoomBDecomposed(Creature creature, CreatureID decomposerID)
-    {
-        Debug.Log($"[DoorDbg] B핸들러 진입. watching={watchingCreature?.name} decomposer={decomposerID}");
-        if (watchingCreature == null) return;
-        if (decomposerID != CreatureID.D) return;
-
-        var (best, diff) = roomB.MostDecomposedAndSecond();
-        conditionB = CheckCondition(best, diff);
-        Debug.Log($"[DoorDbg] roomB={roomB?.name} best={best?.name}(id={best?.GetInstanceID()}) " +
-                  $"watching={watchingCreature?.name}(id={watchingCreature?.GetInstanceID()}) " +
-                  $"same={best == watchingCreature} condB={conditionB} → open={conditionA || conditionB}");
-        DoorCloseAndOpen(conditionA || conditionB);
-    }
-
-    private bool CheckCondition(CreatureData best, int diff)
+    // 방에 가장 많은 종이 이 문이 요구하는 종과 같은가
+    private bool CheckCondition(CreatureData best)
     {
         return best != null && best == watchingCreature;
     }

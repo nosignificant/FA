@@ -105,51 +105,28 @@ public class Tentacle : MonoBehaviour
 
     //IEnumerators -- 
 
+    // Perlin 노이즈로 min↔max 사이를 부드럽게 오가게 (촉수마다 다른 위상 → 제각기 유기적)
     private IEnumerator BendCurveLoop(float min, float max, float duration)
     {
+        float seed = Random.value * 1000f;   // 촉수별 고유 위상
+        float speed = 1f / Mathf.Max(0.01f, duration);
         while (true)
         {
-            // min → max
-            float t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / duration;
-                bendCurve = Mathf.Lerp(min, max, t);
-                yield return null;
-            }
-
-            // max → min
-            t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / duration;
-                bendCurve = Mathf.Lerp(max, min, t);
-                yield return null;
-            }
+            float n = Mathf.PerlinNoise(seed + Time.time * speed, 0f);   // 0~1 부드러운 노이즈
+            bendCurve = Mathf.Lerp(min, max, n);
+            yield return null;
         }
     }
 
     private IEnumerator BendStrengthLoop(float min, float max, float duration)
     {
+        float seed = Random.value * 1000f;
+        float speed = 1f / Mathf.Max(0.01f, duration);
         while (true)
         {
-            // min → max
-            float t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / duration;
-                bendStrength = Mathf.Lerp(min, max, t);
-                yield return null;
-            }
-
-            // max → min
-            t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / duration;
-                bendStrength = Mathf.Lerp(max, min, t);
-                yield return null;
-            }
+            float n = Mathf.PerlinNoise(0f, seed + Time.time * speed);   // 다른 축이라 curve와 독립
+            bendStrength = Mathf.Lerp(min, max, n);
+            yield return null;
         }
     }
 }

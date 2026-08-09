@@ -38,12 +38,15 @@ public class LevelPortal : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        Debug.Log($"[LevelPortal] OnTriggerEnter: {other.name} (Player={(other.GetComponentInParent<Player>() != null)})");
+
         if (triggered) return;
 
         // Room과 동일한 방식으로 플레이어 판별
         var player = other.GetComponentInParent<Player>();
         if (player == null) return;
 
+        Debug.Log($"[LevelPortal] 플레이어 진입 → '{targetScene}' (delay={delay})");
         triggered = true;
 
         // 이 포탈로 다음 레벨에 갔다 = 이 문을 선택 → 기록 (엔딩 분기용)
@@ -72,9 +75,15 @@ public class LevelPortal : MonoBehaviour
 
         // 로딩바가 있으면 SceneLoader로 (additive는 로더 미지원 → 직접 로드)
         if (!additive && SceneLoader.Instance != null)
+        {
+            Debug.Log($"[LevelPortal] SceneLoader로 '{targetScene}' 로드");
             SceneLoader.Instance.Load(targetScene);
+        }
         else
+        {
+            Debug.Log($"[LevelPortal] 직접 '{targetScene}' 로드 (SceneLoader={(SceneLoader.Instance != null)})");
             SceneManager.LoadScene(targetScene, additive ? LoadSceneMode.Additive : LoadSceneMode.Single);
+        }
     }
 
     private void OnDrawGizmos()

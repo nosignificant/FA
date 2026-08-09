@@ -8,6 +8,20 @@ public static class FootUtil
         !(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z) ||
           float.IsInfinity(v.x) || float.IsInfinity(v.y) || float.IsInfinity(v.z));
 
+    // 땅을 찾으면 true + 히트 지점 반환, 못 찾으면 false (호출측이 발을 안 움직이게 처리)
+    public static bool TryGround(Vector3 targetPos, LayerMask ground, out Vector3 result)
+    {
+        Vector3 rayOrigin = new Vector3(targetPos.x, targetPos.y + 1000f, targetPos.z);
+        if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, 2000f, ground)
+            && hit.point.y <= targetPos.y + 2f)
+        {
+            result = hit.point;
+            return true;
+        }
+        result = targetPos;
+        return false;
+    }
+
     //레이캐스트로 땅 위치 찾기 - 아래로
     public static Vector3 SetTargetGround(Vector3 targetPos, LayerMask ground)
     {

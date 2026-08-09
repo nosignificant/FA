@@ -94,6 +94,12 @@ public class Creature : MonoBehaviour
         return interact != null && interact.HasAction(data.creatureID, targetCreatureId, action);
     }
 
+    // 이 생물이 대상에게 아무 상호작용이라도 갖는지 (관계 없으면 타겟 안 삼음)
+    public bool HasAnyAction(CreatureID targetCreatureId)
+    {
+        return interact != null && interact.HasAnyAction(data.creatureID, targetCreatureId);
+    }
+
     public int GetActionPriority(CreatureID targetCreatureId, InteractionAction action)
     {
         return interact != null
@@ -184,6 +190,19 @@ public class Creature : MonoBehaviour
                 return;
             }
         }
+    }
+
+    // reparent 없이 이동 컴포넌트·물리만 정지/재개 (분해 중 타겟을 제자리에서 멈출 때)
+    public void SetMovementEnabled(bool on)
+    {
+        foreach (var mono in GetComponentsInChildren<MonoBehaviour>())
+        {
+            if (mono is Creature) continue;
+            if (mono is Think2) continue;
+            mono.enabled = on;
+        }
+        foreach (var rb in GetComponentsInChildren<Rigidbody>())
+            rb.isKinematic = !on;
     }
 
     public virtual void Release()

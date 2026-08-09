@@ -9,6 +9,13 @@ public class LineRender : MonoBehaviour
         lineRenderer = GetComponent<LineRenderer>();
     }
 
+    // 잡히거나 분해될 때(그리는 스크립트가 disable됨) 남은 선을 지움.
+    // LineRenderer는 스크립트가 꺼져도 마지막 점들을 계속 그리므로 여기서 비움.
+    void OnDisable()
+    {
+        if (lineRenderer != null) lineRenderer.positionCount = 0;
+    }
+
     public void Draw(Transform[] points)
     {
         if (points == null || lineRenderer == null) return;

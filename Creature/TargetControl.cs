@@ -17,6 +17,8 @@ public sealed class TargetControl : MonoBehaviour
     public bool isQuadLeg = false;
     public bool isFollowingRB = false;
     public bool isLegHead = false;
+    [Tooltip("하위 Tentacle 전부에게 target 전달 (weed 등)")]
+    public bool isTentacle = false;
     [Tooltip("flee 또는 migrate 중일 때 moveSpeed에 더해줄 가속량")]
     public float urgentSpeedBonus = 5f;
     public event Action<Transform> TargetChanged;
@@ -66,7 +68,16 @@ public sealed class TargetControl : MonoBehaviour
         if (isQuadLeg) SetQuadTarget();
         if (isFollowingRB) SetFollowingRBTarget();
         if (isLegHead) SetLegHead();
+        if (isTentacle) SetTentacleTarget();
 
+    }
+
+    // 하위 Tentacle 전부에게 같은 target 전달 (weed: proxy를 모든 촉수가 향하게)
+    public void SetTentacleTarget()
+    {
+        Tentacle[] tentacles = GetComponentsInChildren<Tentacle>();
+        foreach (var t in tentacles)
+            if (t != null) t.target = movementTarget;
     }
     public void GoToTarget()
     {

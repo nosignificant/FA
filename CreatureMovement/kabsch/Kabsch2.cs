@@ -4,6 +4,7 @@ public class Kabsch2 : MonoBehaviour
 {
     [Header("Settings")]
     public int iteration = 9;
+    [Tooltip("in이 ref 중심을 향한 회전을 따라가는 속도")]
     public float rotSmoothSpeed = 5.0f;
 
     [Header("Targets")]
@@ -120,7 +121,7 @@ public class Kabsch2 : MonoBehaviour
         for (int i = 0; i < inChild.Length; i++)
         {
             Vector3 targetPos = avgRefPos + (rot * originalInLocalPos[i]);
-            inChild[i].position = Vector3.Lerp(inChild[i].position, targetPos, Time.deltaTime * 10f);
+            inChild[i].position = targetPos;   // 지연 없이 즉시 ref에 붙임
         }
     }
 

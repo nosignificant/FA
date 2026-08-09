@@ -10,6 +10,14 @@ public class Interaction : MonoBehaviour
         return GetActionPriority(selfID, targetID, action) > int.MinValue;
     }
 
+    // self가 target에게 아무 상호작용(chase/flee/grab/decompose/synthesize 등)이라도 있는지
+    public bool HasAnyAction(CreatureID selfID, CreatureID targetID)
+    {
+        foreach (InteractionAction a in System.Enum.GetValues(typeof(InteractionAction)))
+            if (HasAction(selfID, targetID, a)) return true;
+        return false;
+    }
+
 
     //priority는 같은 행동내에서 우선순위를 구분하고싶을떄 쓰는거고 
     //hasAction은 그냥 행동이 거기 있는지 

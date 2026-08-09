@@ -56,16 +56,20 @@ public class Popup : MonoBehaviour
         }
     }
 
-    private void OnDecomposed(Creature target, CreatureID by) => Burst(target, by);
-    private void OnSynthesized(Creature target, CreatureID by) => Burst(target, by);
+    // 문구는 '누가 했는지(by)'가 아니라 '무슨 이벤트인지'로 정함 (합성 주체가 L/AA/A 등 다양하므로)
+    private void OnDecomposed(Creature target, CreatureID by) => Burst(target, "decomposed");
+    private void OnSynthesized(Creature target, CreatureID by) => Burst(target, "synthesized");
 
-    // D/L 분해·합성 → 고정 문구 1종을 burstCount개 뿌림
-    private void Burst(Creature target, CreatureID by)
+    // 고정 문구 1종을 burstCount개 뿌림
+    private void Burst(Creature target, string message, Color? color = null)
     {
         string[] msgs = new string[burstCount];
-        for (int i = 0; i < burstCount; i++) msgs[i] = FixedMessage(by);
-        SpawnAt(target, msgs, fixedLifeTime);
+        for (int i = 0; i < burstCount; i++) msgs[i] = message;
+        SpawnAt(target, msgs, fixedLifeTime, -1f, color);
     }
+
+    // 외부에서 임의 문구 팝업 (예: 조종 시작 시 "controlled"). color 지정 가능
+    public void BurstMessage(Creature target, string message, Color? color = null) => Burst(target, message, color);
 
     // 스토리 생물 빙의 → 현재 단계 대사 줄들을 "줄당 하나씩" 뿌림 (외부에서 호출)
     public void BurstStoryLines(Creature target)
@@ -77,17 +81,17 @@ public class Popup : MonoBehaviour
 
     // 대상 위치에서 messages를 하나씩 순차로 터뜨림 (시작 위치는 지금 고정 — 생물이 죽어도 안전)
     // interval이 음수면 기본 spawnInterval 사용
-    private void SpawnAt(Creature target, string[] messages, float lifeTime, float interval = -1f)
+    private void SpawnAt(Creature target, string[] messages, float lifeTime, float interval = -1f, Color? color = null)
     {
         if (popupPrefab == null || target == null || messages == null || messages.Length == 0) return;
 
         Transform t = target.rootTransform != null ? target.rootTransform : target.transform;
         Vector3 center = t.position + offset;
 
-        StartCoroutine(SpawnRoutine(center, messages, lifeTime, interval < 0f ? spawnInterval : interval));
+        StartCoroutine(SpawnRoutine(center, messages, lifeTime, interval < 0f ? spawnInterval : interval, color));
     }
 
-    private IEnumerator SpawnRoutine(Vector3 center, string[] messages, float lifeTime, float interval)
+    private IEnumerator SpawnRoutine(Vector3 center, string[] messages, float lifeTime, float interval, Color? color = null)
     {
         int count = messages.Length;
         for (int i = 0; i < count; i++)
@@ -105,19 +109,9 @@ public class Popup : MonoBehaviour
             float spd = speed * (1f + Random.Range(-speedJitter, speedJitter));
 
             var ft = Instantiate(popupPrefab, pos, Quaternion.identity);
-            ft.Launch(messages[i], dir, spd, lifeTime);
+            ft.Launch(messages[i], dir, spd, lifeTime, color);
 
             if (interval > 0f) yield return new WaitForSeconds(interval);
-        }
-    }
-
-    private string FixedMessage(CreatureID by)
-    {
-        switch (by)
-        {
-            case CreatureID.D: return "decomposed";
-            case CreatureID.L: return "synthesized";
-            default: return "";
         }
     }
 }

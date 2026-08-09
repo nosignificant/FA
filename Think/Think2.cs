@@ -122,6 +122,14 @@ public class Think2 : MonoBehaviour
 
     private void LetsThink()
     {
+        // weed 등 새 프리팹에서 컴포넌트 누락 시 어디가 빈지 알려주고 크래시 방지
+        if (self == null || scanner == null || currentState == null)
+        {
+            Debug.LogWarning($"[Think2] {name}: self={self != null} scanner={scanner != null} " +
+                             $"currentState={currentState != null} — 컴포넌트 누락 확인");
+            return;
+        }
+
         if (manualControl) return;
         if (self.IsGrabbed) return;
         if (self.currentRoom != null && !self.currentRoom.isActive) return;
@@ -178,9 +186,11 @@ public class Think2 : MonoBehaviour
         return false;
     }
 
-    public bool IsValidTarget(Creature target)
+    public virtual bool IsValidTarget(Creature target)
     {
         if (target == null || target == self || target.IsDead || target.data == null) return false;
+        // 상호작용 관계가 전혀 없는 생물은 대상으로 안 삼음 (walkingWeed 등)
+        if (self != null && self.data != null && !self.HasAnyAction(target.data.creatureID)) return false;
         return true;
     }
 
