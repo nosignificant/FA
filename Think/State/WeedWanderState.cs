@@ -6,7 +6,7 @@ using CreatureTypes;
 // - 스캔 반경 안에 다른 생물이 있으면 그쪽으로 proxy를 뻗어 반응
 // - 그 생물이 반경 밖으로 벗어나면 추적을 멈추고 일반 wander(배회)로 복귀
 // - 목적지 도달 후 dwellTime만큼 머문 뒤 새 점을 고름 (옵션)
-class WeedWanderState : ThinkState
+public class WeedWanderState : ThinkState
 {
     public float reachThreshold = 5f;   // 목적지 도달 판정 거리
     public float dwellTime = 0f;        // 도달 후 머무는 시간(초)
@@ -31,12 +31,14 @@ class WeedWanderState : ThinkState
         if (target != null)
         {
             newTarget.point = target.rootTransform.position;   // 반경 안 생물 추적
+            newTarget.creature = target;                       // HUD·상호작용에서 타겟 생물 표시용
             hasPoint = false;                                  // 놓치면 새 wander 시작
             reachedTime = -1f;
             return;
         }
 
         // 반경 밖/없음 → 일반 wander (배회)
+        newTarget.creature = null;
         if (!hasPoint)
         {
             newTarget.point = GetNewPoint(points);

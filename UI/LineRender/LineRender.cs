@@ -41,6 +41,11 @@ public class LineRender : MonoBehaviour
         lineRenderer.SetPosition(1, p2);
     }
 
+    public void Clear()
+    {
+        if (lineRenderer != null) lineRenderer.positionCount = 0;
+    }
+
     public void DrawCurve(Transform[] points, int resolution = 10)
     {
         if (points == null || points.Length < 2 || lineRenderer == null) return;

@@ -116,10 +116,19 @@ public class CreaturePossess : MonoBehaviour
         proxy = controlled.ProxyTarget;
         driveDir = Vector3.zero;
 
-        // 조종 시작 위치 = 플레이어가 서 있던 곳. proxy를 거기로 옮겨 생물이 그 지점부터 반응하게
-        if (proxy != null) proxy.position = transform.position;
+        // 조종 시작 위치. 일반 생물은 플레이어 자리, 발신기는 자기 몸 위치로 리셋(#3)
+        if (proxy != null)
+        {
+            if (controlled.self is SignalTransmitter && controlled.self.rootTransform != null)
+                proxy.position = controlled.self.rootTransform.position;
+            else
+                proxy.position = transform.position;
+        }
 
         controlledCreature = controlled.self;
+
+        // 발신기 다시 조종 시작 → 기존 연결 자동 해제(새로 연결하려고)(#1)
+        if (controlledCreature is SignalTransmitter txStart) txStart.Disconnect();
 
         CreatureControlSetting(controlledCreature, true);
         if (proxy != null) PlayerRideProxy(proxy, true);
@@ -176,6 +185,14 @@ public class CreaturePossess : MonoBehaviour
         // 하차 위치 계산 (proxy가 아직 부모인 상태에서 월드 좌표로 미리 잡음)
         Vector3? landingPos = proxy != null ? ClampToRoom(proxy.position) : null;
 
+        // 발신기를 조종하다 해제하면, 연결돼 있던 발신을 끊는다 (tab-f로 발신 끊기)
+        if (controlledCreature is SignalTransmitter tx) tx.OnPossessReleased();
+        // 그 외 생물을 L(생산기)에 락온한 채 놓으면 → 그 종을 L이 생산하게 꽂음
+        else if (controlledCreature != null
+                 && Player.Instance != null && Player.Instance.pl != null
+                 && Player.Instance.pl.targetCreature is Lcreature Lprod)
+            Lprod.PlugCreature(controlledCreature);
+
         CreatureControlSetting(controlledCreature, false);
         controlledCreature = null;
 
@@ -226,7 +243,9 @@ public class CreaturePossess : MonoBehaviour
             creature.Died += OnControlledDied;
             creature.intent = CreatureIntent.Controlled;
 
+            // 조종 중 락온을 고정하지 않음 — 다른 대상(수신기·L 생산기 등)을 락온해 연결/꽂기 할 수 있게
             Player.Instance.pl.ForceLock(creature);
+            Player.Instance.pl.Unpin();
 
             // advancesStory 종이면 스토리 단계 +1
             Player.Instance.TryAdvanceFromPossess(creature);

@@ -55,11 +55,11 @@ public class PlayerControl : MonoBehaviour
 
     void Update()
     {
-        if (!canMove) return;
         if (Pause.Instance != null && Pause.Instance.IsOpen) return;   // 일시정지 중엔 시점 회전까지 차단
 
-        RotationLogic();   // 코덱스(inputBlocked) 중에도 마우스 시점 회전은 허용
+        RotationLogic();   // 조종(canMove=false)·코덱스 중에도 마우스 시점 회전 허용 (락온 중엔 내부에서 LockOn 전담)
 
+        if (!canMove) return;       // 조종 등 → 이동·점프만 차단
         if (inputBlocked) return;   // 이동/점프만 차단
 
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
@@ -139,8 +139,9 @@ public class PlayerControl : MonoBehaviour
         rotation.x = Mathf.Clamp(rotation.x, -lookXLimit, lookXLimit);
 
         transform.rotation = Quaternion.Euler(0f, rotation.y, 0f);
+        // 월드 회전 직접 지정 → 조종 중 카메라가 proxy 자식이어도 정상 회전 (yaw+pitch)
         if (cameraTransform != null)
-            cameraTransform.localRotation = Quaternion.Euler(rotation.x, 0f, 0f);
+            cameraTransform.rotation = Quaternion.Euler(rotation.x, rotation.y, 0f);
     }
 
 

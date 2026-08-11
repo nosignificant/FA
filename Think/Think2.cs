@@ -82,13 +82,21 @@ public class Think2 : MonoBehaviour
         StartCoroutine(ThinkLoop());
     }
 
+    // 상시 시뮬 설정 (RoomManager 전역)
+    private bool SimInactive => RoomManager.Instance != null && RoomManager.Instance.simulateInactiveRooms;
+    private float InactiveScale => RoomManager.Instance != null ? Mathf.Max(1f, RoomManager.Instance.inactiveTickScale) : 1f;
+
     private IEnumerator ThinkLoop()
     {
         while (self.currentRoom == null) yield return null;
         while (true)
         {
             LetsThink();
-            yield return new WaitForSeconds(waitInterval);
+
+            // 비활성 방은 (상시 시뮬 시) 느린 틱으로 계속 연산
+            bool inactive = self.currentRoom != null && !self.currentRoom.isActive;
+            float interval = (inactive && SimInactive) ? waitInterval * InactiveScale : waitInterval;
+            yield return new WaitForSeconds(interval);
         }
     }
 
@@ -132,7 +140,8 @@ public class Think2 : MonoBehaviour
 
         if (manualControl) return;
         if (self.IsGrabbed) return;
-        if (self.currentRoom != null && !self.currentRoom.isActive) return;
+        // 비활성 방은 상시 시뮬이 꺼져 있을 때만 완전 정지
+        if (self.currentRoom != null && !self.currentRoom.isActive && !SimInactive) return;
         //방 기준 아니고 주변 전체 기준
         detected = scanner.Results;
         var newIntent = DetermineIntent();

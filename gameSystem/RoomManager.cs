@@ -8,6 +8,12 @@ public class RoomManager : MonoBehaviour
     public static RoomManager Instance;
     public Dictionary<string, Room> rooms = new();
 
+    [Header("상시 시뮬 (경량)")]
+    [Tooltip("플레이어가 없는 방도 계속 연산할지. 끄면 예전처럼 비활성 방은 완전 정지")]
+    public bool simulateInactiveRooms = true;
+    [Tooltip("비활성 방 연산 배율. 클수록 느리게(가볍게) 돎. 예: 4면 활성 방의 1/4 빈도로 판단")]
+    [Min(1f)] public float inactiveTickScale = 4f;
+
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -20,12 +26,11 @@ public class RoomManager : MonoBehaviour
         yield return null;
 
         if (Player.Instance != null)
-        {
             Player.Instance.roomChanged += UpdateActiveRooms;
-            // Player.Start가 먼저 돌아 초기 roomChanged를 놓쳤을 경우 대비해 즉시 동기화
-            if (Player.Instance.currentRoom != null)
-                UpdateActiveRooms(Player.Instance.currentRoom);
-        }
+
+        // 초기 1회 무조건 실행 — 플레이어 방을 아직 몰라도(null) 모든 방을 비활성=정지 처리.
+        // (currentRoom이 null이라 안 부르면, SetActive가 안 걸려서 비활성 방 생물이 안 얼어붙음)
+        UpdateActiveRooms(Player.Instance != null ? Player.Instance.currentRoom : null);
     }
 
     public void Register(Room room)
@@ -37,7 +42,7 @@ public class RoomManager : MonoBehaviour
     {
         // 전부 비활성화
         foreach (var r in rooms.Values)
-            if (r != null) r.isActive = false;
+            if (r != null) r.SetActive(false);
 
         if (playerRoom == null) return;
 
@@ -45,7 +50,7 @@ public class RoomManager : MonoBehaviour
         var visited = new HashSet<Room>();
         var queue = new Queue<Room>();
 
-        playerRoom.isActive = true;
+        playerRoom.SetActive(true);
         visited.Add(playerRoom);
         queue.Enqueue(playerRoom);
 
@@ -61,7 +66,7 @@ public class RoomManager : MonoBehaviour
                 if (other == null || visited.Contains(other)) continue;
                 if (other.isTutorial) continue;   // 튜토리얼 방은 자동 활성화·통과 제외
 
-                other.isActive = true;
+                other.SetActive(true);
                 visited.Add(other);
                 queue.Enqueue(other);
             }

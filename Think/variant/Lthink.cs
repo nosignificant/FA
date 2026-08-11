@@ -20,6 +20,9 @@ public class Lthink : TentacleThink
     }
     protected override bool DoesNeedToFlee()
     {
+        // 기생(플러그) 중인 L은 AA를 피하지 않음
+        if (self is Lcreature lp && lp.HasPlugged) return false;
+
         //스캐너 동작안하면 false
         if (detected == null) return false;
         // 도망으로 lock되어있으면 도망
@@ -37,6 +40,7 @@ public class Lthink : TentacleThink
         {
             var t = detected[i];
             if (!IsValidTarget(t)) continue;
+            if (t.currentRoom != self.currentRoom) continue;   // 다른 방 생물엔 도망 안 감
             if (self.HasAction(t.data.creatureID, InteractionAction.Flee)) return true;
         }
         return false;

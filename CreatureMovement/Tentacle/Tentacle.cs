@@ -24,6 +24,13 @@ public class Tentacle : MonoBehaviour
     public float maxBendStrength = 0.5f;
     public float bendStrength = 0.5f;
 
+    [Header("Top upright (밑동 세우기)")]
+    [Range(0f, 1f)]
+    [Tooltip("밑동(top쪽)을 y축(위)으로 세우는 세기. 끝(foot)은 타겟으로 감")]
+    public float topUprightStrength = 0.6f;
+    [Tooltip("클수록 top 근처에만 세우는 힘이 집중됨")]
+    public float topUprightPower = 2f;
+
     public bool NeedCoroutine = false;
 
     [Header("Moving")]
@@ -89,10 +96,16 @@ public class Tentacle : MonoBehaviour
 
             float bendT = Mathf.Pow(t, bendCurve) * bendStrength;
 
-            //타겟까지 방향
+            //타겟까지 방향 — base를 타겟 방향으로 잡아 곧게 뻗게 (top.forward 쓰면 엉뚱한 방향/위로 볼록)
             Vector3 toTargetDir = (target.position - top.position).normalized;
-            Vector3 perpDir = Vector3.Cross(toTargetDir, top.right).normalized;
-            finalDir = Vector3.Slerp(top.forward, perpDir, bendT).normalized;
+            // bend 축을 '위'가 아니라 수평 옆으로 (Vector3.up 기준) → 위로 볼록해지는 것 방지
+            Vector3 perpDir = Vector3.Cross(toTargetDir, Vector3.up).normalized;
+            if (perpDir.sqrMagnitude < 0.0001f) perpDir = top.right;   // 타겟이 수직 바로 위/아래일 때 대비
+            finalDir = Vector3.Slerp(toTargetDir, perpDir, bendT).normalized;
+
+            // 밑동(top쪽, t≈0)일수록 y축(위)으로 세움. foot쪽(t≈1)은 그대로 타겟 향함.
+            float upBias = Mathf.Pow(1f - t, topUprightPower) * topUprightStrength;
+            finalDir = Vector3.Slerp(finalDir, Vector3.up, upBias).normalized;
 
             //이 둘을 lerp한 위치에 lower을 offset만큼 이동시킨다
             Vector3 finalPos = lower.transform.position + (finalDir * offset);

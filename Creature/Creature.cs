@@ -43,6 +43,19 @@ public class Creature : MonoBehaviour
     public int currentHP;
     public bool IsDead => currentHP <= 0;
     public bool IsGrabbed => intent == CreatureIntent.Decomposed || intent == CreatureIntent.Synthesized;
+    // 플레이어가 조종 중 — 이 생물은 분해 대상이 되지 않음
+    public bool IsControlled => intent == CreatureIntent.Controlled;
+
+    [Tooltip("이 개체만 락온 불가로 (종 전체 data.lockable과 별개). 둘 다 true여야 락온 가능")]
+    public bool lockable = true;
+    public bool IsLockable => lockable && (data == null || data.lockable);
+
+    // L에 꽂힌 상태 (AA 등). 이 동안엔 L을 쫓지 않고 원래 하던 일을 함.
+    [System.NonSerialized] public bool isPlugged;
+
+    // 생성 시각(초). 발열 분해에서 '가장 오래된 개체' 판정에 사용. 작을수록 오래됨.
+    public float SpawnTime { get; private set; }
+    public float Age => Time.time - SpawnTime;
 
 
     public event Action<Creature, CreatureID> Died;
@@ -61,6 +74,7 @@ public class Creature : MonoBehaviour
         if (interact == null) interact = gameObject.AddComponent<Interaction>();
 
         currentHP = data.maxHP;
+        SpawnTime = Time.time;
     }
 
     public void TakeDamage(int amount, Creature who)
@@ -189,6 +203,20 @@ public class Creature : MonoBehaviour
                 r.RegisterCreature(this);
                 return;
             }
+        }
+
+        // 어느 방에도 없음(맵 이탈) → 마지막 방 안으로 되돌림 (밀려서 튕겨나가는 것 방지)
+        // 단, 조종 중인 생물은 다리(방 밖)를 건널 수 있어야 하니 제외
+        if (!IsControlled && currentRoom != null && currentRoom.homeBound != null)
+        {
+            Bounds b = currentRoom.homeBound.bounds;
+            Vector3 inside = b.ClosestPoint(pos);
+            Vector3 toCenter = b.center - inside; toCenter.y = 0f;
+            if (toCenter.sqrMagnitude > 0.01f) inside += toCenter.normalized * 1.5f;   // 경계 살짝 안쪽
+            rootTransform.position = inside;
+
+            var rb = rootTransform.GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic) rb.linearVelocity = Vector3.zero;   // 계속 밀리는 속도 죽임
         }
     }
 

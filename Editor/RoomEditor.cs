@@ -45,6 +45,9 @@ public class RoomEditor : Editor
         }
 
         EditorGUILayout.Space();
+        DrawSignalRole(room);
+
+        EditorGUILayout.Space();
         DrawDecomposedCounts(room);
 
         EditorGUILayout.Space();
@@ -243,6 +246,28 @@ public class RoomEditor : Editor
             if (b.Contains(pos)) return r;
         }
         return null;
+    }
+
+    // 방 신호 역할(R방/T방) 토글 — 바꾸면 R/T 오브젝트를 편집 시점에 켜고 끔
+    private void DrawSignalRole(Room room)
+    {
+        EditorGUILayout.LabelField("Signal Role (R방 / T방)", EditorStyles.boldLabel);
+
+        EditorGUI.BeginChangeCheck();
+        var role = (Room.SignalRole)EditorGUILayout.EnumPopup("Role", room.signalRole);
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(room, "Change Signal Role");
+            room.signalRole = role;
+            room.ApplySignalRole();
+
+            EditorUtility.SetDirty(room);
+            if (room.signalReceiver != null) EditorUtility.SetDirty(room.signalReceiver.gameObject);
+            if (room.signalTransmitter != null) EditorUtility.SetDirty(room.signalTransmitter.gameObject);
+        }
+
+        if (room.signalReceiver == null && room.signalTransmitter == null)
+            EditorGUILayout.HelpBox("이 방의 Signal Receiver(R) / Signal Transmitter(T)를 Room에 할당하세요.", MessageType.Info);
     }
 
     void AddRoom(Room from, Direction dir)

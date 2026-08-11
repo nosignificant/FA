@@ -34,17 +34,18 @@ public class Interaction : MonoBehaviour
             case SS: return GetActionForSS(targetID, action);
             case HH: return GetActionForHH(targetID, action);
             case L: return GetActionForL(targetID, action);
+            case LL: return GetActionForLL(targetID, action);
             case D: return GetActionForD(targetID, action);
             default: return int.MinValue;
         }
     }
 
-    // h,s: L/AA로부터 도망, 플레이어 따라감
+    // h,s: AA로부터 도망, 플레이어 따라감
 
     private static int GetActionForHS(CreatureID targetID, InteractionAction action)
     {
-        if (targetID == CreatureID.Player && action == InteractionAction.Chase) return 100;
-        if ((targetID == L || targetID == AA) && action == InteractionAction.Flee) return 100;
+        if ((targetID == CreatureID.Player || targetID == L || targetID == LL) && action == InteractionAction.Chase) return 100;
+        if ((targetID == AA) && action == InteractionAction.Flee) return 100;
         return int.MinValue;
     }
     // a: hh/ss로부터 도망, h/s에 붙어서 ah/as 합성
@@ -119,9 +120,17 @@ public class Interaction : MonoBehaviour
     }
 
     // L: aa/l 기피. h/s/a 잡아 합성 (h+h=hh, s+s=ss, a 포함=aa)
+    // L: 생산기 — 아무것도 잡지 않음(생산만). AA로부터 도망.
     private static int GetActionForL(CreatureID targetID, InteractionAction action)
     {
         if ((targetID == AA || targetID == L) && action == InteractionAction.Flee) return 100;
+        return int.MinValue;
+    }
+
+    // LL: 합성기 — H/S/A를 잡아 합성. AA로부터 도망.
+    private static int GetActionForLL(CreatureID targetID, InteractionAction action)
+    {
+        if ((targetID == AA || targetID == LL) && action == InteractionAction.Flee) return 100;
 
         if (targetID == H || targetID == S || targetID == A)
         {

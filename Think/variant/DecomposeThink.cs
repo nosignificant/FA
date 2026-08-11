@@ -69,11 +69,45 @@ public class Dthink : Think2
         return false;
     }
 
+    // D는 발열 상태에서만, 그리고 방에서 '가장 오래된 분해가능 개체'만 대상으로 삼는다.
+    // (SS 등 다른 분해자는 기존 방식 그대로)
+    public override bool IsValidTarget(Creature target)
+    {
+        if (!base.IsValidTarget(target)) return false;
+        if (self.data.creatureID != CreatureID.D) return true;
+
+        if (self.currentRoom == null || !self.currentRoom.IsHot) return false;  // 발열 아니면 분해 안 함
+        return target == OldestDecomposeTarget();
+    }
+
+    // 현재 감지된 것 중, 같은 방에서 D가 분해 가능한 가장 오래된 개체
+    private Creature OldestDecomposeTarget()
+    {
+        if (detected == null) return null;
+
+        Creature oldest = null;
+        float oldestTime = float.MaxValue;
+        for (int i = 0; i < detected.Count; i++)
+        {
+            var t = detected[i];
+            if (t == null || t.IsDead || t.data == null) continue;
+            if (t.IsGrabbed) continue;
+            if (t.IsControlled) continue;   // 조종 중인 생물은 분해 안 함
+            if (t.currentRoom != self.currentRoom) continue;
+            if (!HasRuleFor(t.data.creatureID)) continue;
+            if (!self.HasAction(t.data.creatureID, InteractionAction.Decompose)) continue;
+
+            if (t.SpawnTime < oldestTime) { oldestTime = t.SpawnTime; oldest = t; }
+        }
+        return oldest;
+    }
+
     protected bool CanDecompose()
     {
         // 쫓던 대상 유효성 확인
         Creature target = currentTarget.creature;
         if (target == null || target.IsDead || target.data == null) return false;
+        if (target.IsControlled) return false;   // 조종 중인 생물은 분해 안 함
         if (!HasRuleFor(target.data.creatureID)) return false;
         if (!self.HasAction(target.data.creatureID, InteractionAction.Decompose)) return false;
 

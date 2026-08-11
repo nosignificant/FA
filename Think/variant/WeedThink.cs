@@ -9,12 +9,18 @@ public class WeedThink : Think2
     [Tooltip("목적지 도달 후 그 자리에 머무는 시간(초). 0이면 바로 다음 점으로")]
     public float dwellTime = 0f;
 
-    private WeedWanderState weedWander;
+    protected WeedWanderState weedWander;
 
     protected override void Awake()
     {
         base.Awake();
-        weedWander = new WeedWanderState(this)
+        weedWander = CreateWanderState();
+    }
+
+    // 하위 클래스가 다른 wander 상태로 교체할 수 있게 (예: Tthink)
+    protected virtual WeedWanderState CreateWanderState()
+    {
+        return new WeedWanderState(this)
         {
             reachThreshold = weedReachThreshold,
             dwellTime = dwellTime,

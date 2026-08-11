@@ -32,6 +32,26 @@ public class Room : MonoBehaviour
     [Header("Doors")]
     public List<Door> doors = new();
 
+    public enum SignalRole { None, ReceiverRoom, TransmitterRoom }
+
+    [Header("signal")]
+    [Tooltip("이 방의 신호 역할. R방이면 R 오브젝트만, T방이면 T 오브젝트만 켬 (편집 시 RoomEditor에서 토글)")]
+    public SignalRole signalRole = SignalRole.None;
+
+    [Tooltip("이 방의 신호 수신기(R). 이 방의 SignalGate 문들이 자동으로 이걸 입력으로 씀. 비우면 문 각자 지정값 사용")]
+    public SignalReceiver signalReceiver;
+    [Tooltip("이 방의 신호 발신기(T)")]
+    public SignalTransmitter signalTransmitter;
+
+    // 역할에 맞춰 R/T 오브젝트를 켜고 끔 (R방 → R만, T방 → T만). 편집·런타임 공용.
+    public void ApplySignalRole()
+    {
+        bool isR = signalRole == SignalRole.ReceiverRoom;
+        bool isT = signalRole == SignalRole.TransmitterRoom;
+        if (signalReceiver != null) signalReceiver.gameObject.SetActive(isR);
+        if (signalTransmitter != null) signalTransmitter.gameObject.SetActive(isT);
+    }
+
     public void RegisterDoor(Door d)
     {
         if (d == null) return;
@@ -44,12 +64,77 @@ public class Room : MonoBehaviour
         doors.Remove(d);
     }
 
+    [Header("heat (발열)")]
+    [Tooltip("방 안 분해가능 생물 수가 이 값을 넘으면 발열 상태 → D가 분해 시작. 0 이하면 발열 없음")]
+    public int heatThreshold = 0;
+
+    // 발열 계산용 개체 수: D/Door/Player·제외 종(weed)을 뺀 살아있는 생물
+    public int HeatLoad()
+    {
+        int n = 0;
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c == null || c.IsDead || c.data == null) continue;
+            if (c.data.excludeFromRoomCount) continue;
+            var id = c.data.creatureID;
+            if (id == CreatureID.D || IsExcludedFromCount(id)) continue;
+            n++;
+        }
+        return n;
+    }
+
+    // 과밀 상태 — D가 이때만 분해
+    public bool IsHot => heatThreshold > 0 && HeatLoad() > heatThreshold;
+
+    private bool creaturesFrozen = false;
+
+    // 방 활성/비활성 전환. 상시 시뮬이 꺼져 있으면 비활성 방 생물의 '움직임'까지 완전 정지.
+    // (isActive만으로는 Think만 멈추고 다리·텐타클·물리는 관성으로 계속 움직임)
+    public void SetActive(bool active)
+    {
+        isActive = active;
+
+        bool sim = RoomManager.Instance != null && RoomManager.Instance.simulateInactiveRooms;
+        // 튜토리얼 방은 상시 시뮬과 무관하게, 비활성이면 무조건 정지
+        bool shouldFreeze = !active && (!sim || isTutorial);
+        if (shouldFreeze != creaturesFrozen)
+        {
+            creaturesFrozen = shouldFreeze;
+            SetCreaturesFrozen(shouldFreeze);
+        }
+    }
+
+    private void SetCreaturesFrozen(bool frozen)
+    {
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c == null || c.IsDead || c.data == null) continue;
+            if (c.IsGrabbed) continue;   // 분해·합성 중 개체는 건드리지 않음
+            var id = c.data.creatureID;
+            if (id == CreatureID.Door || id == CreatureID.Player) continue;
+            c.SetMovementEnabled(!frozen);
+        }
+    }
+
     [Header("creature")]
     public List<Creature> creatureList = new();
     public Dictionary<CreatureData, int> decomposedCounts = new();
     public event Action<Creature, CreatureID> OnCreatureDecomposed;
     public event Action<Creature, CreatureID> OnCreatureSynthesized;   // 합성 결과 생물, 합성한 종(L 등)
     public event Action OnCreatureCountChanged;   // 방 안 생물이 들어오거나 나갈 때 (문 조건 재평가용)
+
+    // 문 카운트·UI 목록에서 제외할 종 (D/Door/Player, weed 계열)
+    public static bool IsExcludedFromCount(CreatureID id)
+    {
+        return id == CreatureID.Door
+            || id == CreatureID.Player
+            || id == CreatureID.Weed
+            || id == CreatureID.WalkingWeed
+            || id == CreatureID.T      // 발신기 — 회로 부품, 우세 카운트 제외
+            || id == CreatureID.R;     // 수신기 — 회로 부품, 우세 카운트 제외
+    }
 
     // 방 안 살아있는 생물을 종별로 집계 (D/Door/Player 제외). 문 조건·UI 공용.
     public Dictionary<CreatureData, int> SpeciesCounts()
@@ -60,21 +145,44 @@ public class Room : MonoBehaviour
             var c = creatureList[i];
             if (c == null || c.IsDead || c.data == null) continue;
             if (c.data.excludeFromRoomCount) continue;   // weed 등 CreatureData에서 제외 체크
-            if (c.data.creatureID == CreatureID.Door || c.data.creatureID == CreatureID.Player) continue;
+            if (IsExcludedFromCount(c.data.creatureID)) continue;
             counts.TryGetValue(c.data, out int n);
             counts[c.data] = n + 1;
         }
         return counts;
     }
 
-    // 방 안에 살아있는 생물 중 가장 수가 많은 종. 문 열림 기준.
+    // 방 안에 살아있는 생물 중 가장 수가 많은 종족(family). 문 열림 기준.
+    // H·HH처럼 같은 종족은 합산해서 하나로 취급. 반환값은 그 종족의 대표 CreatureData.
     public CreatureData MostNumerousSpecies()
     {
-        CreatureData best = null;
-        int bestCount = 0;
+        // 종족별 합산 카운트 + 대표 asset (가장 수 많은 개별 asset을 대표로)
+        var familyCount = new Dictionary<CreatureID, int>();
+        var familyRep = new Dictionary<CreatureID, CreatureData>();
+        var familyRepCount = new Dictionary<CreatureID, int>();
+
         foreach (var kv in SpeciesCounts())
-            if (kv.Value > bestCount) { bestCount = kv.Value; best = kv.Key; }
-        return best;
+        {
+            CreatureID fam = CreatureFamily.Of(kv.Key.creatureID);
+            familyCount.TryGetValue(fam, out int fc);
+            familyCount[fam] = fc + kv.Value;
+
+            // 대표는 그 종족 안에서 개체 수가 가장 많은 asset
+            familyRepCount.TryGetValue(fam, out int rc);
+            if (kv.Value > rc)
+            {
+                familyRepCount[fam] = kv.Value;
+                familyRep[fam] = kv.Key;
+            }
+        }
+
+        CreatureID bestFam = default;
+        int bestCount = 0;
+        bool found = false;
+        foreach (var kv in familyCount)
+            if (kv.Value > bestCount) { bestCount = kv.Value; bestFam = kv.Key; found = true; }
+
+        return found ? familyRep[bestFam] : null;
     }
 
     [Header("initial spawn")]

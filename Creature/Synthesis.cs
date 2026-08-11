@@ -20,7 +20,7 @@ public class Synthesis : MonoBehaviour
     {
         if (selfID == CreatureID.A) return ResolveA(idA);
         if (selfID == CreatureID.AA) return ResolveAA(idA, idB);
-        if (selfID == CreatureID.L) return ResolveL(idA, idB);
+        if (selfID == CreatureID.LL) return ResolveL(idA, idB);   // 합성은 LL만 (L은 생산기)
         return SynthesisResult.None;
     }
 

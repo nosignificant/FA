@@ -19,15 +19,40 @@ public class Door : MonoBehaviour
     public Transform upperDoor;
     public Transform lowerDoor;
 
+    public enum ConditionMode
+    {
+        Local,       // 이 문에 붙은 방에서 watchingCreature가 우세하면 열림
+        LevelCount,  // 레벨 전체에서 watchingCreature가 우세한 방이 levelCountN개 이상이면 열림
+        SignalGate,  // 발신기 신호들을 논리게이트(AND/OR/NOT/EQUALS)로 판정
+    }
+
     [Header("Condition")]
+    public ConditionMode conditionMode = ConditionMode.Local;
     public CreatureData watchingCreature;
+    [Tooltip("LevelCount 모드: watchingCreature가 우세한 방이 레벨 안에 이 개수 이상이면 열림")]
+    public int levelCountN = 3;
+
+    [Header("SignalGate")]
+    [Tooltip("이 문이 읽을 수신기. 있으면 슬롯0/1을 입력으로 사용")]
+    public SignalReceiver receiver;
+    public GateType gate = GateType.AND;
+    [Tooltip("receiver가 없을 때 직접 지정하는 입력 A (NOT·게이트배선 등)")]
+    public SignalInput inputA = new SignalInput();
+    [Tooltip("receiver가 없을 때 직접 지정하는 입력 B")]
+    public SignalInput inputB = new SignalInput();
+
+    [Tooltip("LevelCount·SignalGate 재평가 주기(초). 다른 방/문 변화에 반응해야 해서 주기적으로 확인")]
+    public float checkInterval = 0.25f;
 
     [Header("State")]
     public bool isOpen = false;
+    [Tooltip("항상 열린 통로. 조건·다른 문과 무관하게 계속 열려 있음 (isOpen 런타임 상태와 별개)")]
+    public bool alwaysOpen = false;
     private bool conditionA = false;
     private bool conditionB = false;
     private float originalUpperY;
     private float originalLowerY;
+    private Coroutine moveCo;
 
     public Room GetOtherRoom(Room from)
     {
@@ -61,8 +86,8 @@ public class Door : MonoBehaviour
         if (light != null) light.SetActive(isOpen);
         ApplyRotate(isOpen);
 
-        // 인스펙터에서 isOpen을 켜둔 채 실행하면 열린 상태로 시작하도록 동기화
-        if (isOpen) DoorCloseAndOpen(true);
+        // isOpen을 켜둔 채 시작하거나 alwaysOpen이면 열린 상태로 시작
+        if (isOpen || alwaysOpen) DoorCloseAndOpen(true);
     }
 
     private void OnEnable()
@@ -75,6 +100,20 @@ public class Door : MonoBehaviour
         DoorManager.Instance.Register(this);
 
         EvaluateConditions();
+
+        // LevelCount·SignalGate는 roomA/roomB 이벤트만으로 부족(다른 방/문·신호 변화에 반응해야 함) → 주기 확인
+        if (conditionMode != ConditionMode.Local)
+            StartCoroutine(TickEvaluate());
+    }
+
+    private System.Collections.IEnumerator TickEvaluate()
+    {
+        var wait = new WaitForSeconds(checkInterval);
+        while (true)
+        {
+            EvaluateConditions();
+            yield return wait;
+        }
     }
 
     private void OnDisable()
@@ -89,19 +128,119 @@ public class Door : MonoBehaviour
 
     private void EvaluateConditions()
     {
-        if (watchingCreature == null) return;   // 조건 없는 문(튜토리얼 등)은 자동 개폐 안 함
+        if (alwaysOpen) return;   // 항상 열린 통로는 조건과 무관하게 계속 열림
 
-        conditionA = roomA != null && CheckCondition(roomA.MostNumerousSpecies());
-        conditionB = roomB != null && CheckCondition(roomB.MostNumerousSpecies());
+        bool shouldOpen;
 
-        bool shouldOpen = conditionA || conditionB;
+        switch (conditionMode)
+        {
+            case ConditionMode.LevelCount:
+                if (watchingCreature == null) return;
+                shouldOpen = CountDominantRooms(watchingCreature) >= levelCountN;
+                break;
+
+            case ConditionMode.SignalGate:
+                shouldOpen = EvaluateGate();
+                break;
+
+            default: // Local — 양쪽 방 중 한쪽이라도 우세면 열림 (문은 두 방 사이)
+                if (watchingCreature == null) return;   // 조건 없는 문(튜토리얼 등)은 자동 개폐 안 함
+                conditionA = roomA != null && CheckCondition(roomA.MostNumerousSpecies());
+                conditionB = roomB != null && CheckCondition(roomB.MostNumerousSpecies());
+                shouldOpen = conditionA || conditionB;
+                break;
+        }
+
         if (shouldOpen != isOpen) DoorCloseAndOpen(shouldOpen);   // 상태 바뀔 때만
     }
 
-    // 방에 가장 많은 종이 이 문이 요구하는 종과 같은가
+    // 유효 수신기: 문에 직접 지정한 게 있으면 그것, 없으면 이 문이 속한 방(roomA)의 수신기(R)
+    private SignalReceiver EffectiveReceiver
+        => receiver != null ? receiver : (roomA != null ? roomA.signalReceiver : null);
+
+    // SignalGate 입력: 수신기가 있으면 슬롯, 없으면 직접 지정한 inputA/B
+    private SignalInput InA => EffectiveReceiver != null ? EffectiveReceiver.slot0 : inputA;
+    private SignalInput InB => EffectiveReceiver != null ? EffectiveReceiver.slot1 : inputB;
+
+    private bool EvaluateGate()
+    {
+        switch (gate)
+        {
+            case GateType.NOT:
+                return !InA.IsOn();
+
+            case GateType.OR:
+                return InA.IsOn() || InB.IsOn();
+
+            case GateType.EQUALS:
+                var a = InA.Species();
+                var b = InB.Species();
+                return a != null && b != null && CreatureFamily.Same(a.creatureID, b.creatureID);
+
+            default: // AND
+                return InA.IsOn() && InB.IsOn();
+        }
+    }
+
+    // 이 문이 열리려면 충족해야 하는 조건을 사람이 읽을 문자열로 (HUD 표시용)
+    public string ConditionLabel()
+    {
+        switch (conditionMode)
+        {
+            case ConditionMode.LevelCount:
+                return watchingCreature != null ? $"{watchingCreature.creatureName}×{levelCountN}↑" : "-";
+            case ConditionMode.SignalGate:
+                return GateLabel();
+            default: // Local
+                return watchingCreature != null ? watchingCreature.creatureName : "-";
+        }
+    }
+
+    private string GateLabel()
+    {
+        // EQUALS는 종이 아니라 '두 방 우세종이 같은지'를 보므로 종 라벨이 무의미
+        if (gate == GateType.EQUALS) return "두 방 우세종 일치 시 열림";
+
+        string a = InputLabel(InA);
+        string b = InputLabel(InB);
+        switch (gate)
+        {
+            case GateType.NOT: return $"¬{a}";
+            case GateType.OR:  return $"{a} OR {b}";
+            default:           return $"{a} AND {b}";
+        }
+    }
+
+    private string InputLabel(SignalInput input)
+    {
+        if (input == null) return "-";
+        if (input.source == SignalInput.Source.Door)
+            return input.door != null ? input.door.name : "문";
+        if (input.compare == SignalInput.Compare.EqualsRoom)
+            return input.compareRoom != null ? $"={input.compareRoom.roomID}" : "=현재방";
+        return input.target != null ? input.target.creatureName : "?";
+    }
+
+    // 방에 가장 많은 종족이 이 문이 요구하는 종족과 같은가 (H·HH는 같은 종족으로 취급)
     private bool CheckCondition(CreatureData best)
     {
-        return best != null && best == watchingCreature;
+        return best != null && watchingCreature != null
+            && CreatureFamily.Same(best.creatureID, watchingCreature.creatureID);
+    }
+
+    // 레벨 전체에서 이 문이 요구하는 종족이 우세한 방의 개수
+    private int CountDominantRooms(CreatureData species)
+    {
+        if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
+
+        int count = 0;
+        foreach (var r in RoomManager.Instance.rooms.Values)
+        {
+            if (r == null) continue;
+            var best = r.MostNumerousSpecies();
+            if (best != null && CreatureFamily.Same(best.creatureID, species.creatureID)) count++;
+        }
+        return count;
     }
 
     private void ApplyRotate(bool open)
@@ -114,10 +253,11 @@ public class Door : MonoBehaviour
     {
         bool changed = isOpen != open;
         isOpen = open;
+        // 열리면 트리거로(플레이어 통과), 닫히면 솔리드로(막음). 콜라이더 자체는 항상 켜둠.
         if (playerBlockCollider != null)
-            playerBlockCollider.enabled = !open;
-        StopAllCoroutines();
-        StartCoroutine(MoveDoor(open));
+            playerBlockCollider.isTrigger = open;
+        if (moveCo != null) StopCoroutine(moveCo);   // 이동 애니만 중단 (TickEvaluate는 유지)
+        moveCo = StartCoroutine(MoveDoor(open));
 
         //불 켜기 
         if (light != null) light.SetActive(open);

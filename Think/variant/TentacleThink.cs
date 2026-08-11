@@ -39,7 +39,7 @@ public abstract class TentacleThink : Think2
 
         CreatureID selfID = self.data.creatureID;
         if (selfID == CreatureID.A) return grabbedCount >= 1;
-        if (selfID == CreatureID.AA || selfID == CreatureID.L) return grabbedCount >= 2;
+        if (selfID == CreatureID.AA || selfID == CreatureID.LL) return grabbedCount >= 2;
         return false;
     }
 

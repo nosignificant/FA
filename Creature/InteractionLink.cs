@@ -21,6 +21,15 @@ public class InteractionLink : MonoBehaviour
 
     void LateUpdate()
     {
+        // 조종 중: 락온이 풀려도 어떤 생물을 조종하는지 보이게 self↔proxy 선을 항상 표시
+        if (self.IsControlled && think != null && think.ProxyTarget != null)
+        {
+            lr.enabled = true;
+            lr.SetPosition(0, self.rootTransform.position);
+            lr.SetPosition(1, think.ProxyTarget.position);
+            return;
+        }
+
         // 내가 락온된 대상이고 chase/flee 중일 때만 상호작용 선 표시
         bool isSelfLocked = Player.Instance != null && Player.Instance.pl != null
                             && Player.Instance.pl.targetCreature == self;

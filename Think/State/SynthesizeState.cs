@@ -46,7 +46,7 @@ class SynthesizeState : ThinkState
 
         CreatureID selfID = tCreature.data.creatureID;
         if (selfID == CreatureID.A) return grabbedCount >= 1;
-        if (selfID == CreatureID.L) return grabbedCount >= 2;
+        if (selfID == CreatureID.LL) return grabbedCount >= 2;
         // AA 진입 판단(2마리 OR 1마리+타임아웃)은 AAThink가 이미 함 → 1마리 이상이면 진행
         if (selfID == CreatureID.AA) return grabbedCount >= 1;
         return false;
@@ -76,8 +76,8 @@ class SynthesizeState : ThinkState
 
         CreatureID selfID = tCreature.data.creatureID;
         // L은 2마리 필수. AA는 1마리(타임아웃)도 진행 → ResolveAA가 h/s→A 처리
-        if (selfID == CreatureID.L && second == null)
-        { Debug.Log("[Synthesizer] L인데 second null → 중단"); tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
+        if (selfID == CreatureID.LL && second == null)
+        { Debug.Log("[Synthesizer] LL인데 second null → 중단"); tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
 
         CreatureID idA = first.data.creatureID;
         CreatureID idB = second != null ? second.data.creatureID : CreatureID.Player;

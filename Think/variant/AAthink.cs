@@ -19,6 +19,15 @@ public class AAThink : TentacleThink
         return n;
     }
 
+    // 꽂혀있는(기생) 동안엔 L을 쫓지 않음 → 원래 하던 일(H/S 잡아 A 합성)만
+    public override bool IsValidTarget(Creature target)
+    {
+        if (!base.IsValidTarget(target)) return false;
+        if (self != null && self.isPlugged && target.data != null
+            && target.data.creatureID == CreatureID.L) return false;
+        return true;
+    }
+
     protected override CreatureIntent DetermineIntent()
     {
         if (DoesNeedToFlee()) return CreatureIntent.Flee;

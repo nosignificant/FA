@@ -105,11 +105,27 @@ public class CreatureHUD : MonoBehaviour
         ApplyRectSize();
 
 
-        //door일 때
-        if (targetCreature.data.creatureID == CreatureID.Door)
+        // 발신기: intent 대신 현재 발신 중인 종(자기 방 우세종)
+        if (targetCreature is SignalTransmitter tx)
+        {
+            var sig = tx.CurrentSignal;
+            if (statusText != null) statusText.text = sig != null ? $"보냄: {sig.creatureName}" : "보냄: -";
+        }
+        // 수신기: 각 슬롯이 지금 받는 것 (받는 방 : 그 방 우세종)
+        else if (targetCreature is SignalReceiver rcv)
+        {
+            if (statusText != null) statusText.text = $"받는중\n{rcv.SlotLabel(0)}\n{rcv.SlotLabel(1)}";
+        }
+        // L 생산기: 지금 뽑는 종 (플러그로 바뀜). LL(합성기)은 제외
+        else if (targetCreature is Lcreature lp && lp.IsProducer)
+        {
+            if (statusText != null) statusText.text = $"생산: {lp.currentSpawn}";
+        }
+        //door일 때 — 열리려면 충족해야 하는 조건 표시 (Local 종/LevelCount/SignalGate 게이트)
+        else if (targetCreature.data.creatureID == CreatureID.Door)
         {
             Door d = targetCreature.GetComponent<Door>();
-            statusText.text = d.watchingCreature != null ? d.watchingCreature.creatureName : "-";
+            statusText.text = d != null ? d.ConditionLabel() : "-";
         }
         else
         {
@@ -117,13 +133,21 @@ public class CreatureHUD : MonoBehaviour
         }
 
         if (nameText != null && Player.Instance != null) nameText.text = pl.targetCreature.data.creatureName;
-        if (targetText != null && Player.Instance != null)
+        if (targetText != null)
         {
-            Think2 think = targetCreature.GetComponent<Think2>();
-            if (think != null && think.currentTarget.creature != null)
-                targetText.text = $"target:{think.currentTarget.creature.data.creatureName}";
+            // 발신기: 어느 방으로 보내는지(연결된 수신기 방 이름)
+            if (targetCreature is SignalTransmitter txr)
+            {
+                var toRoom = txr.ConnectedRoom;
+                targetText.text = toRoom != null ? $"→{toRoom.roomID}" : "미연결";
+            }
+            else
+            {
+                Think2 think = targetCreature.GetComponent<Think2>();
+                Creature tc = think != null ? think.currentTarget.creature : null;
+                targetText.text = tc != null ? $"target:{tc.data.creatureName}" : " - ";
+            }
         }
-        else targetText.text = " - ";
 
 
     }

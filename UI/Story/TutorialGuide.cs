@@ -191,28 +191,38 @@ public class TutorialGuide : MonoBehaviour
     }
     IEnumerator Tut0Routine(Room room)
     {
-        yield return SayLine("farewell apoptosis 회로 연산을 시작합니다.");
+        yield return SayLine("farewell apoptosis 회로 연산을 시작합니다.", 10f);
         doors[0].DoorCloseAndOpen(true);
 
         doneRooms.Add(room.roomID);
     }
     IEnumerator Tut1Routine(Room room)
     {
+        keepAcrossRooms = true;
         var pim = Player.Instance.GetComponent<PlayerInputManager>();
+        var pl = Player.Instance.GetComponent<PlayerLockOn>();
 
         Say($"{pim.lockOnKey}를 눌러 생물을 관찰하십시오.");
-        while (!Player.Instance.isTracking) yield return null;
+        while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.T)
+            yield return null;
+
+        yield return SayLine("생물은 회로의 일부입니다. 생물을 관찰하면, 해당 생물을 락온합니다. 락온 중에는 생물의 상태를 알 수 있습니다.");
+        yield return SayLine($"관찰 중 {pim.lockOnKey}을 한 번 더 눌러 관찰 중인 생물을 전환할 수 있습니다.");
         doors[0].DoorCloseAndOpen(false);
 
-        yield return SayLine("생물은 회로의 일부입니다. 생물을 관찰하면, 해당 생물을 락온합니다. 락온 중에는 생물이 관심 갖는 생물을 알 수 있습니다.");
-        yield return SayLine($"관찰 중 {pim.lockOnKey}을 한 번 더 눌러 관찰 중인 생물을 전환할 수 있습니다.");
-        yield return SayLine("문을 관찰하면, 문을 열 수 있는 조건을 알 수 있습니다.");
-        yield return SayLine("문은 회로의 게이트입니다. 어느 문을 열었냐에 따라 다른 연산 결과가 도출됩니다.");
-        yield return SayLine("ESC로 관찰을 해제할 수 있습니다.");
-        yield return SayLine("다음 방으로 이동하십시오.");
-        doors[1].DoorCloseAndOpen(true);
-        yield return new WaitForSeconds(messageInterval);
+        tmp.text = "이제 문을 관찰하십시오.";
+        while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.Door)
+            yield return null;
+        yield return SayLine("문은 방의 상태에 따라 열리고 닫힙니다. 문이 열리는 조건은 문을 관찰하면 알 수 있습니다.");
+        yield return SayLine("현재 방의 문은 'h 생물이 가장 많은 상태'일 때 열립니다.");
+        yield return SayLine("다리를 넘어 왼쪽 방으로 이동하십시오.");
+        while (Player.Instance.currentRoom.roomID == "tut_1-1") yield return null;
+        yield return SayLine($"이곳에 h 생물이 있습니다.");
+        yield return SayLine($"생물을 바라보고 {pim.lockOnKey}한 후 {pim.possessKey}를 눌러 조종하십시오.");
+        yield return SayLine($"{pim.possessKey}를 다시 눌러 조종을 해제하십시오.");
 
+        while (!room.HasSpecies(CreatureID.H)) yield return null;
+        OpenDoor(1);
         doneRooms.Add(room.roomID);
 
     }
@@ -220,16 +230,16 @@ public class TutorialGuide : MonoBehaviour
     IEnumerator Tut2Routine(Room room)
     {
 
-        doors[1].DoorCloseAndOpen(false);
         yield return SayLine("어떤 생물은 다른 생물을 생산하고 합성하는 능력을 갖고 있습니다.");
+        doors[1].DoorCloseAndOpen(false);
+
         yield return SayLine("생물 L은 S를 2마리 합쳐 SS를 만들 수 있습니다.");
 
         Say("생물 L이 합성하는 모습을 관찰하십시오.");
         while (!room.HasSpecies(CreatureID.SS)) yield return null;
 
         yield return SayLine("이렇게 생물 L이 S생물 두 마리를 포획하면, SS로 합성할 수 있습니다.");
-        yield return SayLine("생물은 각기 다른 특성을 갖고 있고, 종마다 그 특성을 공유하기도 합니다.");
-
+        yield return SayLine("생물은 주변과 상호작용합니다. 생물마다 좋아하는 생물, 싫어하는 생물이 존재하고 가까이 다가가거나 멀어지려 합니다.");
         OpenDoor(2);
         doneRooms.Add(room.roomID);
         yield return SayLine("다음 방으로 이동하십시오.");
@@ -242,25 +252,27 @@ public class TutorialGuide : MonoBehaviour
 
         yield return new WaitForSeconds(messageInterval / 2);
 
-        doors[2].DoorCloseAndOpen(false);
-
-        yield return SayLine("L은 같은 방에 AA가 있는 것을 싫어합니다.");
-        yield return SayLine("AA가 같은 방에 있으면, L은 다른 방으로 가려고 합니다.");
-        yield return SayLine("하지만 AA를 조종해 L에게서 멀리 떨어트려둘 수 있습니다.");
-
+        var pl = Player.Instance.GetComponent<PlayerLockOn>();
         var pim = Player.Instance.GetComponent<PlayerInputManager>();
         var cp = Player.Instance.GetComponent<CreaturePossess>();
+        Creature dc = doors[3].GetComponent<Creature>();
 
-        Say($"{pim.possessKey}를 눌러 생물을 조종하십시오.");
+        tmp.text = "현재 방의 문을 관찰하십시오.";
+        while (pl.targetCreature == null || pl.targetCreature != dc) yield return null;
+        yield return SayLine("이 문의 조건은 특수합니다. 두 방의 우세종이 같아야 열립니다.");
+        yield return SayLine("두 방 중 하나는 현재 R 생물이 있는 방입니다.");
+        tmp.text = "하나의 방은 당신이 선택할 수 있습니다. T 생물 조종을 시도하십시오.";
         while (!cp.IsPossessing) yield return null;
 
-        yield return SayLine("생물을 조종하면, 생물의 상태가 controlled가 됩니다.", 10f);
-        yield return SayLine("E, Q로 고도를 조절하십시오.", 10f);
-        yield return SayLine("조종 중 F를 다시 눌러 조종을 해제하십시오.");
-        yield return SayLine("다음 방으로 이동하십시오.");
-        OpenDoor(3);
+        tmp.text = "T 생물을 조종한 채로, R 생물을 락온하십시오.";
+        while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.R) yield return null;
+        SayLine($"T 생물을 조종 중인 채로 R 생물을 락온하고 {pim.possessKey}를 누르면 T 생물과 R 생물이 연결됩니다.");
 
+        yield return SayLine("그러면 T 생물이 존재하는 방의 정보를 R 생물의 방에 보낼 수 있습니다.");
+        yield return SayLine("그러면 T 생물을 다시 락온하면 다른 방과 연결되어 있는 여부를 알 수 있습니다.");
+        SayLine("연결되어 있는 T 생물을 다시 조종하려 시도하면 연결이 끊어집니다.");
         doneRooms.Add(room.roomID);
+        OpenDoor(3);
 
         // 대사 끝 → 방 전환 감시 재개. lastRoom을 현재 방으로 맞춰 다음 방부터 정상 트리거
         lastRoom = Player.Instance != null && Player.Instance.currentRoom != null
