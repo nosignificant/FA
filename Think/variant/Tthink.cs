@@ -26,16 +26,17 @@ public class TransmitterWeedState : WeedWanderState
     public override void Refresh(List<Vector3> points)
     {
         var tx = think.self as SignalTransmitter;
+
+        // 연결됨 → 수신기로 촉수 뻗기
         if (tx != null && tx.IsConnected && tx.ConnectedReceiverTransform != null)
         {
-            newTarget.point = tx.ConnectedReceiverTransform.position;   // 수신기로 텐타클 뻗기
-            newTarget.creature = tx.ConnectedReceiver;                  // HUD에 연결된 수신기 표시
+            newTarget.point = tx.ConnectedReceiverTransform.position;
+            newTarget.creature = tx.ConnectedReceiver;
             return;
         }
 
-        // 미연결 → 중립(제자리): 주변 생물 안 쫓고 자기 몸으로 텐타클 거둠 (#2)
-        var self = think.self;
-        newTarget.point = self.rootTransform != null ? self.rootTransform.position : self.transform.position;
-        newTarget.creature = null;
+        // 그 외(idle) → weed 기본 (주변 생물/배회)
+        // 조종 중엔 manualControl이 Think를 건너뛰고 proxy를 플레이어로 몰아 촉수가 플레이어를 따라감
+        base.Refresh(points);
     }
 }

@@ -109,17 +109,18 @@ public class CreatureHUD : MonoBehaviour
         if (targetCreature is SignalTransmitter tx)
         {
             var sig = tx.CurrentSignal;
-            if (statusText != null) statusText.text = sig != null ? $"보냄: {sig.creatureName}" : "보냄: -";
+            if (statusText != null) statusText.text = sig != null ? $"send  {sig.creatureName}" : " send -";
         }
-        // 수신기: 각 슬롯이 지금 받는 것 (받는 방 : 그 방 우세종)
+        // 수신기(R): status = 받는 방 이름들, target = 그 방들의 우세종
         else if (targetCreature is SignalReceiver rcv)
         {
-            if (statusText != null) statusText.text = $"받는중\n{rcv.SlotLabel(0)}\n{rcv.SlotLabel(1)}";
+            if (statusText != null) statusText.text = $"receive {rcv.SlotSpecies(0)}\nreceive {rcv.SlotSpecies(1)}";
         }
-        // L 생산기: 지금 뽑는 종 (플러그로 바뀜). LL(합성기)은 제외
+        // L 생산기: 도망 아니면 "produce", 도망이면 "flee"
         else if (targetCreature is Lcreature lp && lp.IsProducer)
         {
-            if (statusText != null) statusText.text = $"생산: {lp.currentSpawn}";
+            if (statusText != null)
+                statusText.text = (lp.intent == CreatureIntent.Flee) ? "flee" : "produce";
         }
         //door일 때 — 열리려면 충족해야 하는 조건 표시 (Local 종/LevelCount/SignalGate 게이트)
         else if (targetCreature.data.creatureID == CreatureID.Door)
@@ -129,23 +130,63 @@ public class CreatureHUD : MonoBehaviour
         }
         else
         {
-            if (statusText != null && Player.Instance != null) statusText.text = pl.targetCreature.intent.ToString();
+            if (statusText != null && Player.Instance != null)
+            {
+                var it = pl.targetCreature.intent;
+                statusText.text = it == CreatureIntent.Controlled ? "controlled by" : it.ToString();
+            }
         }
 
-        if (nameText != null && Player.Instance != null) nameText.text = pl.targetCreature.data.creatureName;
+        if (nameText != null && Player.Instance != null)
+        {
+            // 문은 name 칸에 조건1(좌변)을 넣음 (name=조건1 / status=연산 / target=조건2)
+            if (targetCreature.data.creatureID == CreatureID.Door)
+            {
+                Door dn = targetCreature.GetComponent<Door>();
+                nameText.text = dn != null ? dn.Operand1Label() : "door";
+            }
+            else nameText.text = pl.targetCreature.data.creatureName;
+        }
         if (targetText != null)
         {
-            // 발신기: 어느 방으로 보내는지(연결된 수신기 방 이름)
+            // 발신기: 어느 방으로 보내는지
             if (targetCreature is SignalTransmitter txr)
             {
                 var toRoom = txr.ConnectedRoom;
-                targetText.text = toRoom != null ? $"→{toRoom.roomID}" : "미연결";
+                targetText.text = toRoom != null ? $"{toRoom.roomID}" : "-";
+            }
+            // 수신기(R): 받는 방들의 우세종 (status의 방 이름과 줄 맞춤)
+            else if (targetCreature is SignalReceiver rcv2)
+            {
+                targetText.text = $"from {rcv2.SlotRoomName(0)}\nfrom {rcv2.SlotRoomName(1)}";
+            }
+            // 문(SignalGate): 비교하는 방/종
+            else if (targetCreature.data.creatureID == CreatureID.Door)
+            {
+                Door dd = targetCreature.GetComponent<Door>();
+                targetText.text = dd != null ? dd.GateTargetLabel() : "-";
+            }
+            // L 생산기: 생산 중이면 생산 종, 도망 중이면 도망 대상
+            else if (targetCreature is Lcreature lprod && lprod.IsProducer)
+            {
+                if (lprod.intent == CreatureIntent.Flee)
+                {
+                    Think2 th = targetCreature.GetComponent<Think2>();
+                    Creature ftc = th != null ? th.currentTarget.creature : null;
+                    targetText.text = ftc != null ? ftc.data.creatureName : "-";
+                }
+                else targetText.text = $"{lprod.currentSpawn}";
+            }
+            // 조종 중이면 "controlled by player"
+            else if (targetCreature.intent == CreatureIntent.Controlled)
+            {
+                targetText.text = "player";
             }
             else
             {
                 Think2 think = targetCreature.GetComponent<Think2>();
                 Creature tc = think != null ? think.currentTarget.creature : null;
-                targetText.text = tc != null ? $"target:{tc.data.creatureName}" : " - ";
+                targetText.text = tc != null ? $"{tc.data.creatureName}" : " - ";
             }
         }
 

@@ -76,6 +76,13 @@ public class CreaturePossess : MonoBehaviour
         Creature target = Player.Instance.pl.targetCreature;
         if (target == null) return;
 
+        // 연결된 발신기를 F로 조준하면 → 조종 안 하고 바로 연결 해제만
+        if (target is SignalTransmitter txDisc && txDisc.IsConnected)
+        {
+            txDisc.Disconnect();
+            return;
+        }
+
         // 조종 불가 생물이면 알림만 띄우고 중단
         if (target.data != null && !target.data.controllable)
         {

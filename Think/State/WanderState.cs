@@ -29,10 +29,18 @@ class WanderState : ThinkState
             hasTarget = true;
             lastRefreshTime = Time.time;
         }
-        // 옆방에 Chase 대상이 있을 때만 이주 (랜덤 이주 없음)
+        // 옆방에 Chase 대상이 있을 때 이주
         var mig = think.migration;
         if (mig != null && think.self.canMigrate
             && mig.HasChaseTargetInAdjacentRoom() && mig.TickMigration())
+        {
+            newTarget.point = mig.migrateTargetPoint;
+            return;
+        }
+
+        // 열린 문으로 흘러가기 (A/H) — 쫓을 대상이 없어도 확률적으로 이주
+        if (mig != null && think.self.canMigrate
+            && mig.WantsWanderMigrate() && mig.TickMigration())
         {
             newTarget.point = mig.migrateTargetPoint;
             return;

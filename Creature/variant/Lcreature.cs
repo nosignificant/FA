@@ -93,6 +93,13 @@ public class Lcreature : TentacleCreature
                 continue;
             }
 
+            // 도망 중엔 생산 안 함 (헷갈림 방지)
+            if (intent == CreatureIntent.Flee)
+            {
+                yield return null;
+                continue;
+            }
+
             Creature attached = SpawnAndAttach(spawnCreatureAtTentacleIndex);
             if (attached == null)
             {
@@ -123,10 +130,13 @@ public class Lcreature : TentacleCreature
 
     private Creature SpawnAndAttach(int idx)
     {
-        GameObject spawnThis = WhichOneSpawn(currentSpawn);
+        // 꽂혀있으면 지정 종(A), 아니면 H/S 랜덤
+        CreatureID toSpawn = HasPlugged ? currentSpawn
+                           : (UnityEngine.Random.value < 0.5f ? CreatureID.H : CreatureID.S);
+        GameObject spawnThis = WhichOneSpawn(toSpawn);
         if (spawnThis == null)
         {
-            Debug.LogWarning($"[Lcreature] {name}: creatureDB에서 {currentSpawn} prefab을 못 찾음 (DB 등록 확인)");
+            Debug.LogWarning($"[Lcreature] {name}: creatureDB에서 {toSpawn} prefab을 못 찾음 (DB 등록 확인)");
             return null;
         }
         if (idx < 0 || idx >= tentacleGrab.tentacles.Length) return null;
@@ -278,8 +288,16 @@ public class Lcreature : TentacleCreature
         {
             if (HasPlugged)
             {
-                if (myTC != null) myTC.SetMovementTarget(pluggedCreature.transform);
-                PointPluggedTentacleAtMe();   // AA 촉수 하나가 L을 계속 향하게
+                // 꽂힌 AA가 이 방을 벗어나면 플러그 해제 (L은 방 안에 남음, 따라 나가지 않음)
+                if (pluggedCreature.currentRoom != currentRoom)
+                {
+                    Unplug();
+                }
+                else
+                {
+                    if (myTC != null) myTC.SetMovementTarget(pluggedCreature.transform);
+                    PointPluggedTentacleAtMe();   // AA 촉수 하나가 L을 계속 향하게
+                }
             }
             else if (pluggedCreature != null && pluggedCreature.IsDead)
             {

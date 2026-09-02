@@ -25,8 +25,10 @@ public class SignalReceiver : Creature
     [Header("연결 표시")]
     [Tooltip("발신기 텐타클이 향할 지점. 비우면 수신기 중심")]
     public Transform connectAnchor;
-    [Tooltip("연결 상태에 따라 색을 바꿀 렌더러 (텐타클 끝 구/수신기 본체 등)")]
-    public Renderer connectionRenderer;
+    [Tooltip("연결 상태에 따라 색을 바꿀 렌더러들 (전부 같은 색으로). 비우면 자식 렌더러 전부 자동 수집")]
+    public Renderer[] connectionRenderers;
+    [Tooltip("connectionRenderers가 비어있을 때, 자식의 모든 렌더러를 자동으로 대상에 넣음")]
+    public bool autoCollectChildRenderers = true;
     [Tooltip("색을 바꿀 셰이더 프로퍼티 이름. 기본 _Color. 커스텀 셰이더면 다를 수 있음(_BaseColor, _Tint 등)")]
     public string colorProperty = "_Color";
     public Color idleColor = Color.gray;
@@ -41,6 +43,27 @@ public class SignalReceiver : Creature
 
     public SignalInput GetSlot(int i) => i == 0 ? slot0 : slot1;
 
+    // HUD용: 슬롯 i의 받는 방 이름 (로컬 슬롯이면 "이방")
+    public string SlotRoomName(int i)
+    {
+        var s = GetSlot(i);
+        if (s == null) return "-";
+        if (inputMode == InputMode.LocalPlusTransmitter && i == 0)
+        {
+            var lr = localRoom != null ? localRoom : currentRoom;
+            return lr != null ? lr.roomID : "-";
+        }
+        return s.room != null ? s.room.roomID : "-";
+    }
+
+    // HUD용: 슬롯 i가 받는 방의 우세종
+    public string SlotSpecies(int i)
+    {
+        var s = GetSlot(i);
+        var sp = (s != null && s.room != null) ? s.room.MostNumerousSpecies() : null;
+        return sp != null ? sp.creatureName : "-";
+    }
+
     // HUD용: 슬롯 i가 지금 '받고 있는' 것 — [받는 방]: [그 방 우세종]
     public string SlotLabel(int i)
     {
@@ -49,11 +72,11 @@ public class SignalReceiver : Creature
 
         string where;
         if (inputMode == InputMode.LocalPlusTransmitter && i == 0)
-            where = "이방";
+            where = (localRoom != null ? localRoom : currentRoom)?.roomID ?? "-";
         else if (s.room != null)
             where = s.room.roomID;
         else
-            return $"슬롯{i}: 미연결";
+            return "-";
 
         var sp = s.room != null ? s.room.MostNumerousSpecies() : null;
         return $"{where}: {(sp != null ? sp.creatureName : "-")}";
@@ -63,6 +86,11 @@ public class SignalReceiver : Creature
     {
         base.Awake();
         localRoom = GetComponentInParent<Room>();   // 이 수신기가 속한 방 (hierarchy 기준)
+
+        // 비어있으면 자식 렌더러 전부 수집 (그 오브젝트 밑 머티리얼 전부 같이 바뀌게)
+        if (autoCollectChildRenderers && (connectionRenderers == null || connectionRenderers.Length == 0))
+            connectionRenderers = GetComponentsInChildren<Renderer>();
+
         RefreshVisual();
     }
 
@@ -83,15 +111,18 @@ public class SignalReceiver : Creature
 
     private void RefreshVisual()
     {
-        if (connectionRenderer == null) return;
+        if (connectionRenderers == null) return;
 
         Color c = ConnectedCount() > 0 ? connectedColor : idleColor;
-        var mat = connectionRenderer.material;   // 인스턴스 (공유 에셋 안 건드림)
-
-        if (!string.IsNullOrEmpty(colorProperty) && mat.HasProperty(colorProperty))
-            mat.SetColor(colorProperty, c);
-        else
-            mat.color = c;   // _Color 폴백
+        foreach (var r in connectionRenderers)
+        {
+            if (r == null) continue;
+            var mat = r.material;   // 인스턴스 (공유 에셋 안 건드림)
+            if (!string.IsNullOrEmpty(colorProperty) && mat.HasProperty(colorProperty))
+                mat.SetColor(colorProperty, c);
+            else
+                mat.color = c;   // _Color 폴백
+        }
     }
 
     // 발신기 연결. 빈 슬롯 우선, 둘 다 차면 먼저 연결된 슬롯(FIFO)을 밀어낸다.

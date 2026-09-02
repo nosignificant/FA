@@ -123,16 +123,16 @@ public class Interaction : MonoBehaviour
     // L: 생산기 — 아무것도 잡지 않음(생산만). AA로부터 도망.
     private static int GetActionForL(CreatureID targetID, InteractionAction action)
     {
-        if ((targetID == AA || targetID == L) && action == InteractionAction.Flee) return 100;
+        if ((targetID == AA) && action == InteractionAction.Flee) return 100;
         return int.MinValue;
     }
 
-    // LL: 합성기 — H/S/A를 잡아 합성. AA로부터 도망.
+    // LL: 합성기 — base(H/S)를 잡아 합성(HH/SS). AA로부터 도망.
     private static int GetActionForLL(CreatureID targetID, InteractionAction action)
     {
         if ((targetID == AA || targetID == LL) && action == InteractionAction.Flee) return 100;
 
-        if (targetID == H || targetID == S || targetID == A)
+        if (targetID == H || targetID == S)
         {
             if (action == InteractionAction.Chase) return 50;
             if (action == InteractionAction.Grab) return 60;

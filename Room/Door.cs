@@ -182,43 +182,75 @@ public class Door : MonoBehaviour
         }
     }
 
-    // 이 문이 열리려면 충족해야 하는 조건을 사람이 읽을 문자열로 (HUD 표시용)
+    // 문 HUD: name=조건1 / status=연산 / target=조건2 로 좌→우로 읽힘
+    //   Local:      이방 / 우세   / H
+    //   LevelCount: H   / 우세방  / 3↑
+    //   AND/OR:     H   / AND     / A
+    //   EQUALS:     방1 / 일치    / 방2
+    //   NOT:        H   / 아님    / (빈칸)
+
+    // name 칸 (조건1)
+    public string Operand1Label()
+    {
+        switch (conditionMode)
+        {
+            case ConditionMode.Local:
+                return roomA != null ? roomA.roomID : "-";
+            case ConditionMode.LevelCount:
+                return watchingCreature != null ? watchingCreature.creatureName : "-";
+            case ConditionMode.SignalGate:
+                return gate == GateType.EQUALS ? InputRoom(InA) : InputSpecies(InA);
+            default: return "-";
+        }
+    }
+
+    // status 칸 (연산/동사)
     public string ConditionLabel()
     {
         switch (conditionMode)
         {
-            case ConditionMode.LevelCount:
-                return watchingCreature != null ? $"{watchingCreature.creatureName}×{levelCountN}↑" : "-";
+            case ConditionMode.LevelCount: return "dom";
             case ConditionMode.SignalGate:
-                return GateLabel();
-            default: // Local
-                return watchingCreature != null ? watchingCreature.creatureName : "-";
+                switch (gate)
+                {
+                    case GateType.NOT:    return "Not";
+                    case GateType.OR:     return "OR";
+                    case GateType.EQUALS: return "equals";
+                    default:              return "AND";
+                }
+            default: return "is";   // Local
         }
     }
 
-    private string GateLabel()
+    // target 칸 (조건2)
+    public string GateTargetLabel()
     {
-        // EQUALS는 종이 아니라 '두 방 우세종이 같은지'를 보므로 종 라벨이 무의미
-        if (gate == GateType.EQUALS) return "두 방 우세종 일치 시 열림";
-
-        string a = InputLabel(InA);
-        string b = InputLabel(InB);
-        switch (gate)
+        switch (conditionMode)
         {
-            case GateType.NOT: return $"¬{a}";
-            case GateType.OR:  return $"{a} OR {b}";
-            default:           return $"{a} AND {b}";
+            case ConditionMode.Local:
+                return watchingCreature != null ? watchingCreature.creatureName : "-";
+            case ConditionMode.LevelCount:
+                return $"{levelCountN}+ rooms";
+            case ConditionMode.SignalGate:
+                if (gate == GateType.NOT) return "";
+                return gate == GateType.EQUALS ? InputRoom(InB) : InputSpecies(InB);
+            default: return "-";
         }
     }
 
-    private string InputLabel(SignalInput input)
+    private string InputSpecies(SignalInput inp)
     {
-        if (input == null) return "-";
-        if (input.source == SignalInput.Source.Door)
-            return input.door != null ? input.door.name : "문";
-        if (input.compare == SignalInput.Compare.EqualsRoom)
-            return input.compareRoom != null ? $"={input.compareRoom.roomID}" : "=현재방";
-        return input.target != null ? input.target.creatureName : "?";
+        if (inp == null) return "-";
+        if (inp.source == SignalInput.Source.Door) return inp.door != null ? inp.door.name : "문";
+        return inp.target != null ? inp.target.creatureName : "?";
+    }
+
+    private string InputRoom(SignalInput inp)
+    {
+        if (inp == null) return "-";
+        if (inp.room != null) return inp.room.roomID;
+        if (inp.compareRoom != null) return inp.compareRoom.roomID;
+        return "?";
     }
 
     // 방에 가장 많은 종족이 이 문이 요구하는 종족과 같은가 (H·HH는 같은 종족으로 취급)

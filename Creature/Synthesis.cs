@@ -42,15 +42,16 @@ public class Synthesis : MonoBehaviour
         return SynthesisResult.None;
     }
 
-    // L: h+h → hh, s+s → ss, a 포함 → aa
+    // LL: base(H/S) 2개 → HH/SS. h+h=hh, s+s=ss, h+s=랜덤(hh/ss). A는 합성 안 함(A+A=AA 제거).
     SynthesisResult ResolveL(CreatureID idA, CreatureID idB)
     {
-        if (idA == CreatureID.A || idB == CreatureID.A)
-            return SynthesisResult.Of(CreatureID.AA, 1);
+        bool aBase = idA == CreatureID.H || idA == CreatureID.S;
+        bool bBase = idB == CreatureID.H || idB == CreatureID.S;
+        if (!aBase || !bBase) return SynthesisResult.None;   // 둘 다 base여야 함
 
-        if (idA != idB) return SynthesisResult.None;
-        if (idA == CreatureID.H) return SynthesisResult.Of(CreatureID.HH, 1);
-        if (idA == CreatureID.S) return SynthesisResult.Of(CreatureID.SS, 1);
-        return SynthesisResult.None;
+        if (idA == CreatureID.H && idB == CreatureID.H) return SynthesisResult.Of(CreatureID.HH, 1);
+        if (idA == CreatureID.S && idB == CreatureID.S) return SynthesisResult.Of(CreatureID.SS, 1);
+        // H+S → 랜덤 (HH/SS 기능 동일하므로 상관없음)
+        return SynthesisResult.Of(Random.value < 0.5f ? CreatureID.HH : CreatureID.SS, 1);
     }
 }
