@@ -49,12 +49,12 @@ public class RoomMigration : MonoBehaviour
         }
     }
 
-    // 이 생물이 열린 문을 따라 흘러다니는 성향이 있는가 (A, H)
+    // 이 생물이 열린 문을 따라 흘러다니는 입자인가 (L, A)
     private bool WandersThroughDoors()
     {
         if (self == null || self.data == null) return false;
         var id = self.data.creatureID;
-        return id == CreatureID.A || id == CreatureID.H;
+        return id == CreatureID.L || id == CreatureID.A;
     }
 
     // 쫓을 대상이 없어도, 갈 수 있는 열린 문이 있으면 확률적으로 그쪽으로 흘러가기로 결정.
@@ -65,8 +65,8 @@ public class RoomMigration : MonoBehaviour
         if (wanderDrifting) return true;            // 이미 흘러가기로 정함 — 유지
         if (MigrateOnCooldown) return false;        // 아직 추첨 타이밍 아님
 
-        // 되돌아가기 제외하고 갈 수 있는 열린 문이 있나
-        if (CalculateDoor(out _, avoidBacktrack: true) == null) return false;
+        // 되돌아가기 제외하고 갈 수 있는 통로(문/부서진 벽)가 있나
+        if (!CalculatePassage(out _, out _, out _, avoidBacktrack: true)) return false;
 
         if (Random.value < wanderMigrateChance)
         {
@@ -83,22 +83,18 @@ public class RoomMigration : MonoBehaviour
         if (self.currentRoom == null || MigrateOnCooldown) return false;
 
         // 배회 이동 중엔 방금 온 방으로 되돌아가지 않게
-        Door bestDoor = CalculateDoor(out float bestDist, avoidBacktrack: wanderDrifting);
-        if (bestDoor == null) return false;
-
-        Room nextR = bestDoor.GetOtherRoom(self.currentRoom);
+        if (!CalculatePassage(out Vector3 pt, out Room nextR, out float bestDist, avoidBacktrack: wanderDrifting))
+            return false;
 
         if (bestDist > migrateDoorReachDist)
         {
-            // 아직 문까지 거리가 멀면 문으로 향함
-            Transform doorT = (bestDoor.self != null && bestDoor.self.rootTransform != null)
-                ? bestDoor.self.rootTransform : bestDoor.transform;
-            migrateTargetPoint = doorT.position;
+            // 아직 통로(문/틈)까지 멀면 그 자리로 향함
+            migrateTargetPoint = pt;
             isMigrating = false;
         }
         else
         {
-            // 문에 붙었으면 옆방 중심으로 관통 (소속 변경은 bounds 넘는 순간 Creature가 처리)
+            // 통로에 붙었으면 옆방 중심으로 관통 (소속 변경은 bounds 넘는 순간 Creature가 처리)
             migrateTargetPoint = nextR.transform.position;
             isMigrating = true;
         }
@@ -106,20 +102,30 @@ public class RoomMigration : MonoBehaviour
         return true;
     }
 
-    //옆방에 다가가고싶은 대상이 있는지 
+    //옆방에 다가가고싶은 대상이 있는지 (문·부서진 벽 너머)
     public bool HasChaseTargetInAdjacentRoom()
     {
-        if (self.currentRoom == null) return false;
-        foreach (var door in self.currentRoom.doors)
+        var room = self.currentRoom;
+        if (room == null) return false;
+
+        if (room.doors != null)
+            foreach (var d in room.doors)
+                if (d != null && d.isOpen && HasChaseIn(d.GetOtherRoom(room))) return true;
+
+        if (room.brokenPassages != null)
+            foreach (var w in room.brokenPassages)
+                if (w != null && w.Broken && HasChaseIn(w.GetOtherRoom(room))) return true;
+
+        return false;
+    }
+
+    private bool HasChaseIn(Room other)
+    {
+        if (other == null) return false;
+        foreach (var c in other.creatureList)
         {
-            if (!door.isOpen) continue;
-            Room other = door.GetOtherRoom(self.currentRoom);
-            if (other == null) continue;
-            foreach (var c in other.creatureList)
-            {
-                if (c == null || c.data == null) continue;
-                if (self.HasAction(c.data.creatureID, InteractionAction.Chase)) return true;
-            }
+            if (c == null || c.data == null) continue;
+            if (self.HasAction(c.data.creatureID, InteractionAction.Chase)) return true;
         }
         return false;
     }
@@ -135,25 +141,53 @@ public class RoomMigration : MonoBehaviour
         return false;
     }
 
-    Door CalculateDoor(out float bestDist, bool avoidBacktrack = false)
+    // 꽉 찬 방: L/A 수가 D 정리 기준(heatThreshold) 이상 → 배회로는 잘 안 감 (과밀·불필요한 정리 방지)
+    private bool IsCrowded(Room room)
     {
-        Door bestDoor = null;
-        bestDist = float.MaxValue;
+        return room != null && room.heatThreshold > 0 && room.HeatLoad() >= room.heatThreshold;
+    }
 
-        foreach (var d in self.currentRoom.doors)
-        {
-            if (!d.isOpen) continue;
-            Room other = d.GetOtherRoom(self.currentRoom);
-            if (other == null) continue;
-            if (ShouldAvoidRoom(other)) continue;
-            if (avoidBacktrack && other == previousRoom) continue;   // 방금 온 방으로 되돌아가지 않음
+    // 갈 수 있는 통로(열린 문 + 부서진 벽) 중 가장 가까운 것. 위치·옆방·거리를 돌려줌.
+    bool CalculatePassage(out Vector3 point, out Room other, out float bestDist, bool avoidBacktrack = false)
+    {
+        point = default; other = null; bestDist = float.MaxValue;
+        var room = self.currentRoom;
+        if (room == null) return false;
+        Vector3 myPos = self.rootTransform.position;
 
-            // 문 위치: self/rootTransform 미설정이면 문 오브젝트 transform으로 대체 (NRE 방지)
-            Transform doorT = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
-            Vector3 dp = doorT.position;
-            float dist = Vector3.Distance(self.rootTransform.position, dp);
-            if (dist < bestDist) { bestDist = dist; bestDoor = d; }
-        }
-        return bestDoor;
+        // 열린 문
+        if (room.doors != null)
+            foreach (var d in room.doors)
+            {
+                if (d == null || !d.isOpen) continue;
+                Room o = d.GetOtherRoom(room);
+                if (!PassOK(o, avoidBacktrack)) continue;
+                Transform t = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
+                float dist = Vector3.Distance(myPos, t.position);
+                if (dist < bestDist) { bestDist = dist; point = t.position; other = o; }
+            }
+
+        // 부서진 벽(틈) — 그 자리로 향해 옆방으로 관통
+        if (room.brokenPassages != null)
+            foreach (var w in room.brokenPassages)
+            {
+                if (w == null || !w.Broken) continue;
+                Room o = w.GetOtherRoom(room);
+                if (!PassOK(o, avoidBacktrack)) continue;
+                float dist = Vector3.Distance(myPos, w.Position);
+                if (dist < bestDist) { bestDist = dist; point = w.Position; other = o; }
+            }
+
+        return other != null;
+    }
+
+    // 그 방으로 넘어가도 되는지 (회피 대상/되돌아가기/과밀 체크)
+    bool PassOK(Room o, bool avoidBacktrack)
+    {
+        if (o == null) return false;
+        if (ShouldAvoidRoom(o)) return false;
+        if (avoidBacktrack && o == previousRoom) return false;
+        if (avoidBacktrack && IsCrowded(o)) return false;
+        return true;
     }
 }

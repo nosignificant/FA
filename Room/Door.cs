@@ -21,15 +21,18 @@ public class Door : MonoBehaviour
 
     public enum ConditionMode
     {
-        Local,       // 이 문에 붙은 방에서 watchingCreature가 우세하면 열림
-        LevelCount,  // 레벨 전체에서 watchingCreature가 우세한 방이 levelCountN개 이상이면 열림
+        RoomState,   // 양쪽 방 중 하나가 requiredState(L/A)로 활성화되면 열림
+        LevelCount,  // 레벨 전체에서 requiredState로 활성화된 방이 levelCountN개 이상이면 열림
         SignalGate,  // 발신기 신호들을 논리게이트(AND/OR/NOT/EQUALS)로 판정
     }
 
     [Header("Condition")]
-    public ConditionMode conditionMode = ConditionMode.Local;
-    public CreatureData watchingCreature;
-    [Tooltip("LevelCount 모드: watchingCreature가 우세한 방이 레벨 안에 이 개수 이상이면 열림")]
+    public ConditionMode conditionMode = ConditionMode.RoomState;
+
+    [Tooltip("RoomState/LevelCount 모드가 요구하는 방 활성화 상태 (L/A)")]
+    public Room.RoomActivation requiredState = Room.RoomActivation.A;
+
+    [Tooltip("LevelCount 모드: requiredState로 활성화된 방이 레벨 안에 이 개수 이상이면 열림")]
     public int levelCountN = 3;
 
     [Header("SignalGate")]
@@ -48,8 +51,6 @@ public class Door : MonoBehaviour
     public bool isOpen = false;
     [Tooltip("항상 열린 통로. 조건·다른 문과 무관하게 계속 열려 있음 (isOpen 런타임 상태와 별개)")]
     public bool alwaysOpen = false;
-    private bool conditionA = false;
-    private bool conditionB = false;
     private float originalUpperY;
     private float originalLowerY;
     private Coroutine moveCo;
@@ -101,8 +102,9 @@ public class Door : MonoBehaviour
 
         EvaluateConditions();
 
-        // LevelCount·SignalGate는 roomA/roomB 이벤트만으로 부족(다른 방/문·신호 변화에 반응해야 함) → 주기 확인
-        if (conditionMode != ConditionMode.Local)
+        // LevelCount·SignalGate는 roomA/roomB 이벤트만으로 부족(다른 방/문·신호 변화에 반응해야 함) → 주기 확인.
+        // RoomState는 양쪽 방의 OnCreatureCountChanged(활성화 변경 포함)로 충분.
+        if (conditionMode == ConditionMode.LevelCount || conditionMode == ConditionMode.SignalGate)
             StartCoroutine(TickEvaluate());
     }
 
@@ -135,19 +137,17 @@ public class Door : MonoBehaviour
         switch (conditionMode)
         {
             case ConditionMode.LevelCount:
-                if (watchingCreature == null) return;
-                shouldOpen = CountDominantRooms(watchingCreature) >= levelCountN;
+                shouldOpen = CountActiveRooms(requiredState) >= levelCountN;
                 break;
 
             case ConditionMode.SignalGate:
                 shouldOpen = EvaluateGate();
                 break;
 
-            default: // Local — 양쪽 방 중 한쪽이라도 우세면 열림 (문은 두 방 사이)
-                if (watchingCreature == null) return;   // 조건 없는 문(튜토리얼 등)은 자동 개폐 안 함
-                conditionA = roomA != null && CheckCondition(roomA.MostNumerousSpecies());
-                conditionB = roomB != null && CheckCondition(roomB.MostNumerousSpecies());
-                shouldOpen = conditionA || conditionB;
+            default: // RoomState — 양쪽 방 중 하나가 requiredState로 활성화되면 열림
+                bool aMatch = roomA != null && roomA.Activation == requiredState;
+                bool bMatch = roomB != null && roomB.Activation == requiredState;
+                shouldOpen = aMatch || bMatch;
                 break;
         }
 
@@ -194,13 +194,12 @@ public class Door : MonoBehaviour
     {
         switch (conditionMode)
         {
-            case ConditionMode.Local:
-                return roomA != null ? roomA.roomID : "-";
             case ConditionMode.LevelCount:
-                return watchingCreature != null ? watchingCreature.creatureName : "-";
+                return requiredState.ToString();
             case ConditionMode.SignalGate:
                 return gate == GateType.EQUALS ? InputRoom(InA) : InputSpecies(InA);
-            default: return "-";
+            default: // RoomState
+                return roomA != null ? roomA.roomID : "-";
         }
     }
 
@@ -209,7 +208,7 @@ public class Door : MonoBehaviour
     {
         switch (conditionMode)
         {
-            case ConditionMode.LevelCount: return "dom";
+            case ConditionMode.LevelCount: return "rooms ≥";   // "rooms ≥"
             case ConditionMode.SignalGate:
                 switch (gate)
                 {
@@ -218,7 +217,7 @@ public class Door : MonoBehaviour
                     case GateType.EQUALS: return "equals";
                     default:              return "AND";
                 }
-            default: return "is";   // Local
+            default: return "active";   // RoomState
         }
     }
 
@@ -227,14 +226,13 @@ public class Door : MonoBehaviour
     {
         switch (conditionMode)
         {
-            case ConditionMode.Local:
-                return watchingCreature != null ? watchingCreature.creatureName : "-";
             case ConditionMode.LevelCount:
-                return $"{levelCountN}+ rooms";
+                return levelCountN.ToString();
             case ConditionMode.SignalGate:
                 if (gate == GateType.NOT) return "";
                 return gate == GateType.EQUALS ? InputRoom(InB) : InputSpecies(InB);
-            default: return "-";
+            default: // RoomState
+                return requiredState.ToString();   // "L" 또는 "A"
         }
     }
 
@@ -253,15 +251,8 @@ public class Door : MonoBehaviour
         return "?";
     }
 
-    // 방에 가장 많은 종족이 이 문이 요구하는 종족과 같은가 (H·HH는 같은 종족으로 취급)
-    private bool CheckCondition(CreatureData best)
-    {
-        return best != null && watchingCreature != null
-            && CreatureFamily.Same(best.creatureID, watchingCreature.creatureID);
-    }
-
-    // 레벨 전체에서 이 문이 요구하는 종족이 우세한 방의 개수
-    private int CountDominantRooms(CreatureData species)
+    // 레벨 전체에서 이 상태(L/A)로 활성화된 방의 개수
+    private int CountActiveRooms(Room.RoomActivation state)
     {
         if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
 
@@ -269,8 +260,7 @@ public class Door : MonoBehaviour
         foreach (var r in RoomManager.Instance.rooms.Values)
         {
             if (r == null) continue;
-            var best = r.MostNumerousSpecies();
-            if (best != null && CreatureFamily.Same(best.creatureID, species.creatureID)) count++;
+            if (r.Activation == state) count++;
         }
         return count;
     }

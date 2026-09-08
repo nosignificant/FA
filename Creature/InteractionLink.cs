@@ -30,6 +30,13 @@ public class InteractionLink : MonoBehaviour
             return;
         }
 
+        // 휴면(dormant) 중이면 선 안 그림 (think도 멈춰있음)
+        if (think != null && think.dormant)
+        {
+            lr.enabled = false;
+            return;
+        }
+
         // 내가 락온된 대상이고 chase/flee 중일 때만 상호작용 선 표시
         bool isSelfLocked = Player.Instance != null && Player.Instance.pl != null
                             && Player.Instance.pl.targetCreature == self;

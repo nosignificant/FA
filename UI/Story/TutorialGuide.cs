@@ -236,7 +236,8 @@ public class TutorialGuide : MonoBehaviour
         yield return SayLine("생물 L은 S를 2마리 합쳐 SS를 만들 수 있습니다.");
 
         Say("생물 L이 합성하는 모습을 관찰하십시오.");
-        while (!room.HasSpecies(CreatureID.SS)) yield return null;
+        // TODO: HH/SS 제거됨 — 이 튜토리얼(합성 소개)은 새 모델(LL→L 생산 등)에 맞게 재작성 필요.
+        yield return new WaitForSeconds(3f);
 
         yield return SayLine("이렇게 생물 L이 S생물 두 마리를 포획하면, SS로 합성할 수 있습니다.");
         yield return SayLine("생물은 주변과 상호작용합니다. 생물마다 좋아하는 생물, 싫어하는 생물이 존재하고 가까이 다가가거나 멀어지려 합니다.");

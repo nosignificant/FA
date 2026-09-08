@@ -7,7 +7,16 @@ using System.Linq;
 
 public class AAThink : TentacleThink
 {
-    private float singleGrabSince = -1f;
+    private float grabbedSince = -1f;
+
+    // 방에 H가 있으면 L을 잡지 않음 (H가 곧 묶을 테니 물러남 → H가 깨끗이 bind)
+    public override bool IsValidTarget(Creature target)
+    {
+        if (!base.IsValidTarget(target)) return false;
+        if (target.data != null && target.data.creatureID == CreatureID.L
+            && self.currentRoom != null && self.currentRoom.HasSpecies(CreatureID.H)) return false;
+        return true;
+    }
 
     private int GrabbedCount()
     {
@@ -19,35 +28,20 @@ public class AAThink : TentacleThink
         return n;
     }
 
-    // 꽂혀있는(기생) 동안엔 L을 쫓지 않음 → 원래 하던 일(H/S 잡아 A 합성)만
-    public override bool IsValidTarget(Creature target)
-    {
-        if (!base.IsValidTarget(target)) return false;
-        if (self != null && self.isPlugged && target.data != null
-            && target.data.creatureID == CreatureID.L) return false;
-        return true;
-    }
-
     protected override CreatureIntent DetermineIntent()
     {
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
 
-        int g = GrabbedCount();
-
-        // 2마리 → 즉시 합성
-        if (g >= 2) { singleGrabSince = -1f; return CreatureIntent.Synthesizing; }
-
-        // 1마리 → 2마리째 계속 사냥, 일정 시간 못 잡으면 그거 소비해 A 합성
-        if (g == 1)
+        // L을 잡으면 aaSingleGrabTimeout 동안 들고 대기 → 그 뒤 A로 변환 (1:1).
+        if (GrabbedCount() >= 1)
         {
-            if (singleGrabSince < 0f) singleGrabSince = Time.time;
-            float timeout = (self as AACreature)?.aaSingleGrabTimeout ?? 5f;
-            if (Time.time - singleGrabSince >= timeout)
-                return CreatureIntent.Synthesizing;
-            return DoesNeedToChase() ? CreatureIntent.Chase : CreatureIntent.Wander;
+            if (grabbedSince < 0f) grabbedSince = Time.time;
+            float hold = (self as AACreature)?.aaSingleGrabTimeout ?? 3f;
+            if (Time.time - grabbedSince >= hold) return CreatureIntent.Synthesizing;
+            return CreatureIntent.Wander;   // 잡은 채 대기 (새로 안 쫓음 → 2개 잡아 손실나는 것 방지)
         }
 
-        singleGrabSince = -1f;
+        grabbedSince = -1f;
         return DoesNeedToChase() ? CreatureIntent.Chase : CreatureIntent.Wander;
     }
     protected override bool DoesNeedToFlee()

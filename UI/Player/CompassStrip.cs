@@ -160,14 +160,12 @@ public class CompassStrip : MonoBehaviour
             foreach (Direction dir in DirectionExt.All)
             {
                 Door door = room.GetDoor(dir);
-                if (door == null || door.watchingCreature == null) continue;
+                if (door == null || door.alwaysOpen) continue;
 
                 if (!RelX(camYaw, HeadingOf(dir), halfWidth, out float x)) continue;
 
                 TMP_Text m = GetDoorMarker(shown++);
-                string name = string.IsNullOrEmpty(door.watchingCreature.creatureName)
-                    ? door.watchingCreature.creatureID.ToString()
-                    : door.watchingCreature.creatureName;
+                string name = door.requiredState.ToString();
                 m.text = door.isOpen ? $"[{name}]" : name;
                 ((RectTransform)m.transform).anchoredPosition = new Vector2(x, doorMarkerY);
             }

@@ -108,8 +108,8 @@ class DecomposeState : ThinkState
         Vector3 pos = target.transform.position;
         Room targetRoom = target.currentRoom;
 
-        // 즉사
-        target.TakeDamage(target.currentHP, think.self);
+        // 즉사 (HP 제거됨 → 바로 Die)
+        target.Die(think.self.data.creatureID);
 
         // D일 때만 분해 카운트 알림
         if (think.self.data.creatureID == CreatureID.D)

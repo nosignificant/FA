@@ -134,34 +134,13 @@ public class Dthink : Think2
 
     private void initDecomposeState()
     {
-        // D는 H, HH, S, SS, A를 분해 (산물 없음)
-        var dRules = new DecomposeState.DecomposeRule[]
+        // D는 개체수 조절용: 넘치는 입자 L/A만 분해 (산물 없음)
+        rules = new DecomposeState.DecomposeRule[]
         {
-            new DecomposeState.DecomposeRule { targetID = CreatureID.H,  productIDs = null, spawnCount = 0 },
-            new DecomposeState.DecomposeRule { targetID = CreatureID.HH, productIDs = null, spawnCount = 0 },
-            new DecomposeState.DecomposeRule { targetID = CreatureID.S,  productIDs = null, spawnCount = 0 },
-            new DecomposeState.DecomposeRule { targetID = CreatureID.SS, productIDs = null, spawnCount = 0 },
-            new DecomposeState.DecomposeRule { targetID = CreatureID.A,  productIDs = null, spawnCount = 0 },
+            new DecomposeState.DecomposeRule { targetID = CreatureID.L, productIDs = null, spawnCount = 0 },
+            new DecomposeState.DecomposeRule { targetID = CreatureID.A, productIDs = null, spawnCount = 0 },
         };
 
-        // SS는 A→H/S, AA→A 2개
-        var ssRules = new DecomposeState.DecomposeRule[]
-        {
-            new DecomposeState.DecomposeRule
-            {
-                targetID   = CreatureID.A,
-                productIDs = new[] { CreatureID.H, CreatureID.S },
-                spawnCount = 1
-            },
-            new DecomposeState.DecomposeRule
-            {
-                targetID   = CreatureID.AA,
-                productIDs = new[] { CreatureID.A },
-                spawnCount = 2
-            },
-        };
-
-        rules = (self.data.creatureID == CreatureID.D) ? dRules : ssRules;
         decomposeState = new DecomposeState(this, rules, decomposeRange, attachDuration, decomposeCooldown);
     }
 }

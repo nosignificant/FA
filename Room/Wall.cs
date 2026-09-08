@@ -29,11 +29,12 @@ public class Wall : MonoBehaviour
         if (yesDoorMesh != null) yesDoorMesh.SetActive(hasDoor);
     }
 
-    /// <summary>옆 방과 붙어있어서 벽 자체가 필요 없을 때 통째로 숨김</summary>
+    /// <summary>연결된 쪽: 문 슬롯의 noDoorMesh·yesDoorMesh 둘 다 off → 그 칸만 빈 구멍(통로). 나머지 벽은 그대로.</summary>
     public void Hide()
     {
         if (noDoorMesh != null) noDoorMesh.SetActive(false);
         if (yesDoorMesh != null) yesDoorMesh.SetActive(false);
+        // SetActive(false)면 콜라이더도 같이 꺼져 통과 가능.
     }
 
     public bool HasDoor =>

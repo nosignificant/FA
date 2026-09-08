@@ -1,7 +1,6 @@
 using CreatureTypes;
 
-// a: h/s를 쫓아 grab → 합성(ah/as). hh/ss로부터 도망.
-// 행동 규칙은 Interaction.GetActionForA에 정의돼 있음.
+// a: 수동 입자 — 상호작용 없음. 열린 문으로 흐르기만 함(RoomMigration). Wander 고정.
 public class Athink : TentacleThink
 {
     protected override CreatureIntent DetermineIntent()

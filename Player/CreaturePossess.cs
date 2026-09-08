@@ -101,12 +101,19 @@ public class CreaturePossess : MonoBehaviour
         if (target.data != null && target.data.dieOnPossess)
         {
             Player.Instance.TryAdvanceFromPossess(target);
-            if (!target.IsDead) target.TakeDamage(target.currentHP, Player.Instance.pc);
+            if (!target.IsDead) target.Die(CreatureID.Player);
             return;
         }
 
         Think2 brain = target.GetComponent<Think2>();
         if (brain == null) return;
+
+        // 휴면(dormant) 중인 생물은 조종 불가
+        if (brain.dormant)
+        {
+            ToastUI.Instance?.Show("휴면 중인 생물은 조종할 수 없습니다");
+            return;
+        }
 
         Possess(brain);
     }
@@ -194,11 +201,13 @@ public class CreaturePossess : MonoBehaviour
 
         // 발신기를 조종하다 해제하면, 연결돼 있던 발신을 끊는다 (tab-f로 발신 끊기)
         if (controlledCreature is SignalTransmitter tx) tx.OnPossessReleased();
-        // 그 외 생물을 L(생산기)에 락온한 채 놓으면 → 그 종을 L이 생산하게 꽂음
+        // H를 조종하다 AA에 락온한 채 놓으면(F) → 그 AA를 bind (T→R 연결처럼)
         else if (controlledCreature != null
+                 && controlledCreature.GetComponent<HBinder>() is HBinder hbnd
                  && Player.Instance != null && Player.Instance.pl != null
-                 && Player.Instance.pl.targetCreature is Lcreature Lprod)
-            Lprod.PlugCreature(controlledCreature);
+                 && Player.Instance.pl.targetCreature is Creature lockedAA
+                 && lockedAA.data != null && lockedAA.data.creatureID == CreatureID.AA)
+            hbnd.BindManual(lockedAA);
 
         CreatureControlSetting(controlledCreature, false);
         controlledCreature = null;

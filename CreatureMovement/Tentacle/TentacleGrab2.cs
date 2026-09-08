@@ -42,6 +42,18 @@ public class TentacleGrab2 : MonoBehaviour
         }
     }
 
+    // 실제로 슬롯에 잡은 게 있는지 (isPending=뻗는 중 은 제외). HUD "changing to" 판정용.
+    public bool HasActualGrab
+    {
+        get
+        {
+            if (tentacles == null) return false;
+            for (int i = 0; i < tentacles.Length; i++)
+                if (tentacles[i].isGrabbing && tentacles[i].grabbedCreature != null) return true;
+            return false;
+        }
+    }
+
     public void TryGrab(Creature target)
     {
         if (target.IsDead || target.data == null) return;

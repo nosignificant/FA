@@ -46,16 +46,13 @@ public class StatuesUI : MonoBehaviour
         var dm = DoorManager.Existing;
         if (dm != null)
         {
-            var map = dm.OpenDoorCountsBySpecies();
+            var map = dm.OpenDoorCountsByState();
             if (map.Count == 0) sb.AppendLine(" ");
             else
                 foreach (var kv in map)
-                    sb.AppendLine($"{Name(kv.Key)} : {kv.Value}개");
+                    sb.AppendLine($"{kv.Key} : {kv.Value}개");
         }
 
         text.text = sb.ToString().TrimEnd();
     }
-
-    private static string Name(CreatureData d) =>
-        d == null ? "-" : (string.IsNullOrEmpty(d.creatureName) ? d.creatureID.ToString() : d.creatureName);
 }

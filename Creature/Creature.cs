@@ -40,8 +40,8 @@ public class Creature : MonoBehaviour
 
 
     [Header("Instance")]
-    public int currentHP;
-    public bool IsDead => currentHP <= 0;
+    private bool _dead;
+    public bool IsDead => _dead;
     public bool IsGrabbed => intent == CreatureIntent.Decomposed || intent == CreatureIntent.Synthesized;
     // 플레이어가 조종 중 — 이 생물은 분해 대상이 되지 않음
     public bool IsControlled => intent == CreatureIntent.Controlled;
@@ -50,10 +50,10 @@ public class Creature : MonoBehaviour
     public bool lockable = true;
     public bool IsLockable => lockable && (data == null || data.lockable);
 
-    // L에 꽂힌 상태 (AA 등). 이 동안엔 L을 쫓지 않고 원래 하던 일을 함.
-    [System.NonSerialized] public bool isPlugged;
+    // bind 상태: 움직임만 멈춤(정지) + 활성 유지(색 안 잃음). dormant(휴면)와 별개.
+    [System.NonSerialized] public bool isBound;
 
-    // 생성 시각(초). 발열 분해에서 '가장 오래된 개체' 판정에 사용. 작을수록 오래됨.
+    // 생성 시각(초). 개체 나이 판정 등에 사용. 작을수록 오래됨.
     public float SpawnTime { get; private set; }
     public float Age => Time.time - SpawnTime;
 
@@ -73,32 +73,14 @@ public class Creature : MonoBehaviour
 
         if (interact == null) interact = gameObject.AddComponent<Interaction>();
 
-        currentHP = data.maxHP;
         SpawnTime = Time.time;
     }
 
-    public void TakeDamage(int amount, Creature who)
-    {
-        if (amount <= 0 || IsDead) return;
-
-        SetHP(currentHP - amount);
-        CreatureID w = who.data.creatureID;
-
-        if (currentHP == 0)
-            Die(w);
-    }
-
-    public void SetHP(int newHp)
-    {
-        int old = currentHP;
-        currentHP = Mathf.Clamp(newHp, 0, data.maxHP);
-    }
-
-
     public void Die(CreatureID who)
     {
-        if (!gameObject.activeSelf) return;
+        if (_dead || !gameObject.activeSelf) return;
 
+        _dead = true;
         Died?.Invoke(this, who);
         Destroy(gameObject);
     }
@@ -122,7 +104,7 @@ public class Creature : MonoBehaviour
     }
     public virtual void AttachedTo(Transform attachPoint)
     {
-        intent = grabbedBy != null && grabbedBy.data?.creatureID == CreatureID.D
+        intent = grabbedBy != null && grabbedBy.HasAction(data.creatureID, InteractionAction.Decompose)
             ? CreatureIntent.Decomposed
             : CreatureIntent.Synthesized;
         _grabBodies = GetComponentsInChildren<Rigidbody>();

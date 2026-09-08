@@ -118,6 +118,10 @@ public class Think2 : MonoBehaviour
     }
 
     [System.NonSerialized] public bool manualControl = false;
+    private bool _frozen = false;   // dormant/bind 진입 시 proxy 1회 고정 후 완전 정지
+    // 휴면 상태면 제자리 정지. HBinder/SBinder가 이 필드를 설정(H는 자기·AA 정지, S는 자기 정지).
+    [System.NonSerialized] public bool dormant = false;
+    protected virtual bool IsDormant() => dormant;
     public Transform ProxyTarget => proxyTarget;
 
     //플레이어가 조종하는 거 어떤 타겟을 가리키고 있든 프록시 타겟을 따라가게 만듦
@@ -140,6 +144,13 @@ public class Think2 : MonoBehaviour
 
         if (manualControl) return;
         if (self.IsGrabbed) return;
+        // 정지: bind/dormant면 진입 시 proxy를 자기 위치로 한 번만 고정 → 이후 think 완전 정지(EQS 안 움직임)
+        if (self.isBound || IsDormant())
+        {
+            if (!_frozen) { MoveProxy(self.rootTransform.position); _frozen = true; }
+            return;
+        }
+        _frozen = false;
         // 비활성 방은 상시 시뮬이 꺼져 있을 때만 완전 정지
         if (self.currentRoom != null && !self.currentRoom.isActive && !SimInactive) return;
         //방 기준 아니고 주변 전체 기준
@@ -289,6 +300,7 @@ public class Think2 : MonoBehaviour
     private void OnDrawGizmos()
     {
         if (proxyTarget == null || drawEqsPoints == false) return;
+        if (self != null && (self.isBound || IsDormant())) return;   // 정지 중엔 EQS gizmo 숨김
 
         Gizmos.color = (self.intent == CreatureIntent.Flee) ? Color.red : Color.green;
         Gizmos.DrawLine(self.rootTransform.position, proxyTarget.position);

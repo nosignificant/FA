@@ -52,6 +52,84 @@ public class Room : MonoBehaviour
         if (signalTransmitter != null) signalTransmitter.gameObject.SetActive(isT);
     }
 
+    // ── 방 활성화 상태 (L/A) ──────────────────────────────────────
+    public enum RoomActivation { None, L, A }
+
+    [Header("activation (L/A 상태)")]
+    [Tooltip("방 안 L/A 입자 중 우세한 쪽으로 활성화. 문 열림·생물 각성 기준.")]
+    public RoomActivation activation = RoomActivation.None;
+    [Tooltip("활성화 갱신 주기(초)")]
+    public float activationCheckInterval = 0.3f;
+    [Tooltip("우세한 쪽 입자 수가 이 값 이상이어야 L/A로 활성화. 1이면 1마리로도 활성화.")]
+    public int activationMinCount = 1;
+
+    public RoomActivation Activation => activation;
+    public event Action<RoomActivation> OnActivationChanged;
+
+    // 색은 각 WallActivationTint가 관리. Room은 자식에서 모아 상태 바뀔 때 Apply 호출.
+    private WallActivationTint[] activationTints;
+    private void CollectWalls() => activationTints = GetComponentsInChildren<WallActivationTint>(true);
+    private void RefreshWalls()
+    {
+        if (activationTints == null) return;
+        for (int i = 0; i < activationTints.Length; i++)
+            if (activationTints[i] != null) activationTints[i].Apply(activation);
+    }
+
+    // 방 안 L/A 우세로 활성화 계산 (동수는 현 상태 유지 → 깜빡임 방지)
+    private RoomActivation ComputeActivation()
+    {
+        int nL = 0, nA = 0;
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c == null || c.IsDead || c.data == null) continue;
+            var id = c.data.creatureID;
+            if (id == CreatureID.L) nL++;
+            else if (id == CreatureID.A) nA++;
+        }
+        if (nA > nL) return nA >= activationMinCount ? RoomActivation.A : RoomActivation.None;
+        if (nL > nA) return nL >= activationMinCount ? RoomActivation.L : RoomActivation.None;
+        return nL == 0 ? RoomActivation.None : activation;   // 동수(0이면 None, 아니면 유지)
+    }
+
+    private void SetActivation(RoomActivation a)
+    {
+        if (a == activation) return;
+        activation = a;
+        RefreshWalls();                     // 벽 색 갱신
+        OnActivationChanged?.Invoke(a);
+        OnCreatureCountChanged?.Invoke();   // 문 조건 재평가
+    }
+
+    private IEnumerator ActivationLoop()
+    {
+        CollectWalls();
+        RefreshWalls();   // 초기 색
+        var wait = new WaitForSeconds(activationCheckInterval);
+        while (true)
+        {
+            SetActivation(ComputeActivation());
+            yield return wait;
+        }
+    }
+
+    // 이 방에 접한 부술 수 있는 벽들 (S가 찾아 부숨). BreakableWall이 등록.
+    [System.NonSerialized] public List<BreakableWall> breakableWalls = new();
+    public void RegisterBreakable(BreakableWall w)
+    {
+        if (w != null && !breakableWalls.Contains(w)) breakableWalls.Add(w);
+    }
+    public void UnregisterBreakable(BreakableWall w) => breakableWalls.Remove(w);
+
+    // 부서진 벽 = 통로. migration이 이 자리(틈)로 향해 옆방으로 넘어감.
+    [System.NonSerialized] public List<BreakableWall> brokenPassages = new();
+    public void RegisterPassage(BreakableWall w)
+    {
+        if (w != null && !brokenPassages.Contains(w)) brokenPassages.Add(w);
+    }
+    public void UnregisterPassage(BreakableWall w) => brokenPassages.Remove(w);
+
     public void RegisterDoor(Door d)
     {
         if (d == null) return;
@@ -64,11 +142,11 @@ public class Room : MonoBehaviour
         doors.Remove(d);
     }
 
-    [Header("heat (발열)")]
-    [Tooltip("방 안 분해가능 생물 수가 이 값을 넘으면 발열 상태 → D가 분해 시작. 0 이하면 발열 없음")]
+    [Header("heat (발열/과밀)")]
+    [Tooltip("방 안 L/A 입자 수가 이 값을 넘으면 과밀 → D가 정리. 0 이하면 발열 없음")]
     public int heatThreshold = 0;
 
-    // 발열 계산용 개체 수: D/Door/Player·제외 종(weed)을 뺀 살아있는 생물
+    // 과밀 계산: 방 안 살아있는 L/A 입자 수
     public int HeatLoad()
     {
         int n = 0;
@@ -76,15 +154,13 @@ public class Room : MonoBehaviour
         {
             var c = creatureList[i];
             if (c == null || c.IsDead || c.data == null) continue;
-            if (c.data.excludeFromRoomCount) continue;
             var id = c.data.creatureID;
-            if (id == CreatureID.D || IsExcludedFromCount(id)) continue;
-            n++;
+            if (id == CreatureID.L || id == CreatureID.A) n++;
         }
         return n;
     }
 
-    // 과밀 상태 — D가 이때만 분해
+    // 과밀 상태 — D가 이때만 정리
     public bool IsHot => heatThreshold > 0 && HeatLoad() > heatThreshold;
 
     private bool creaturesFrozen = false;
@@ -153,7 +229,7 @@ public class Room : MonoBehaviour
     }
 
     // 방 안에 살아있는 생물 중 가장 수가 많은 종족(family). 문 열림 기준.
-    // H·HH처럼 같은 종족은 합산해서 하나로 취급. 반환값은 그 종족의 대표 CreatureData.
+    // 같은 종족은 합산해서 하나로 취급. 반환값은 그 종족의 대표 CreatureData.
     public CreatureData MostNumerousSpecies()
     {
         // 종족별 합산 카운트 + 대표 asset (가장 수 많은 개별 asset을 대표로)
@@ -222,7 +298,16 @@ public class Room : MonoBehaviour
         return null;
     }
 
-    public Wall GetWall(Direction dir) => GetWallSlot(dir)?.wall;
+    public Wall GetWall(Direction dir)
+    {
+        // wallSlots에 지정돼 있으면 그것 우선
+        var slot = GetWallSlot(dir);
+        if (slot.HasValue && slot.Value.wall != null) return slot.Value.wall;
+        // 없으면 자식 Wall 중 direction 일치하는 것 자동 탐색 (wallSlots 미설정/끊김 대비)
+        foreach (var w in GetComponentsInChildren<Wall>(true))
+            if (w != null && w.direction == dir) return w;
+        return null;
+    }
     // 문 참조는 Wall이 들고 있음 (slot.door가 아니라 slot.wall.door)
     public Door GetDoor(Direction dir) => GetWall(dir)?.door;
 
@@ -295,6 +380,8 @@ public class Room : MonoBehaviour
 
         EnsureOneD();
         if (minDCount > 0) StartCoroutine(DKeepAliveLoop());
+
+        StartCoroutine(ActivationLoop());   // L/A 방 상태 갱신
     }
 
     // bounds 안에 있는 모든 생물을 이 방 소속으로 등록 (Door의 self 포함)

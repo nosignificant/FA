@@ -51,25 +51,24 @@ public class DoorManager : MonoBehaviour
     // 문이 열리거나 닫힐 때 Door가 호출
     public void NotifyDoorChanged() => OnOpenDoorsChanged?.Invoke();
 
-    // 특정 종을 watching하는 "열린" 문 개수
-    public int OpenDoorCount(CreatureData species)
+    // 특정 상태(L/A)를 요구하는 "열린" 문 개수
+    public int OpenDoorCount(Room.RoomActivation state)
     {
-        if (species == null) return 0;
         int n = 0;
         foreach (var d in doors)
-            if (d != null && d.isOpen && d.watchingCreature == species) n++;
+            if (d != null && d.isOpen && d.requiredState == state) n++;
         return n;
     }
 
-    // 현재 열린 문을 watching 종별로 합산 (statues UI용)
-    public Dictionary<CreatureData, int> OpenDoorCountsBySpecies()
+    // 현재 열린 문을 요구 상태(L/A)별로 합산 (statues UI용)
+    public Dictionary<Room.RoomActivation, int> OpenDoorCountsByState()
     {
-        var map = new Dictionary<CreatureData, int>();
+        var map = new Dictionary<Room.RoomActivation, int>();
         foreach (var d in doors)
         {
-            if (d == null || !d.isOpen || d.watchingCreature == null) continue;
-            map.TryGetValue(d.watchingCreature, out int c);
-            map[d.watchingCreature] = c + 1;
+            if (d == null || !d.isOpen) continue;
+            map.TryGetValue(d.requiredState, out int c);
+            map[d.requiredState] = c + 1;
         }
         return map;
     }

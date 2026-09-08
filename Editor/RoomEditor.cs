@@ -114,14 +114,14 @@ public class RoomEditor : Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(dirLabel, GUILayout.Width(30));
 
-            // 조건 옵저빙 생물
+            // 요구 방 상태 (L/A)
             EditorGUI.BeginChangeCheck();
-            CreatureData newObs = (CreatureData)EditorGUILayout.ObjectField(
-                d.watchingCreature, typeof(CreatureData), false, GUILayout.MinWidth(80));
+            Room.RoomActivation newState = (Room.RoomActivation)EditorGUILayout.EnumPopup(
+                d.requiredState, GUILayout.MinWidth(80));
             if (EditorGUI.EndChangeCheck())
             {
                 Undo.RecordObject(d, "Edit Door Condition");
-                d.watchingCreature = newObs;
+                d.requiredState = newState;
                 EditorUtility.SetDirty(d);
             }
 

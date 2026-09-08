@@ -71,6 +71,15 @@ public class Popup : MonoBehaviour
     // 외부에서 임의 문구 팝업 (예: 조종 시작 시 "controlled"). color 지정 가능
     public void BurstMessage(Creature target, string message, Color? color = null) => Burst(target, message, color);
 
+    // 위치에서 이펙트 터뜨림 (생물 아닌 대상용, 예: 부서지는 벽). message 비우면 내용 없이 이펙트만.
+    public void BurstAt(Vector3 worldPos, string message = "", Color? color = null)
+    {
+        if (popupPrefab == null) return;
+        string[] msgs = new string[burstCount];
+        for (int i = 0; i < burstCount; i++) msgs[i] = message;
+        StartCoroutine(SpawnRoutine(worldPos + offset, msgs, fixedLifeTime, spawnInterval, color));
+    }
+
     // 스토리 생물 빙의 → 현재 단계 대사 줄들을 "줄당 하나씩" 뿌림 (외부에서 호출)
     public void BurstStoryLines(Creature target)
     {

@@ -9,7 +9,6 @@ namespace CreatureTypes
         Decomposed = 8,
         Synthesized = 9,
         Decomposing = 4,
-        Attack = 5,
         Synthesizing = 6,
         Controlled = 7,
     }
@@ -21,26 +20,21 @@ namespace CreatureTypes
         Flee = 2,
         Grab = 3,
         Decompose = 4,
-        Attack = 5,
         Synthesize = 6,
     }
+    // int 값은 기존 직렬화(에셋/프리팹의 creatureID) 유지를 위해 그대로 둠.
     public enum CreatureID
     {
         Player = 0,
         H = 1,
-        HH = 2,
         S = 3,
-        SS = 4,
         A = 5,
         AA = 6,
-        AH = 7,
-        AS = 8,
-        L = 9,
-        D = 10,
-        M = 11,
-        T = 12,
-        R = 13,
-        LL = 14,   // 합성 전용 (생산 안 함). L은 생산기로 분리
+        L = 9,     // 똥(입자): 문으로 흐름, 방을 L로 활성화
+        D = 10,    // 분해자: 과밀(발열)한 방의 입자/base를 정리 (개체수 조절)
+        T = 12,    // 발신
+        R = 13,    // 수신
+        LL = 14,   // L을 생산하며 돌아다니는 생산기
 
         Door = 97,
         WalkingWeed = 98, // 상호작용 없음
@@ -49,26 +43,11 @@ namespace CreatureTypes
 
     }
 
-    // 종족(family) 묶음 — 문 우세 판정에서 같은 계열은 한 종으로 취급.
-    // 예: H·HH는 같은 종족. 나머지는 자기 자신이 종족.
+    // 종족(family) 묶음 — 문 우세 판정용. 현재는 각 종이 곧 자기 종족.
     public static class CreatureFamily
     {
-        public static CreatureID Of(CreatureID id)
-        {
-            switch (id)
-            {
-                case CreatureID.H:
-                case CreatureID.HH:
-                    return CreatureID.H;
-                case CreatureID.S:
-                case CreatureID.SS:
-                    return CreatureID.S;
-                default:
-                    return id;
-            }
-        }
-
-        public static bool Same(CreatureID a, CreatureID b) => Of(a) == Of(b);
+        public static CreatureID Of(CreatureID id) => id;
+        public static bool Same(CreatureID a, CreatureID b) => a == b;
     }
 
 }

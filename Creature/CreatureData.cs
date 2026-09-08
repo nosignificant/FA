@@ -9,7 +9,6 @@ public class CreatureData : ScriptableObject
     public CreatureID creatureID;
     public GameObject prefab;
     public float spawnYOffset = 0f;
-    public bool canAttackThis = true;
     public bool isGrabable = true;
     public bool lockable = true;       // 플레이어가 락온(관찰) 가능 여부
     public bool controllable = true;   // 플레이어 조종(possess) 가능 여부
@@ -21,7 +20,6 @@ public class CreatureData : ScriptableObject
     public bool walkingCreature = false;
 
     [Header("stat")]
-    public int maxHP;
     public float weight = 1.0f;
     public float fleeWeight = 1f;
     public float chaseWeight = 1f;

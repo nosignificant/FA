@@ -105,8 +105,13 @@ public class CreatureHUD : MonoBehaviour
         ApplyRectSize();
 
 
+        // 조종 중이면 항상 "controlled by"
+        if (targetCreature.intent == CreatureIntent.Controlled)
+        {
+            if (statusText != null) statusText.text = "controlled by";
+        }
         // 발신기: intent 대신 현재 발신 중인 종(자기 방 우세종)
-        if (targetCreature is SignalTransmitter tx)
+        else if (targetCreature is SignalTransmitter tx)
         {
             var sig = tx.CurrentSignal;
             if (statusText != null) statusText.text = sig != null ? $"send  {sig.creatureName}" : " send -";
@@ -116,11 +121,21 @@ public class CreatureHUD : MonoBehaviour
         {
             if (statusText != null) statusText.text = $"receive {rcv.SlotSpecies(0)}\nreceive {rcv.SlotSpecies(1)}";
         }
-        // L 생산기: 도망 아니면 "produce", 도망이면 "flee"
+        // H (AA 묶기): bind / chase / wander / dormant
+        else if (targetCreature.GetComponent<HBinder>() is HBinder hb)
+        {
+            if (statusText != null) statusText.text = hb.HudStatus();
+        }
+        // S (벽 부수기): breaking / goto / wander / dormant
+        else if (targetCreature.GetComponent<SBreaker>() is SBreaker sb)
+        {
+            if (statusText != null) statusText.text = sb.HudStatus();
+        }
+        // LL 생산기: 도망 아니면 "produce", 도망이면 "run away"
         else if (targetCreature is Lcreature lp && lp.IsProducer)
         {
             if (statusText != null)
-                statusText.text = (lp.intent == CreatureIntent.Flee) ? "flee" : "produce";
+                statusText.text = (lp.intent == CreatureIntent.Flee) ? "run away" : "produce";
         }
         //door일 때 — 열리려면 충족해야 하는 조건 표시 (Local 종/LevelCount/SignalGate 게이트)
         else if (targetCreature.data.creatureID == CreatureID.Door)
@@ -128,13 +143,10 @@ public class CreatureHUD : MonoBehaviour
             Door d = targetCreature.GetComponent<Door>();
             statusText.text = d != null ? d.ConditionLabel() : "-";
         }
-        else
+        // 나머지 (AA / D / L / A 등)
+        else if (statusText != null)
         {
-            if (statusText != null && Player.Instance != null)
-            {
-                var it = pl.targetCreature.intent;
-                statusText.text = it == CreatureIntent.Controlled ? "controlled by" : it.ToString();
-            }
+            statusText.text = StatusForSpecies(targetCreature);
         }
 
         if (nameText != null && Player.Instance != null)
@@ -182,6 +194,22 @@ public class CreatureHUD : MonoBehaviour
             {
                 targetText.text = "player";
             }
+            // S: 부수는 대상은 벽
+            else if (targetCreature.GetComponent<SBreaker>() != null)
+            {
+                targetText.text = "wall";
+            }
+            // H: 묶은 AA (없으면 아래 일반 처리로)
+            else if (targetCreature.GetComponent<HBinder>() is HBinder hbt && hbt.HeldAA() != null)
+            {
+                targetText.text = hbt.HeldAA().data.creatureName;
+            }
+            // AA가 L 잡고 있으면(변환 중): 만들 종(A)
+            else if (targetCreature.data.creatureID == CreatureID.AA
+                     && targetCreature.GetComponentInChildren<TentacleGrab2>() is TentacleGrab2 aag && aag.HasActualGrab)
+            {
+                targetText.text = "A";
+            }
             else
             {
                 Think2 think = targetCreature.GetComponent<Think2>();
@@ -191,6 +219,26 @@ public class CreatureHUD : MonoBehaviour
         }
 
 
+    }
+
+    // AA/D/L/A 등 컴포넌트 특수처리 없는 종의 status 라벨
+    private string StatusForSpecies(Creature cr)
+    {
+        // H에게 묶인 AA(isBound)·다른 생물에 잡힌 것(IsGrabbed) 다 "grabbed"로 표시
+        if (cr.isBound || cr.IsGrabbed) return "grabbed";
+
+        switch (cr.data.creatureID)
+        {
+            case CreatureID.AA:
+                var aaGrab = cr.GetComponentInChildren<TentacleGrab2>();
+                if (aaGrab != null && aaGrab.HasActualGrab) return "changing to";   // 실제로 잡은 뒤에만
+                if (cr.intent == CreatureIntent.Chase) return "chase";
+                return "wander";
+            case CreatureID.D:  return "decompose";
+            case CreatureID.L:
+            case CreatureID.A:  return "wander";
+            default:            return cr.intent.ToString();
+        }
     }
 
     private bool CalculateBoxCoordinates()

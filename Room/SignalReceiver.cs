@@ -4,7 +4,7 @@ using UnityEngine;
 // 슬롯 2개(slot0/slot1)의 compare·target·compareRoom은 설계 시(인스펙터) 고정,
 // 발신기가 런타임에 각 슬롯의 room만 바꿔 꽂는다.
 //
-// 주의: 발신기와 동일하게 CreatureData에 excludeFromRoomCount=true, maxHP>=1,
+// 주의: 발신기와 동일하게 CreatureData에 excludeFromRoomCount=true,
 //       분해·grab 제외. 슬롯 해제(tab-f)를 위해 controllable=true + Think2 필요.
 public class SignalReceiver : Creature
 {
