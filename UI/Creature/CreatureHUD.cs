@@ -161,8 +161,13 @@ public class CreatureHUD : MonoBehaviour
         }
         if (targetText != null)
         {
+            // 조종 중이면 종족 무관하게 "controlled by player" (다른 분기보다 먼저)
+            if (targetCreature.intent == CreatureIntent.Controlled)
+            {
+                targetText.text = "player";
+            }
             // 발신기: 어느 방으로 보내는지
-            if (targetCreature is SignalTransmitter txr)
+            else if (targetCreature is SignalTransmitter txr)
             {
                 var toRoom = txr.ConnectedRoom;
                 targetText.text = toRoom != null ? $"{toRoom.roomID}" : "-";
@@ -188,11 +193,6 @@ public class CreatureHUD : MonoBehaviour
                     targetText.text = ftc != null ? ftc.data.creatureName : "-";
                 }
                 else targetText.text = $"{lprod.currentSpawn}";
-            }
-            // 조종 중이면 "controlled by player"
-            else if (targetCreature.intent == CreatureIntent.Controlled)
-            {
-                targetText.text = "player";
             }
             // S: 부수는 대상은 벽
             else if (targetCreature.GetComponent<SBreaker>() != null)

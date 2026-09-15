@@ -13,9 +13,12 @@ public class HBinder : MonoBehaviour
     public float checkInterval = 0.2f;
     [Tooltip("AA를 가리킬 촉수들 (비우면 자식의 모든 Tentacle 자동 사용)")]
     public Tentacle[] bindTentacles;
+    [Tooltip("레벨 시작부터 각성(조종 가능). 방이 아직 L이 아니어도 처음부터 H를 쓰게 할 때.")]
+    public bool startActivated = false;
 
     private Creature self;
     private Think2 think;
+    private CreatureScanner scanner;
     private Creature boundAA;
     private Transform[] tentacleOldTargets;
 
@@ -23,6 +26,7 @@ public class HBinder : MonoBehaviour
     {
         self = GetComponent<Creature>();
         think = GetComponent<Think2>();
+        scanner = GetComponent<CreatureScanner>();
         self.canMigrate = false;   // 도구 — 방에 묶임
         if (bindTentacles == null || bindTentacles.Length == 0)
             bindTentacles = GetComponentsInChildren<Tentacle>();
@@ -32,7 +36,11 @@ public class HBinder : MonoBehaviour
     private void OnDisable() { if (self != null) self.Died -= OnDied; }
     private void OnDied(Creature c, CreatureID who) => Release();
 
-    private void Start() => StartCoroutine(Loop());
+    private void Start()
+    {
+        if (startActivated) activated = true;   // 레벨 설정: 시작부터 켜두기
+        StartCoroutine(Loop());
+    }
 
     private IEnumerator Loop()
     {
@@ -54,16 +62,29 @@ public class HBinder : MonoBehaviour
         Release();
     }
 
-    // 각성 래치: 방이 한번 L이 되면 켜짐. 이후 AA가 있으면 계속 켜짐. L도 아니고 AA도 없으면 꺼짐.
+    // 각성 래치: 방이 한번 L이 되면 켜짐. 이후 인식범위(스캐너) 안에 AA가 있으면 계속 켜짐.
+    // L도 아니고 인식범위에 AA도 없으면 꺼짐. (H가 방을 넘나들어도 손 닿는 곳에 AA 있으면 유지)
     private bool activated;
     private void UpdateActivated()
     {
         var room = self.currentRoom;
-        if (room == null) { activated = false; return; }
-        if (room.Activation == Room.RoomActivation.L) { activated = true; return; }   // L → 켜짐(래치)
-        // 여기부턴 방이 A 또는 None
-        if (!room.HasSpecies(CreatureID.AA)) activated = false;   // L도 아니고 AA도 없으면 꺼짐
-        // (L 아니지만 AA 있으면 → 현재 상태 유지 = 계속 켜짐)
+        if (room != null && room.Activation == Room.RoomActivation.L) { activated = true; return; }   // L → 켜짐(래치)
+        // 여기부턴 방이 A/None/없음
+        if (!AAInRange()) activated = false;   // 인식범위에 AA 없으면 꺼짐 (있으면 현재 상태 유지)
+    }
+
+    // 스캐너 인식범위(scanRadius) 안에 살아있는 AA가 있나
+    private bool AAInRange()
+    {
+        if (scanner == null) return false;
+        var results = scanner.Results;
+        for (int i = 0; i < results.Count; i++)
+        {
+            var c = results[i];
+            if (c != null && !c.IsDead && c.data != null && c.data.creatureID == CreatureID.AA)
+                return true;
+        }
+        return false;
     }
     private bool IsAwake() => activated;
 

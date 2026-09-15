@@ -161,12 +161,13 @@ public class CompassStrip : MonoBehaviour
             {
                 Door door = room.GetDoor(dir);
                 if (door == null || door.alwaysOpen) continue;
+                if (!door.isOpen) continue;   // 비활성(닫힌) 문은 컴퍼스에 표기 안 함
 
                 if (!RelX(camYaw, HeadingOf(dir), halfWidth, out float x)) continue;
 
                 TMP_Text m = GetDoorMarker(shown++);
                 string name = door.requiredState.ToString();
-                m.text = door.isOpen ? $"[{name}]" : name;
+                m.text = $"[{name}]";
                 ((RectTransform)m.transform).anchoredPosition = new Vector2(x, doorMarkerY);
             }
         }

@@ -35,6 +35,20 @@ public class Door : MonoBehaviour
     [Tooltip("LevelCount 모드: requiredState로 활성화된 방이 레벨 안에 이 개수 이상이면 열림")]
     public int levelCountN = 3;
 
+    [Header("Condition Graphics (선택)")]
+    [Tooltip("조건 종류별로 켤 그래픽. 비워두면 아무것도 안 함. 시작 시·조건 종류 바뀔 때 해당하는 것만 켜짐.")]
+    public GameObject roomStateGraphic;
+    public GameObject levelCountGraphic;
+    public GameObject signalGateGraphic;
+
+    [Header("RoomState 그래픽 색 (requiredState 따라 틴트)")]
+    [Tooltip("켜면 roomStateGraphic을 requiredState(L/A) 색으로 칠함")]
+    public bool tintRoomStateGraphic = true;
+    [Tooltip("셰이더 색 프로퍼티 override. 비우면 자동(_BaseColor/_Color, SpriteRenderer는 .color)")]
+    public string roomStateColorProperty = "";
+    public Color lColor = new Color(0.6f, 1f, 0.3f);
+    public Color aColor = new Color(0.9f, 0.2f, 0.2f);
+
     [Header("SignalGate")]
     [Tooltip("이 문이 읽을 수신기. 있으면 슬롯0/1을 입력으로 사용")]
     public SignalReceiver receiver;
@@ -54,6 +68,23 @@ public class Door : MonoBehaviour
     private float originalUpperY;
     private float originalLowerY;
     private Coroutine moveCo;
+
+    // 조건 종류(conditionMode)에 맞는 그래픽만 켜기. 슬롯 비면 무시.
+    public void ApplyConditionGraphic()
+    {
+        bool isRoomState = conditionMode == ConditionMode.RoomState;
+        if (roomStateGraphic  != null) roomStateGraphic.SetActive(isRoomState);
+        if (levelCountGraphic != null) levelCountGraphic.SetActive(conditionMode == ConditionMode.LevelCount);
+        if (signalGateGraphic != null) signalGateGraphic.SetActive(conditionMode == ConditionMode.SignalGate);
+
+        // RoomState 그래픽을 requiredState(L/A) 색으로 틴트
+        if (isRoomState && tintRoomStateGraphic && roomStateGraphic != null)
+        {
+            var rs = roomStateGraphic.GetComponentsInChildren<Renderer>(true);
+            Color c = requiredState == Room.RoomActivation.A ? aColor : lColor;
+            ActivationColor.Apply(rs, c, roomStateColorProperty);
+        }
+    }
 
     public Room GetOtherRoom(Room from)
     {
@@ -82,6 +113,8 @@ public class Door : MonoBehaviour
 
         roomA?.RegisterDoor(this);
         roomB?.RegisterDoor(this);
+
+        ApplyConditionGraphic();   // 조건 종류에 맞는 그래픽만 켜기
 
         // 조명을 현재 isOpen 상태에 맞춰 초기화 (닫힌 채 시작 시 조명 꺼짐)
         if (light != null) light.SetActive(isOpen);

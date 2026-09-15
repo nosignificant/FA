@@ -60,8 +60,11 @@ public class Room : MonoBehaviour
     public RoomActivation activation = RoomActivation.None;
     [Tooltip("활성화 갱신 주기(초)")]
     public float activationCheckInterval = 0.3f;
-    [Tooltip("우세한 쪽 입자 수가 이 값 이상이어야 L/A로 활성화. 1이면 1마리로도 활성화.")]
+    [Tooltip("우세한 쪽 입자 수가 이 값 이상이어야 L/A로 활성화(켜짐 기준).")]
     public int activationMinCount = 1;
+    [Tooltip("히스테리시스: 한번 활성화되면 그 종 입자가 이 수 이하로 떨어질 때까지 상태 유지(꺼짐 기준). " +
+             "문 열리자마자 입자가 빠져 바로 닫히는 진동 방지. 기본 0 = 다 빠질 때까지 유지.")]
+    public int activationHoldCount = 0;
 
     public RoomActivation Activation => activation;
     public event Action<RoomActivation> OnActivationChanged;
@@ -88,6 +91,12 @@ public class Room : MonoBehaviour
             if (id == CreatureID.L) nL++;
             else if (id == CreatureID.A) nA++;
         }
+        // 히스테리시스: 이미 활성 상태면, 그 종이 hold 기준 초과로 남아있는 한 유지(우세만 지키면 됨).
+        // → 문이 열려 입자가 빠지기 시작해도 무리가 다 통과할 때까지 상태 유지(진동 방지).
+        if (activation == RoomActivation.L && nL > activationHoldCount && nL >= nA) return RoomActivation.L;
+        if (activation == RoomActivation.A && nA > activationHoldCount && nA >= nL) return RoomActivation.A;
+
+        // 새로 켜기: 우세 + activationMinCount 이상
         if (nA > nL) return nA >= activationMinCount ? RoomActivation.A : RoomActivation.None;
         if (nL > nA) return nL >= activationMinCount ? RoomActivation.L : RoomActivation.None;
         return nL == 0 ? RoomActivation.None : activation;   // 동수(0이면 None, 아니면 유지)
@@ -428,6 +437,7 @@ public class Room : MonoBehaviour
             if (c.data.creatureID == CreatureID.D) continue;      // D는 KillStrayD가 처리
             if (c.data.creatureID == CreatureID.Door) continue;   // 문은 경계에 있으니 제외
             if (c.data.creatureID == CreatureID.Player) continue; // 플레이어는 직접 이동하니 제외
+            if (c.IsControlled) continue;                         // 조종 중인 생물은 플레이어가 몰고 다님(방 이동 허용)
 
             // 이주 중이면 건드리지 않음 (문 통과 중일 수 있음)
             var mig = c.GetComponent<RoomMigration>();

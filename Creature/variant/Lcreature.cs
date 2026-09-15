@@ -42,7 +42,8 @@ public class Lcreature : TentacleCreature
         var wait = new WaitForSeconds(fleeCheckInterval);
         while (!IsDead)
         {
-            if (tc != null && currentRoom != null && currentRoom.HasSpecies(CreatureID.AA))
+            // 플레이어가 조종 중이면 도망 로직이 이동을 덮어쓰지 않음
+            if (!IsControlled && tc != null && currentRoom != null && currentRoom.HasSpecies(CreatureID.AA))
             {
                 Transform t = PickExitTargetAwayFromAA();
                 if (t != null) tc.SetMovementTarget(t);
