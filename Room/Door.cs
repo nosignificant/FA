@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 using CreatureTypes;
 
 public class Door : MonoBehaviour
@@ -15,9 +16,12 @@ public class Door : MonoBehaviour
 
     [Header("Door")]
     public Collider playerBlockCollider;
+    [Tooltip("열릴 때 각 문짝이 좌우로 밀려나는 거리")]
     public float moveDist = 10f;
-    public Transform upperDoor;
-    public Transform lowerDoor;
+    [Tooltip("오른쪽으로 열릴 문짝 (transform.right 방향)")]
+    [FormerlySerializedAs("upperDoor")] public Transform rightDoor;
+    [Tooltip("왼쪽으로 열릴 문짝")]
+    [FormerlySerializedAs("lowerDoor")] public Transform leftDoor;
 
     public enum ConditionMode
     {
@@ -36,18 +40,31 @@ public class Door : MonoBehaviour
     public int levelCountN = 3;
 
     [Header("Condition Graphics (선택)")]
-    [Tooltip("조건 종류별로 켤 그래픽. 비워두면 아무것도 안 함. 시작 시·조건 종류 바뀔 때 해당하는 것만 켜짐.")]
-    public GameObject roomStateGraphic;
+    [Tooltip("조건 종류별로 켤 그래픽. 비워두면 아무것도 안 함. 시작 시·조건 바뀔 때 해당하는 것만 켜짐.")]
     public GameObject levelCountGraphic;
     public GameObject signalGateGraphic;
 
-    [Header("RoomState 그래픽 색 (requiredState 따라 틴트)")]
-    [Tooltip("켜면 roomStateGraphic을 requiredState(L/A) 색으로 칠함")]
+    [Header("RoomState 그래픽 (requiredState별 다른 스프라이트)")]
+    [Tooltip("RoomState 모드 + requiredState=L 일 때 켤 그래픽")]
+    public GameObject roomStateGraphicL;
+    [Tooltip("RoomState 모드 + requiredState=A 일 때 켤 그래픽")]
+    public GameObject roomStateGraphicA;
+
+    [Header("RoomState 그래픽 색 틴트")]
+    [Tooltip("켜면 L/A 그래픽을 각각 지정한 색으로 칠함")]
     public bool tintRoomStateGraphic = true;
     [Tooltip("셰이더 색 프로퍼티 override. 비우면 자동(_BaseColor/_Color, SpriteRenderer는 .color)")]
     public string roomStateColorProperty = "";
-    public Color lColor = new Color(0.6f, 1f, 0.3f);
-    public Color aColor = new Color(0.9f, 0.2f, 0.2f);
+    public Color lColor = new Color(0.6f, 1f, 0.3f);   // L 그래픽(스프라이트) 색
+    public Color aColor = new Color(0.9f, 0.2f, 0.2f); // A 그래픽(스프라이트) 색
+
+    [Header("문짝(3D, 양옆 오브젝트) 색 틴트 — 스프라이트와 별개")]
+    [Tooltip("켜면 left/right 문짝을 requiredState(L/A)에 맞는 색으로 칠함")]
+    public bool tintDoorPanels = false;
+    [Tooltip("셰이더 색 프로퍼티 override. 비우면 자동(_BaseColor/_Color)")]
+    public string doorPanelColorProperty = "";
+    public Color lDoorColor = new Color(0.6f, 1f, 0.3f);   // L일 때 문짝 색
+    public Color aDoorColor = new Color(0.9f, 0.2f, 0.2f); // A일 때 문짝 색
 
     [Header("SignalGate")]
     [Tooltip("이 문이 읽을 수신기. 있으면 슬롯0/1을 입력으로 사용")]
@@ -65,25 +82,51 @@ public class Door : MonoBehaviour
     public bool isOpen = false;
     [Tooltip("항상 열린 통로. 조건·다른 문과 무관하게 계속 열려 있음 (isOpen 런타임 상태와 별개)")]
     public bool alwaysOpen = false;
-    private float originalUpperY;
-    private float originalLowerY;
+    private Vector3 originalRightPos;
+    private Vector3 originalLeftPos;
     private Coroutine moveCo;
 
     // 조건 종류(conditionMode)에 맞는 그래픽만 켜기. 슬롯 비면 무시.
+    // RoomState면 requiredState(L/A)에 맞는 스프라이트만 켜고 나머지는 끔.
     public void ApplyConditionGraphic()
     {
         bool isRoomState = conditionMode == ConditionMode.RoomState;
-        if (roomStateGraphic  != null) roomStateGraphic.SetActive(isRoomState);
         if (levelCountGraphic != null) levelCountGraphic.SetActive(conditionMode == ConditionMode.LevelCount);
         if (signalGateGraphic != null) signalGateGraphic.SetActive(conditionMode == ConditionMode.SignalGate);
 
-        // RoomState 그래픽을 requiredState(L/A) 색으로 틴트
-        if (isRoomState && tintRoomStateGraphic && roomStateGraphic != null)
+        bool wantL = isRoomState && requiredState == Room.RoomActivation.L;
+        bool wantA = isRoomState && requiredState == Room.RoomActivation.A;
+        if (roomStateGraphicL != null) roomStateGraphicL.SetActive(wantL);
+        if (roomStateGraphicA != null) roomStateGraphicA.SetActive(wantA);
+
+        // 켜진 그래픽(스프라이트)을 각 상태색으로 틴트
+        if (tintRoomStateGraphic)
         {
-            var rs = roomStateGraphic.GetComponentsInChildren<Renderer>(true);
-            Color c = requiredState == Room.RoomActivation.A ? aColor : lColor;
-            ActivationColor.Apply(rs, c, roomStateColorProperty);
+            if (wantL && roomStateGraphicL != null) TintGraphic(roomStateGraphicL, lColor, roomStateColorProperty);
+            if (wantA && roomStateGraphicA != null) TintGraphic(roomStateGraphicA, aColor, roomStateColorProperty);
         }
+
+        // 문짝(3D) 색 — 스프라이트와 별개. requiredState에 맞는 색으로. 본체 Renderer만(자식 제외).
+        if (tintDoorPanels && isRoomState)
+        {
+            Color dc = requiredState == Room.RoomActivation.A ? aDoorColor : lDoorColor;
+            if (rightDoor != null) TintSelf(rightDoor.gameObject, dc, doorPanelColorProperty);
+            if (leftDoor  != null) TintSelf(leftDoor.gameObject,  dc, doorPanelColorProperty);
+        }
+    }
+
+    // 자식 포함 전부 칠하기 (스프라이트 그래픽용)
+    private void TintGraphic(GameObject go, Color col, string prop)
+    {
+        var rs = go.GetComponentsInChildren<Renderer>(true);
+        ActivationColor.Apply(rs, col, prop);
+    }
+
+    // 이 오브젝트의 Renderer만 칠하기 (자식 제외)
+    private void TintSelf(GameObject go, Color col, string prop)
+    {
+        var r = go.GetComponent<Renderer>();
+        if (r != null) ActivationColor.Apply(new[] { r }, col, prop);
     }
 
     public Room GetOtherRoom(Room from)
@@ -99,8 +142,8 @@ public class Door : MonoBehaviour
         if (roomA == null) roomA = GetComponentInParent<Room>();
         if (self == null) self = GetComponent<Creature>();
 
-        if (upperDoor != null) originalUpperY = upperDoor.position.y;
-        if (lowerDoor != null) originalLowerY = lowerDoor.position.y;
+        if (rightDoor != null) originalRightPos = rightDoor.position;
+        if (leftDoor != null) originalLeftPos = leftDoor.position;
     }
 
     void Start()
@@ -327,27 +370,27 @@ public class Door : MonoBehaviour
 
     private IEnumerator MoveDoor(bool open)
     {
-        float upperTarget = open ? originalUpperY + moveDist : originalUpperY;
-        float lowerTarget = open ? originalLowerY - moveDist : originalLowerY;
+        // 양옆으로: 문의 로컬 오른쪽 축(transform.right) 기준으로 두 문짝을 반대 방향으로 슬라이드
+        Vector3 side = transform.right;
+        Vector3 rightEnd = open ? originalRightPos + side * moveDist : originalRightPos;
+        Vector3 leftEnd  = open ? originalLeftPos  - side * moveDist : originalLeftPos;
 
         float elapsed = 0f;
         float duration = 1.0f;
 
-        Vector3 upperStart = upperDoor.position;
-        Vector3 lowerStart = lowerDoor.position;
-        Vector3 upperEnd = new Vector3(upperDoor.position.x, upperTarget, upperDoor.position.z);
-        Vector3 lowerEnd = new Vector3(lowerDoor.position.x, lowerTarget, lowerDoor.position.z);
+        Vector3 rightStart = rightDoor.position;
+        Vector3 leftStart  = leftDoor.position;
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
-            upperDoor.position = Vector3.Lerp(upperStart, upperEnd, t);
-            lowerDoor.position = Vector3.Lerp(lowerStart, lowerEnd, t);
+            rightDoor.position = Vector3.Lerp(rightStart, rightEnd, t);
+            leftDoor.position  = Vector3.Lerp(leftStart, leftEnd, t);
             yield return null;
         }
 
-        upperDoor.position = upperEnd;
-        lowerDoor.position = lowerEnd;
+        rightDoor.position = rightEnd;
+        leftDoor.position  = leftEnd;
     }
 }

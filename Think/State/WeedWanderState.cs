@@ -27,7 +27,8 @@ public class WeedWanderState : ThinkState
     {
         detected = think.scanner.Results;
 
-        Creature target = FindNearestInRange();
+        // lock: 이미 쫓던 타겟이 아직 유효 + 범위 안이면 그대로 유지 (놓칠 때만 새로 선택 → 대상 튐 방지)
+        Creature target = StillTracking() ? newTarget.creature : FindNearestInRange();
         if (target != null)
         {
             newTarget.point = target.rootTransform.position;   // 반경 안 생물 추적
@@ -62,6 +63,15 @@ public class WeedWanderState : ThinkState
         {
             reachedTime = -1f;   // 아직 이동 중이면 도달 타이머 리셋
         }
+    }
+
+    // 현재 쫓는 타겟이 아직 유효하고 스캔 반경 안인지 (lock 유지 판정)
+    private bool StillTracking()
+    {
+        var c = newTarget.creature;
+        if (c == null || !think.IsValidTarget(c)) return false;
+        float r = think.scanner != null ? think.scanner.scanRadius : float.MaxValue;
+        return (c.rootTransform.position - GetSelfPos()).sqrMagnitude <= r * r;
     }
 
     // 스캔 반경 안의 가장 가까운 유효 타겟 (반경 밖은 무시 → 추적 중단)

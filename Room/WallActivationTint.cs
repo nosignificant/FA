@@ -22,6 +22,14 @@ public class WallActivationTint : MonoBehaviour
     public Color lOutline = Color.black;
     public Color aOutline = Color.black;
 
+    [Header("emission 색 (URP Lit 등)")]
+    [Tooltip("발광색도 상태에 따라 바꿀지 (_EmissionColor). URP Lit이면 _EMISSION 키워드 자동 켬)")]
+    public bool tintEmission = false;
+    public string emissionColorProperty = "_EmissionColor";
+    [ColorUsage(true, true)] public Color noneEmission = Color.black;
+    [ColorUsage(true, true)] public Color lEmission = Color.black;
+    [ColorUsage(true, true)] public Color aEmission = Color.black;
+
     private Renderer[] _resolved;
 
     private Renderer[] Resolve()
@@ -46,6 +54,29 @@ public class WallActivationTint : MonoBehaviour
             Color oc = state == Room.RoomActivation.A ? aOutline
                      : state == Room.RoomActivation.L ? lOutline : noneOutline;
             ActivationColor.Apply(rs, oc, outlineColorProperty);   // 외곽선(_OutlineColor)
+        }
+
+        if (tintEmission && !string.IsNullOrEmpty(emissionColorProperty))
+        {
+            Color ec = state == Room.RoomActivation.A ? aEmission
+                     : state == Room.RoomActivation.L ? lEmission : noneEmission;
+            ApplyEmission(rs, ec);
+        }
+    }
+
+    // 발광색 적용 + URP Lit이면 _EMISSION 키워드 켜야 실제로 발광함
+    private void ApplyEmission(Renderer[] rs, Color ec)
+    {
+        if (rs == null) return;
+        for (int i = 0; i < rs.Length; i++)
+        {
+            var r = rs[i];
+            if (r == null) continue;
+            var mat = r.material;
+            if (mat == null || !mat.HasProperty(emissionColorProperty)) continue;
+            mat.SetColor(emissionColorProperty, ec);
+            mat.EnableKeyword("_EMISSION");
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
         }
     }
 }

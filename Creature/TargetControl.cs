@@ -5,20 +5,53 @@ using CreatureTypes;
 
 
 [DisallowMultipleComponent]
-public sealed class TargetControl : MonoBehaviour
+public sealed class TargetControl : MonoBehaviour, ISerializationCallbackReceiver
 {
+    // 이동 방식 (하나만 선택)
+    public enum MoveMode
+    {
+        None,          // 이동 컴포넌트에 target 전달 안 함
+        BoidChildren,  // 하위 Boid들이 target으로
+        EngineLeg,
+        QuadLeg,
+        FollowingRB,
+        LegHead,       // 머리(LegHead)가 target으로
+        Tentacle,      // 하위 Tentacle 전부 target으로 (weed 등)
+        Leg,           // 하위 Leg 전부 target 직접 전달 (발 고정, 머리만 — 텐타클 여러 개처럼)
+    }
+
     [SerializeField] public Transform movementTarget;
     public float threshold = 10f;
     public Transform rotatingTarget;
 
-    public bool isBoidChildren = false;
+    [Tooltip("이동 방식 (하나 선택)")]
+    public MoveMode moveMode = MoveMode.None;
 
-    public bool isEngineLeg = false;
-    public bool isQuadLeg = false;
-    public bool isFollowingRB = false;
-    public bool isLegHead = false;
-    [Tooltip("하위 Tentacle 전부에게 target 전달 (weed 등)")]
-    public bool isTentacle = false;
+    // ── 구 bool 필드 (자동 이전용, 인스펙터 숨김) ──────────────
+    [SerializeField, HideInInspector] private bool isBoidChildren;
+    [SerializeField, HideInInspector] private bool isEngineLeg;
+    [SerializeField, HideInInspector] private bool isQuadLeg;
+    [SerializeField, HideInInspector] private bool isFollowingRB;
+    [SerializeField, HideInInspector] private bool isLegHead;
+    [SerializeField, HideInInspector] private bool isTentacle;
+    [SerializeField, HideInInspector] private bool isLeg;
+    [SerializeField, HideInInspector] private bool _migratedMoveMode;
+
+    // 구 bool 설정을 enum으로 1회 이전 (기존 프리팹 설정 보존)
+    public void OnBeforeSerialize() { }
+    public void OnAfterDeserialize()
+    {
+        if (_migratedMoveMode) return;
+        _migratedMoveMode = true;
+        if (isBoidChildren)      moveMode = MoveMode.BoidChildren;
+        else if (isEngineLeg)    moveMode = MoveMode.EngineLeg;
+        else if (isQuadLeg)      moveMode = MoveMode.QuadLeg;
+        else if (isFollowingRB)  moveMode = MoveMode.FollowingRB;
+        else if (isLegHead)      moveMode = MoveMode.LegHead;
+        else if (isTentacle)     moveMode = MoveMode.Tentacle;
+        else if (isLeg)          moveMode = MoveMode.Leg;
+    }
+
     [Tooltip("flee 또는 migrate 중일 때 moveSpeed에 더해줄 가속량")]
     public float urgentSpeedBonus = 5f;
     public event Action<Transform> TargetChanged;
@@ -33,12 +66,12 @@ public sealed class TargetControl : MonoBehaviour
     void Awake()
     {
         self = GetComponentInParent<Creature>();
-        if (isEngineLeg)
+        if (moveMode == MoveMode.EngineLeg)
         {
             engineLegs = GetComponentInChildren<EngineLegs>();
             if (engineLegs != null) engineBaseSpeed = engineLegs.moveSpeed;
         }
-        if (isQuadLeg)
+        if (moveMode == MoveMode.QuadLeg)
         {
             quadLegs = GetComponentInChildren<QuadLegs>();
             if (quadLegs != null) quadBaseSpeed = quadLegs.moveSpeed;
@@ -63,13 +96,24 @@ public sealed class TargetControl : MonoBehaviour
 
         movementTarget = newTarget;
         TargetChanged?.Invoke(movementTarget);
-        if (isBoidChildren) SetBoidTarget();
-        if (isEngineLeg) SetEngineTarget();
-        if (isQuadLeg) SetQuadTarget();
-        if (isFollowingRB) SetFollowingRBTarget();
-        if (isLegHead) SetLegHead();
-        if (isTentacle) SetTentacleTarget();
+        switch (moveMode)
+        {
+            case MoveMode.BoidChildren: SetBoidTarget(); break;
+            case MoveMode.EngineLeg:    SetEngineTarget(); break;
+            case MoveMode.QuadLeg:      SetQuadTarget(); break;
+            case MoveMode.FollowingRB:  SetFollowingRBTarget(); break;
+            case MoveMode.LegHead:      SetLegHead(); break;
+            case MoveMode.Tentacle:     SetTentacleTarget(); break;
+            case MoveMode.Leg:          SetLegsTarget(); break;
+        }
+    }
 
+    // 하위 Leg 전부에게 target 직접 전달 (발 고정 + 머리만 target으로 → 여러 텐타클처럼)
+    public void SetLegsTarget()
+    {
+        Leg[] legs = GetComponentsInChildren<Leg>();
+        foreach (var l in legs)
+            if (l != null) l.SetTarget(movementTarget);
     }
 
     // 하위 Tentacle 전부에게 같은 target 전달 (weed: proxy를 모든 촉수가 향하게)

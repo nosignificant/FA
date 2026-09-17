@@ -88,6 +88,11 @@ class ChaseState : ThinkState
         // 항상 현재 타겟 위치로 갱신 (한 자리 고정 방지)
         Creature chaseC = newTarget.creature;
         if (chaseC == null) return;
+
+        // 타겟이 다른 방인데 여기까지 왔다 = 통로(열린 문/뚫린 벽)가 없음
+        // → 벽 너머 타겟 위치로 조준하지 않음 (벽 뚫기 방지, 프록시는 방 안 유지)
+        if (chaseC.currentRoom != think.self.currentRoom) return;
+
         newTarget.point = chaseC.rootTransform.position;
 
         float d = Vector3.Distance(think.self.rootTransform.position, newTarget.point);

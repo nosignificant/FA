@@ -181,6 +181,13 @@ public class Creature : MonoBehaviour
             if (r == null || r == currentRoom || r.homeBound == null) continue;
             if (r.homeBound.bounds.Contains(pos))
             {
+                // 이전 방과 새 방 사이에 통로(열린 문/뚫린 벽)가 없으면 = 벽 뚫기 → 막고 되돌림.
+                // 조종 중 생물은 다리(통로 아님)로 넘나들 수 있으니 예외.
+                if (!IsControlled && currentRoom != null && !RoomsConnected(currentRoom, r))
+                {
+                    PushInsideRoom(currentRoom, pos);
+                    return;
+                }
                 currentRoom?.UnregisterCreature(this);
                 r.RegisterCreature(this);
                 return;
@@ -190,16 +197,34 @@ public class Creature : MonoBehaviour
         // 어느 방에도 없음(맵 이탈) → 마지막 방 안으로 되돌림 (밀려서 튕겨나가는 것 방지)
         // 단, 조종 중인 생물은 다리(방 밖)를 건널 수 있어야 하니 제외
         if (!IsControlled && currentRoom != null && currentRoom.homeBound != null)
-        {
-            Bounds b = currentRoom.homeBound.bounds;
-            Vector3 inside = b.ClosestPoint(pos);
-            Vector3 toCenter = b.center - inside; toCenter.y = 0f;
-            if (toCenter.sqrMagnitude > 0.01f) inside += toCenter.normalized * 1.5f;   // 경계 살짝 안쪽
-            rootTransform.position = inside;
+            PushInsideRoom(currentRoom, pos);
+    }
 
-            var rb = rootTransform.GetComponent<Rigidbody>();
-            if (rb != null && !rb.isKinematic) rb.linearVelocity = Vector3.zero;   // 계속 밀리는 속도 죽임
-        }
+    // 두 방이 열린 문 또는 부서진 벽으로 이어져 있는지
+    private bool RoomsConnected(Room a, Room b)
+    {
+        if (a == null || b == null) return false;
+        if (a.doors != null)
+            foreach (var d in a.doors)
+                if (d != null && d.isOpen && d.GetOtherRoom(a) == b) return true;
+        if (a.brokenPassages != null)
+            foreach (var w in a.brokenPassages)
+                if (w != null && w.Broken && w.GetOtherRoom(a) == b) return true;
+        return false;
+    }
+
+    // 위치를 해당 방 경계 살짝 안쪽으로 되돌리고 밀림 속도 제거
+    private void PushInsideRoom(Room room, Vector3 pos)
+    {
+        if (room == null || room.homeBound == null) return;
+        Bounds b = room.homeBound.bounds;
+        Vector3 inside = b.ClosestPoint(pos);
+        Vector3 toCenter = b.center - inside; toCenter.y = 0f;
+        if (toCenter.sqrMagnitude > 0.01f) inside += toCenter.normalized * 1.5f;   // 경계 살짝 안쪽
+        rootTransform.position = inside;
+
+        var rb = rootTransform.GetComponent<Rigidbody>();
+        if (rb != null && !rb.isKinematic) rb.linearVelocity = Vector3.zero;
     }
 
     // reparent 없이 이동 컴포넌트·물리만 정지/재개 (분해 중 타겟을 제자리에서 멈출 때)

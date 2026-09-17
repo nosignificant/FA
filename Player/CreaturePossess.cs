@@ -164,11 +164,24 @@ public class CreaturePossess : MonoBehaviour
     [Tooltip("방 밖에서 내릴 때 경계 안쪽으로 밀어넣을 여유 거리")]
     public float roomClampPadding = 2f;
 
+    // 발밑이 브리지(다리)인지: Bridge 컴포넌트 or 이름에 "bridge"/"다리" 포함
+    private bool IsOnBridge(Vector3 pos)
+    {
+        if (Physics.Raycast(pos + Vector3.up * 1.5f, Vector3.down, out RaycastHit hit, 6f, ~0, QueryTriggerInteraction.Collide))
+        {
+            if (hit.collider.GetComponentInParent<Bridge>() != null) return true;
+            string n = hit.collider.name.ToLower();
+            if (n.Contains("bridge") || hit.collider.name.Contains("다리")) return true;
+        }
+        return false;
+    }
+
     // 하차 위치가 방(마지막으로 속한 방) 밖이면 경계 안쪽 최근접점으로 당김.
     private Vector3 ClampToRoom(Vector3 pos)
     {
-        Room room = Player.Instance != null ? Player.Instance.currentRoom : null;
-        if (room == null && controlledCreature != null) room = controlledCreature.currentRoom;
+        // proxy(=조종 생물)가 실제 있는 방을 우선 기준. (조종 중 방 이동 시 플레이어 currentRoom이 어긋날 수 있음)
+        Room room = controlledCreature != null ? controlledCreature.currentRoom : null;
+        if (room == null && Player.Instance != null) room = Player.Instance.currentRoom;
         if (room == null || room.homeBound == null) return pos;   // 기준 방 없으면 그대로
 
         Bounds b = room.homeBound.bounds;
@@ -196,8 +209,11 @@ public class CreaturePossess : MonoBehaviour
         TeardownProxyPhysics();
         driveDir = Vector3.zero;
 
-        // 하차 위치 계산 (proxy가 아직 부모인 상태에서 월드 좌표로 미리 잡음)
-        Vector3? landingPos = proxy != null ? ClampToRoom(proxy.position) : null;
+        // 하차 위치 계산 (proxy가 아직 부모인 상태에서 월드 좌표로 미리 잡음).
+        // 브리지(다리) 위면 방 경계로 당기지 않음 — 다리 밖으로 밀려나는 것 방지.
+        Vector3? landingPos = proxy != null
+            ? (IsOnBridge(proxy.position) ? proxy.position : ClampToRoom(proxy.position))
+            : (Vector3?)null;
 
         // 발신기를 조종하다 해제하면, 연결돼 있던 발신을 끊는다 (tab-f로 발신 끊기)
         if (controlledCreature is SignalTransmitter tx) tx.OnPossessReleased();
@@ -213,7 +229,13 @@ public class CreaturePossess : MonoBehaviour
         controlledCreature = null;
 
         PlayerRideProxy(proxy, false);   // 카메라를 플레이어에게 되돌림 + 이동/물리 복구
-        if (landingPos.HasValue) transform.position = landingPos.Value;   // 플레이어를 proxy 위치로 하차
+        if (landingPos.HasValue)
+        {
+            transform.position = landingPos.Value;   // 플레이어를 proxy 위치로 하차
+            // 물리 복구 직후 남은 속도로 밀려나지 않게 정지
+            if (playerRb == null) playerRb = GetComponent<Rigidbody>();
+            if (playerRb != null && !playerRb.isKinematic) playerRb.linearVelocity = Vector3.zero;
+        }
 
         Debug.Log($"[Possess] {controlled.name} 조종 해제");
         controlled = null;

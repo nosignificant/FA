@@ -11,6 +11,8 @@ public class TitleMenu : MonoBehaviour
     }
 
     public MenuItem[] items;
+    [Tooltip("엔터/시작 시 활성화할 레벨 선택 오브젝트")]
+    public GameObject chooseLevel;
 
     private int selected = 0;
 
@@ -21,10 +23,6 @@ public class TitleMenu : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))
-            Move(-1);
-        if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
-            Move(1);
         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             Confirm();
     }
@@ -49,21 +47,17 @@ public class TitleMenu : MonoBehaviour
         if (items.Length == 0) return;
         switch (items[selected].label)
         {
-            case "PRESS ENTER TO START": StartGame(); break;
+            case "PRESS ENTER TO START": ShowChooseLevel(); break;
             case "Quit": Application.Quit(); break;
         }
     }
 
-    // 데모: START는 새 시작 = 스토리 진행 초기화
-    private static void StartGame()
+    // 레벨 선택 오브젝트 활성화 (씬 로드 대신)
+    private void ShowChooseLevel()
     {
-        StoryProgress.Clear();
-        ChoiceProgress.Clear();
-
-        if (SceneLoader.Instance != null) SceneLoader.Instance.Load("tutorial1");
-        else SceneManager.LoadScene("tutorial1");
+        if (chooseLevel != null) chooseLevel.SetActive(true);
     }
 
-    public void OnStartButton() => StartGame();
+    public void OnStartButton() => ShowChooseLevel();
     public void OnQuitButton() => Application.Quit();
 }

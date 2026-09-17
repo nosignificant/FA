@@ -79,6 +79,13 @@ public class Lcreature : TentacleCreature
 
         while (!IsDead)
         {
+            // 조종 중엔 생산 정지 (촉수도 자유로워야 몸이 플레이어를 따라감)
+            if (IsControlled)
+            {
+                yield return null;
+                continue;
+            }
+
             // 비활성 방은 생산 안 함
             if (currentRoom == null || !currentRoom.isActive)
             {
@@ -103,6 +110,7 @@ public class Lcreature : TentacleCreature
             bool consumed = false;
             while (t < releaseInterval)
             {
+                if (IsControlled) break;   // 조종 시작 → 들고 있던 스폰 놓고 촉수 해방 (아래 Release)
                 t += Time.deltaTime;
                 var slot = tentacleGrab.tentacles[spawnCreatureAtTentacleIndex];
                 if (!slot.isGrabbing || slot.grabbedCreature == null || slot.grabbedCreature != attached)
