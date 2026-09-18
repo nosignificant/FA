@@ -36,7 +36,8 @@ public class BreakableWallEditor : Editor
 
         RemoveWindow(bw);   // 기존 것 있으면 지우고 새로
 
-        var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, bw.transform);
+        Transform parent = bw.windowParent != null ? bw.windowParent : bw.transform;
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
         go.transform.position = bw.transform.position;
         go.transform.rotation = bw.transform.rotation;
         go.transform.localScale = Vector3.one * 0.05f;   // 창문 스케일

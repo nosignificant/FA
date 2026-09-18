@@ -35,6 +35,7 @@ namespace CreatureTypes
         T = 12,    // 발신
         R = 13,    // 수신
         LL = 14,   // L을 생산하며 돌아다니는 생산기
+        Timid = 15, // 겁쟁이: 모든 생물을 피해 도망
 
         Door = 97,
         WalkingWeed = 98, // 상호작용 없음

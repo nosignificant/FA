@@ -22,12 +22,14 @@ public class BreakableWall : MonoBehaviour
     [Tooltip("breakable=on일 때 비활성화할 일반 벽 오브젝트")]
     public GameObject normalWall;
 
-    [Header("breakable 색")]
-    [Tooltip("켜면 breakableObject를 지정 색으로 칠함")]
+    [Header("breakable 색 (방 상태 L/A 따라 tint)")]
+    [Tooltip("켜면 breakableObject를 roomA의 활성화 상태(L/A/None) 색으로 칠함")]
     public bool tintBreakable = false;
     [Tooltip("셰이더 색 프로퍼티 override. 비우면 자동(_BaseColor/_Color, SpriteRenderer는 .color)")]
     public string breakableColorProperty = "";
-    public Color breakableColor = Color.white;
+    public Color noneColor = Color.white;
+    public Color lColor = new Color(0.6f, 1f, 0.3f);
+    public Color aColor = new Color(0.9f, 0.2f, 0.2f);
 
     [Header("window (옆방 보기용, 통과 불가)")]
     [Tooltip("켜면 창문 모드: 일반 벽 메쉬 끄고, 부술 수 없고(등록 안 함), 창문만 활성화")]
@@ -38,6 +40,8 @@ public class BreakableWall : MonoBehaviour
     public GameObject[] windowPrefabs;
     [Tooltip("windowPrefabs 중 사용할 인덱스")]
     public int windowIndex = 0;
+    [Tooltip("생성한 창문을 이 오브젝트의 자식으로 넣음 (비우면 이 BreakableWall 밑)")]
+    public Transform windowParent;
 
     [Header("내구도")]
     [Min(1)] public int hitsToBreak = 3;
@@ -55,7 +59,17 @@ public class BreakableWall : MonoBehaviour
         ApplyBreakableVisual();                 // on/off·window 표시 초기화
         if (breakable && !isWindow) Register(); // 부술 수 있고 창문 아닌 것만 S 대상으로 등록
         ApplyOpposite();                        // 반대편 벽 처리 (창문/breakable이면 앞이 뚫려 보이게)
+
+        // 방 상태 바뀔 때 색 갱신
+        if (tintBreakable && roomA != null) roomA.OnActivationChanged += OnRoomActivation;
     }
+
+    private void OnDestroy()
+    {
+        if (roomA != null) roomA.OnActivationChanged -= OnRoomActivation;
+    }
+
+    private void OnRoomActivation(Room.RoomActivation _) => ApplyBreakableVisual();
 
     // 반대편(연결된 방) 벽 처리:
     //  - isWindow: 반대편도 창문 구멍(pane 없음)
@@ -102,11 +116,14 @@ public class BreakableWall : MonoBehaviour
             if (mr != null) mr.enabled = !(breakable || win);   // breakable이나 window면 일반 벽 메쉬 끔
         }
 
-        // breakable 비주얼 색 틴트
+        // breakable 비주얼을 roomA 상태(L/A/None) 색으로 틴트
         if (tintBreakable && breakable && !win && breakableObject != null)
         {
+            var state = roomA != null ? roomA.Activation : Room.RoomActivation.None;
+            Color c = state == Room.RoomActivation.A ? aColor
+                    : state == Room.RoomActivation.L ? lColor : noneColor;
             var rs = breakableObject.GetComponentsInChildren<Renderer>(true);
-            ActivationColor.Apply(rs, breakableColor, breakableColorProperty);
+            ActivationColor.Apply(rs, c, breakableColorProperty);
         }
     }
 
@@ -118,7 +135,8 @@ public class BreakableWall : MonoBehaviour
         int idx = Mathf.Clamp(windowIndex, 0, windowPrefabs.Length - 1);
         var prefab = windowPrefabs[idx];
         if (prefab == null) return;
-        window = Instantiate(prefab, transform.position, transform.rotation, transform);
+        Transform parent = windowParent != null ? windowParent : transform;
+        window = Instantiate(prefab, transform.position, transform.rotation, parent);
         window.transform.localScale = Vector3.one * 0.05f;   // 창문 스케일
     }
 

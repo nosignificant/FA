@@ -48,6 +48,8 @@ public class Tentacle : MonoBehaviour
     {
         line = GetComponent<LineRender>();
 
+        brain = GetComponentInParent<Think2>();
+
         //초기 위치
         if (tipTarget != null)
         {
@@ -56,6 +58,7 @@ public class Tentacle : MonoBehaviour
 
             targetPos = initPos;
             tipTarget.position = targetPos;
+            _home = targetPos;   // wander(반응 없음)일 때 쉬는 자리
         }
         if (NeedCoroutine)
         {
@@ -64,11 +67,21 @@ public class Tentacle : MonoBehaviour
         }
     }
 
+    private Think2 brain;   // wander(반응 없음) 판정
+    private Vector3 _home;
+
+    // 반응(대상 있음)이면 target, wander(대상 없음)면 제자리(home) → 로밍 proxy 안 따라감
+    private Vector3 AimPos()
+    {
+        bool wander = brain != null && brain.currentTarget.creature == null;
+        return wander ? _home : target.position;
+    }
+
     void Update()
     {
         if (target == null || foot == null || top == null || tipTarget == null) { return; }
         if (parts == null || parts.Length < 2) { Debug.Log("파츠가 없음"); return; }
-        tipTarget.position = Vector3.Lerp(tipTarget.position, target.position, Time.deltaTime * 15f);
+        tipTarget.position = Vector3.Lerp(tipTarget.position, AimPos(), Time.deltaTime * 15f);
 
         foot.position = Vector3.Lerp(foot.position, tipTarget.position, Time.deltaTime * 10f);
         bodyFABRIK();
@@ -96,8 +109,8 @@ public class Tentacle : MonoBehaviour
 
             float bendT = Mathf.Pow(t, bendCurve) * bendStrength;
 
-            //타겟까지 방향 — base를 타겟 방향으로 잡아 곧게 뻗게 (top.forward 쓰면 엉뚱한 방향/위로 볼록)
-            Vector3 toTargetDir = (target.position - top.position).normalized;
+            //타겟까지 방향 (wander면 home) — base를 그 방향으로 잡아 곧게 뻗게
+            Vector3 toTargetDir = (AimPos() - top.position).normalized;
             // bend 축을 '위'가 아니라 수평 옆으로 (Vector3.up 기준) → 위로 볼록해지는 것 방지
             Vector3 perpDir = Vector3.Cross(toTargetDir, Vector3.up).normalized;
             if (perpDir.sqrMagnitude < 0.0001f) perpDir = top.right;   // 타겟이 수직 바로 위/아래일 때 대비

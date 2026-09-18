@@ -19,6 +19,12 @@ public class CreatureData : ScriptableObject
 
     public bool walkingCreature = false;
 
+    [Header("방 상태 각성 게이트")]
+    [Tooltip("켜면 방이 requiredRoomState일 때만 각성(그 외엔 휴면)")]
+    public bool gateByRoomState = false;
+    [Tooltip("이 방 상태에서만 각성 (gateByRoomState 켜졌을 때)")]
+    public Room.RoomActivation requiredRoomState = Room.RoomActivation.A;
+
     [Header("stat")]
     public float weight = 1.0f;
     public float fleeWeight = 1f;

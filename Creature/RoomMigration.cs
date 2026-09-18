@@ -52,9 +52,8 @@ public class RoomMigration : MonoBehaviour
     // 이 생물이 열린 문을 따라 흘러다니는 입자인가 (L, A)
     private bool WandersThroughDoors()
     {
-        if (self == null || self.data == null) return false;
-        var id = self.data.creatureID;
-        return id == CreatureID.L || id == CreatureID.A;
+        // 이동 가능한 생물(canMigrate)이면 열린 문/뚫린 벽으로 흘러다님 (도구=canMigrate false는 안 함)
+        return self != null && self.canMigrate;
     }
 
     // 쫓을 대상이 없어도, 갈 수 있는 열린 문이 있으면 확률적으로 그쪽으로 흘러가기로 결정.

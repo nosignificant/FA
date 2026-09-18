@@ -29,6 +29,7 @@ public class Interaction : MonoBehaviour
             case AA: return GetActionForAA(targetID, action);
             case LL: return GetActionForLL(targetID, action);
             case D: return GetActionForD(targetID, action);
+            case Timid: return GetActionForTimid(targetID, action);
             default: return int.MinValue;
         }
     }
@@ -64,6 +65,14 @@ public class Interaction : MonoBehaviour
     {
         if ((targetID == AA || targetID == LL) && action == InteractionAction.Flee) return 100;
         return int.MinValue;
+    }
+
+    // Timid: 겁쟁이 — 문·동족을 뺀 모든 생물에게서 도망.
+    private static int GetActionForTimid(CreatureID targetID, InteractionAction action)
+    {
+        if (action != InteractionAction.Flee) return int.MinValue;
+        if (targetID == Timid || targetID == CreatureID.Door) return int.MinValue;   // 동족·문은 안 피함
+        return 40;   // 그 외 모든 종에게서 도망
     }
 
     // D: 과밀한 방의 입자 L/A만 분해 (개체수 조절).

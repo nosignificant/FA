@@ -36,7 +36,7 @@ public class SBreaker : MonoBehaviour
         while (self != null && !self.IsDead)
         {
             var room = self.currentRoom;
-            bool awake = room != null && room.Activation == Room.RoomActivation.A;
+            bool awake = room != null && AwakeInRoom(room);
 
             if (!awake)
             {
@@ -71,6 +71,14 @@ public class SBreaker : MonoBehaviour
 
     private enum Mode { Frozen, GotoWall, Wander }
     private Mode _mode = (Mode)(-1);
+
+    // 각성 조건: CreatureData의 방상태 게이트 사용 (하드코딩 대신). 게이트 없으면 항상 각성.
+    private bool AwakeInRoom(Room room)
+    {
+        if (self.data != null && self.data.gateByRoomState)
+            return room.Activation == self.data.requiredRoomState;
+        return true;
+    }
 
     // Frozen: dormant(제자리 정지) / GotoWall: manualControl(Think 손 뗌, 벽으로 직진) / Wander: Think가 EQS로 몲
     private void SetMode(Mode m)
@@ -112,7 +120,7 @@ public class SBreaker : MonoBehaviour
     public string HudStatus()
     {
         var room = self.currentRoom;
-        if (room == null || room.Activation != Room.RoomActivation.A) return "dormant";
+        if (room == null || !AwakeInRoom(room)) return "dormant";
         BreakableWall w = NearestBreakableInRoom();
         if (w == null) return "wander";
         return w.DistanceFrom(SelfPos()) <= breakRange ? "breaking" : "goto";

@@ -30,7 +30,11 @@ public class WeedThink : Think2
     // weed는 관계 없이도 주변 아무 생물에게나 반응 → 관계 검사 없이 유효 판정
     public override bool IsValidTarget(Creature target)
     {
-        return target != null && target != self && !target.IsDead && target.data != null;
+        if (target == null || target == self || target.IsDead || target.data == null) return false;
+        // weed끼리·문은 서로 무시
+        var id = target.data.creatureID;
+        if (id == CreatureID.Weed || id == CreatureID.WalkingWeed || id == CreatureID.Door) return false;
+        return true;
     }
 
     // weed는 이동 의도를 갖지 않음 — 항상 Wander(반경 반응 + 배회)

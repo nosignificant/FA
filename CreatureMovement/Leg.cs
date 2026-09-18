@@ -25,6 +25,11 @@ public class Leg : MonoBehaviour
 
     public bool isWeed;
     public float weedMaxLength = 5f;
+    [Tooltip("isWeed일 때 뻗는 끝(top)이 target에서 이 반경만큼 퍼짐 (leg마다 다른 방향)")]
+    public float weedTargetSpread = 2f;
+    [Tooltip("퍼진 위치가 살랑거리는 주기(초). 클수록 느리게")]
+    public float weedSwayTime = 3f;
+    private Vector3 _weedOffset;   // 시간에 따라 흔들리는 이 leg 고유 오프셋
 
     [Header("Draw")]
 
@@ -44,18 +49,34 @@ public class Leg : MonoBehaviour
 
         line = GetComponent<LineRender>();
         lh = GetComponentInParent<LegHead>();
+        brain = GetComponentInParent<Think2>();
+
+        if (isWeed) StartCoroutine(WeedOffsetLoop());   // 오프셋 살랑거림
 
         //초기 위치
         if (tipTarget != null)
         {
             Vector3 initPos = tipTarget.position;
-            initPos = FootUtil.SetTargetNearest(initPos, ground);
+            if (!isWeed) initPos = FootUtil.SetTargetNearest(initPos, ground);   // weed는 접지 스냅 안 함(원래 위치 유지)
 
             targetPos = initPos;
             tipTarget.position = targetPos;
+            _footHome = targetPos;   // 발 고정 기준점 (여기서 살랑거림)
 
             if (target != null) top.position = target.position;
         }
+    }
+
+    private Vector3 _footHome;
+    private Think2 brain;   // wander(반응 대상 없음) 판정용
+
+    // weed 뻗는 끝의 겨냥점:
+    //  - 반응(대상 있음): target(proxy)로 뻗음
+    //  - wander(대상 없음): 자기 tipTarget(고정 발) + 살랑오프셋 → proxy 이동 무시, 제자리 흔들림
+    private Vector3 WeedAim()
+    {
+        bool wander = brain == null || brain.currentTarget.creature == null;
+        return wander ? tipTarget.position + _weedOffset : target.position;
     }
 
     void Update()
@@ -84,13 +105,27 @@ public class Leg : MonoBehaviour
 
     }
 
+    // target 주변 오프셋을 Perlin으로 부드럽게 이동 (leg마다 다른 위상 → 제각기 살랑거림)
+    private IEnumerator WeedOffsetLoop()
+    {
+        float sx = Random.value * 1000f, sz = Random.value * 1000f;
+        float speed = 1f / Mathf.Max(0.01f, weedSwayTime);
+        while (true)
+        {
+            float nx = Mathf.PerlinNoise(sx + Time.time * speed, 0f) * 2f - 1f;   // -1~1
+            float nz = Mathf.PerlinNoise(0f, sz + Time.time * speed) * 2f - 1f;
+            _weedOffset = new Vector3(nx, 0f, nz) * weedTargetSpread;
+            yield return null;
+        }
+    }
+
     void MoveFootandClampedTop()
     {
-        //발은 항상 tipTarget을 따라다닌다.
+        //발은 항상 tipTarget을 따라다닌다. (weed는 tipTarget이 안 움직이니 발 완전 고정)
         foot.position = Vector3.Lerp(foot.position, tipTarget.position, Time.deltaTime * 15f);
 
-        // top은 target에 바로 붙음
-        top.position = target.position;
+        // top(뻗는 끝): weed면 WeedAim() (반응=target / wander=자기 tipTarget+살랑), 아니면 target
+        top.position = isWeed ? WeedAim() : target.position;
 
 
         Vector3 dir = top.position - foot.position;
@@ -169,7 +204,7 @@ public class Leg : MonoBehaviour
 
                 float bendT = Mathf.Pow(t, 0.8f) * 0.7f;
 
-                Vector3 toTarget = (target.position - lower.position).normalized;
+                Vector3 toTarget = (WeedAim() - lower.position).normalized;   // top과 일관 (wander=tipTarget)
                 finalDir = Vector3.Slerp(Vector3.up, toTarget, bendT).normalized;
             }
             else finalDir = Vector3.Lerp(dir, footTotopDir, 1f).normalized;

@@ -121,7 +121,15 @@ public class Think2 : MonoBehaviour
     private bool _frozen = false;   // dormant/bind 진입 시 proxy 1회 고정 후 완전 정지
     // 휴면 상태면 제자리 정지. HBinder/SBinder가 이 필드를 설정(H는 자기·AA 정지, S는 자기 정지).
     [System.NonSerialized] public bool dormant = false;
-    protected virtual bool IsDormant() => dormant;
+    protected virtual bool IsDormant() => dormant || RoomStateGated();
+
+    // CreatureData의 방상태 게이트: 지정 상태가 아니면 휴면
+    private bool RoomStateGated()
+    {
+        if (self == null || self.data == null || !self.data.gateByRoomState) return false;
+        var room = self.currentRoom;
+        return room == null || room.Activation != self.data.requiredRoomState;
+    }
     public Transform ProxyTarget => proxyTarget;
 
     //플레이어가 조종하는 거 어떤 타겟을 가리키고 있든 프록시 타겟을 따라가게 만듦
@@ -209,6 +217,7 @@ public class Think2 : MonoBehaviour
     public virtual bool IsValidTarget(Creature target)
     {
         if (target == null || target == self || target.IsDead || target.data == null) return false;
+        if (target.data.creatureID == CreatureID.Door) return false;   // 문은 관심 대상 아님
         // 상호작용 관계가 전혀 없는 생물은 대상으로 안 삼음 (walkingWeed 등)
         if (self != null && self.data != null && !self.HasAnyAction(target.data.creatureID)) return false;
         return true;

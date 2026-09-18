@@ -181,9 +181,9 @@ public class Creature : MonoBehaviour
             if (r == null || r == currentRoom || r.homeBound == null) continue;
             if (r.homeBound.bounds.Contains(pos))
             {
-                // 이전 방과 새 방 사이에 통로(열린 문/뚫린 벽)가 없으면 = 벽 뚫기 → 막고 되돌림.
+                // 통로(열린 문/뚫린 벽) '근처'에서 넘는 게 아니면 = 막힌 벽 클립 → 막고 되돌림.
                 // 조종 중 생물은 다리(통로 아님)로 넘나들 수 있으니 예외.
-                if (!IsControlled && currentRoom != null && !RoomsConnected(currentRoom, r))
+                if (!IsControlled && currentRoom != null && !NearConnectingPassage(currentRoom, r, pos))
                 {
                     PushInsideRoom(currentRoom, pos);
                     return;
@@ -200,16 +200,29 @@ public class Creature : MonoBehaviour
             PushInsideRoom(currentRoom, pos);
     }
 
-    // 두 방이 열린 문 또는 부서진 벽으로 이어져 있는지
-    private bool RoomsConnected(Room a, Room b)
+    [Tooltip("이 거리 안에서 통로(문/뚫린 벽)를 지나야 방 이동 허용 (막힌 벽 클립 방지)")]
+    public float passageReach = 5f;
+
+    // a→b를 잇는 열린 문/뚫린 벽이 있고, 그 통로가 pos 근처(passageReach)인가.
+    // (연결만 보면 막힌 벽 아무 데서나 클립되니, 실제 통로 위치에서 넘을 때만 허용)
+    private bool NearConnectingPassage(Room a, Room b, Vector3 pos)
     {
         if (a == null || b == null) return false;
+        float reachSqr = passageReach * passageReach;
+
         if (a.doors != null)
             foreach (var d in a.doors)
-                if (d != null && d.isOpen && d.GetOtherRoom(a) == b) return true;
+            {
+                if (d == null || !d.isOpen || d.GetOtherRoom(a) != b) continue;
+                Transform t = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
+                if ((t.position - pos).sqrMagnitude <= reachSqr) return true;
+            }
         if (a.brokenPassages != null)
             foreach (var w in a.brokenPassages)
-                if (w != null && w.Broken && w.GetOtherRoom(a) == b) return true;
+            {
+                if (w == null || !w.Broken || w.GetOtherRoom(a) != b) continue;
+                if ((w.Position - pos).sqrMagnitude <= reachSqr) return true;
+            }
         return false;
     }
 
