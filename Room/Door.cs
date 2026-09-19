@@ -11,16 +11,25 @@ public class Door : MonoBehaviour
     public Room roomB;
     public Creature self;
     public GameObject light;
-    public Rotate rot;
-    public Rotate rot2;
+
+    public enum OpenMode
+    {
+        SlideDown,  // 일반 문: 오브젝트(rightDoor)가 아래로 내려가며 열림
+        SlideSide,  // 양옆 문: rightDoor/leftDoor 두 짝이 좌우로 열림
+    }
 
     [Header("Door")]
     public Collider playerBlockCollider;
-    [Tooltip("열릴 때 각 문짝이 좌우로 밀려나는 거리")]
+    [Tooltip("열림 방식: 아래로 내려가기 / 양옆으로")]
+    public OpenMode openMode = OpenMode.SlideDown;
+    [Tooltip("열릴 때 이동 거리 (아래로/좌우로)")]
     public float moveDist = 10f;
-    [Tooltip("오른쪽으로 열릴 문짝 (transform.right 방향)")]
+
+    [Header("SlideDown 용 (아래로 내려가는 문 오브젝트)")]
+    public Transform downDoor;
+
+    [Header("SlideSide 용 (양옆 두 짝)")]
     [FormerlySerializedAs("upperDoor")] public Transform rightDoor;
-    [Tooltip("왼쪽으로 열릴 문짝")]
     [FormerlySerializedAs("lowerDoor")] public Transform leftDoor;
 
     public enum ConditionMode
@@ -84,6 +93,7 @@ public class Door : MonoBehaviour
     public bool alwaysOpen = false;
     private Vector3 originalRightPos;
     private Vector3 originalLeftPos;
+    private Vector3 originalDownPos;
     private Coroutine moveCo;
 
     // 조건 종류(conditionMode)에 맞는 그래픽만 켜기. 슬롯 비면 무시.
@@ -144,6 +154,18 @@ public class Door : MonoBehaviour
 
         if (rightDoor != null) originalRightPos = rightDoor.position;
         if (leftDoor != null) originalLeftPos = leftDoor.position;
+        if (downDoor != null) originalDownPos = downDoor.position;
+
+        ApplyOpenModeVisual();   // 모드에 맞는 오브젝트만 켜기
+    }
+
+    // openMode에 맞는 문 오브젝트만 활성화 (SlideDown=downDoor / SlideSide=right·leftDoor)
+    private void ApplyOpenModeVisual()
+    {
+        bool down = openMode == OpenMode.SlideDown;
+        if (downDoor  != null) downDoor.gameObject.SetActive(down);
+        if (rightDoor != null) rightDoor.gameObject.SetActive(!down);
+        if (leftDoor  != null) leftDoor.gameObject.SetActive(!down);
     }
 
     void Start()
@@ -161,7 +183,6 @@ public class Door : MonoBehaviour
 
         // 조명을 현재 isOpen 상태에 맞춰 초기화 (닫힌 채 시작 시 조명 꺼짐)
         if (light != null) light.SetActive(isOpen);
-        ApplyRotate(isOpen);
 
         // isOpen을 켜둔 채 시작하거나 alwaysOpen이면 열린 상태로 시작
         if (isOpen || alwaysOpen) DoorCloseAndOpen(true);
@@ -341,11 +362,6 @@ public class Door : MonoBehaviour
         return count;
     }
 
-    private void ApplyRotate(bool open)
-    {
-        if (rot != null) rot.isSelfRotate = open;
-        if (rot2 != null) rot2.isSelfRotate = open;
-    }
 
     public void DoorCloseAndOpen(bool open)
     {
@@ -357,10 +373,8 @@ public class Door : MonoBehaviour
         if (moveCo != null) StopCoroutine(moveCo);   // 이동 애니만 중단 (TickEvaluate는 유지)
         moveCo = StartCoroutine(MoveDoor(open));
 
-        //불 켜기 
+        //불 켜기
         if (light != null) light.SetActive(open);
-        //회로 연결한 척 하기
-        ApplyRotate(open);
         if (RoomManager.Instance != null && Player.Instance?.currentRoom != null)
             RoomManager.Instance.UpdateActiveRooms(Player.Instance.currentRoom);
 
@@ -370,27 +384,38 @@ public class Door : MonoBehaviour
 
     private IEnumerator MoveDoor(bool open)
     {
-        // 양옆으로: 문의 로컬 오른쪽 축(transform.right) 기준으로 두 문짝을 반대 방향으로 슬라이드
-        Vector3 side = transform.right;
-        Vector3 rightEnd = open ? originalRightPos + side * moveDist : originalRightPos;
-        Vector3 leftEnd  = open ? originalLeftPos  - side * moveDist : originalLeftPos;
-
-        float elapsed = 0f;
         float duration = 1.0f;
 
-        Vector3 rightStart = rightDoor.position;
-        Vector3 leftStart  = leftDoor.position;
-
-        while (elapsed < duration)
+        if (openMode == OpenMode.SlideDown)
         {
-            elapsed += Time.deltaTime;
-            float t = elapsed / duration;
-            rightDoor.position = Vector3.Lerp(rightStart, rightEnd, t);
-            leftDoor.position  = Vector3.Lerp(leftStart, leftEnd, t);
-            yield return null;
+            // 일반 문: downDoor를 아래로
+            if (downDoor == null) yield break;
+            Vector3 end = open ? originalDownPos + Vector3.down * moveDist : originalDownPos;
+            Vector3 start = downDoor.position;
+            for (float e = 0f; e < duration; e += Time.deltaTime)
+            {
+                downDoor.position = Vector3.Lerp(start, end, e / duration);
+                yield return null;
+            }
+            downDoor.position = end;
         }
-
-        rightDoor.position = rightEnd;
-        leftDoor.position  = leftEnd;
+        else
+        {
+            // 양옆 문: 로컬 오른쪽 축 기준 반대 방향으로
+            Vector3 side = transform.right;
+            Vector3 rightEnd = open ? originalRightPos + side * moveDist : originalRightPos;
+            Vector3 leftEnd  = open ? originalLeftPos  - side * moveDist : originalLeftPos;
+            Vector3 rightStart = rightDoor != null ? rightDoor.position : Vector3.zero;
+            Vector3 leftStart  = leftDoor  != null ? leftDoor.position  : Vector3.zero;
+            for (float e = 0f; e < duration; e += Time.deltaTime)
+            {
+                float t = e / duration;
+                if (rightDoor != null) rightDoor.position = Vector3.Lerp(rightStart, rightEnd, t);
+                if (leftDoor  != null) leftDoor.position  = Vector3.Lerp(leftStart, leftEnd, t);
+                yield return null;
+            }
+            if (rightDoor != null) rightDoor.position = rightEnd;
+            if (leftDoor  != null) leftDoor.position  = leftEnd;
+        }
     }
 }

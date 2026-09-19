@@ -30,6 +30,8 @@ public sealed class TargetControl : MonoBehaviour
 
     [Tooltip("flee 또는 migrate 중일 때 moveSpeed에 더해줄 가속량")]
     public float urgentSpeedBonus = 5f;
+    [Tooltip("플레이어 조종 중 다리 속도에 더해줄 가속량 (proxy를 잘 따라가게)")]
+    public float controlledSpeedBonus = 8f;
     public event Action<Transform> TargetChanged;
 
     private Vector3 smoothedDir;
@@ -58,9 +60,13 @@ public sealed class TargetControl : MonoBehaviour
     {
         if (movementTarget == null) return;
 
-        // 도망/이주 중이면 다리 속도 +bonus
-        bool urgent = self != null && self.intent == CreatureIntent.Flee;
-        float add = urgent ? urgentSpeedBonus : 0f;
+        // 도망/이주 중이면 +urgent, 조종 중이면 +controlled (proxy 따라잡게)
+        float add = 0f;
+        if (self != null)
+        {
+            if (self.intent == CreatureIntent.Controlled) add = controlledSpeedBonus;
+            else if (self.intent == CreatureIntent.Flee)  add = urgentSpeedBonus;
+        }
 
         if (engineLegs != null) engineLegs.moveSpeed = engineBaseSpeed + add;
         if (quadLegs != null) quadLegs.moveSpeed = quadBaseSpeed + add;
