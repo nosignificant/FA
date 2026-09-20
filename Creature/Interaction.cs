@@ -26,6 +26,7 @@ public class Interaction : MonoBehaviour
         switch (selfID)
         {
             case S: return GetActionForS(targetID, action);
+            case H: return GetActionForH(targetID, action);
             case AA: return GetActionForAA(targetID, action);
             case LL: return GetActionForLL(targetID, action);
             case D: return GetActionForD(targetID, action);
@@ -34,7 +35,12 @@ public class Interaction : MonoBehaviour
         }
     }
 
-    // H: 자율 상호작용 없음. 플레이어가 조종해 AA에 F로 bind (HBinder). 그 외엔 배회.
+    // H: 활성화되면 AA를 자동 추적 → 가까워지면 HBinder가 자동 bind. 붙잡는 순간 isBound로 정지.
+    private static int GetActionForH(CreatureID targetID, InteractionAction action)
+    {
+        if (targetID == AA && action == InteractionAction.Chase) return 70;
+        return int.MinValue;
+    }
 
     // S: 벽 파괴 전용 — 생물 상호작용 없음 (벽 타겟은 Sthink가 처리).
     private static int GetActionForS(CreatureID targetID, InteractionAction action)
@@ -55,6 +61,8 @@ public class Interaction : MonoBehaviour
             if (action == InteractionAction.Grab) return 80;
             if (action == InteractionAction.Synthesize) return 90;
         }
+        // LL(생산기)도 쫓음 — 단 잡기/합성은 없이 추적만 (L보다 우선순위 낮게)
+        if (targetID == LL && action == InteractionAction.Chase) return 60;
         return int.MinValue;
     }
 
@@ -63,7 +71,7 @@ public class Interaction : MonoBehaviour
     // LL: 생산기 — L 입자를 뱉음(촉수 생산). 잡는 것 없음. AA로부터 도망.
     private static int GetActionForLL(CreatureID targetID, InteractionAction action)
     {
-        if ((targetID == AA || targetID == LL) && action == InteractionAction.Flee) return 100;
+        if (targetID == AA && action == InteractionAction.Flee) return 100;   // AA로부터만 도망
         return int.MinValue;
     }
 

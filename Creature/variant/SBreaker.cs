@@ -9,8 +9,8 @@ using CreatureTypes;
 [RequireComponent(typeof(Creature))]
 public class SBreaker : MonoBehaviour
 {
-    [Tooltip("이 거리 안이면 벽에 닿은 것으로 보고 타격")]
-    public float breakRange = 2.5f;
+    [Tooltip("이 거리 안이면 벽에 닿은 것으로 보고 타격. S 몸통이 벽 앞에서 멈추는 거리보다 커야 함")]
+    public float breakRange = 5f;
     [Tooltip("벽에 닿아있을 때 타격 간격(초)")]
     public float hitInterval = 1f;
     public float checkInterval = 0.2f;
@@ -36,7 +36,8 @@ public class SBreaker : MonoBehaviour
         while (self != null && !self.IsDead)
         {
             var room = self.currentRoom;
-            bool awake = room != null && AwakeInRoom(room);
+            if (!_activated && room != null && AwakeInRoom(room)) _activated = true;   // 한번 켜지면 영구 유지
+            bool awake = _activated;
 
             if (!awake)
             {
@@ -71,6 +72,7 @@ public class SBreaker : MonoBehaviour
 
     private enum Mode { Frozen, GotoWall, Wander }
     private Mode _mode = (Mode)(-1);
+    private bool _activated;   // 한번 각성하면 영구 유지
 
     // 각성 조건: CreatureData의 방상태 게이트 사용 (하드코딩 대신). 게이트 없으면 항상 각성.
     private bool AwakeInRoom(Room room)
@@ -120,7 +122,7 @@ public class SBreaker : MonoBehaviour
     public string HudStatus()
     {
         var room = self.currentRoom;
-        if (room == null || !AwakeInRoom(room)) return "dormant";
+        if (!_activated && (room == null || !AwakeInRoom(room))) return "dormant";
         BreakableWall w = NearestBreakableInRoom();
         if (w == null) return "wander";
         return w.DistanceFrom(SelfPos()) <= breakRange ? "breaking" : "goto";

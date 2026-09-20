@@ -22,6 +22,16 @@ public class Room : MonoBehaviour
     public bool isActive = false;
     public bool isTutorial = false;
 
+    [Header("light")]
+    [Tooltip("방 조명 오브젝트 (FlickerLightOn으로 깜빡이며 켜기)")]
+    public GameObject roomLight;
+    [Tooltip("조명 on/off — 인스펙터에서 토글하면 에디터에서도 즉시 반영")]
+    public bool lightOn = true;
+    [Tooltip("켜질 때 깜빡이는 횟수")]
+    public int lightFlickerCount = 4;
+    [Tooltip("깜빡임 한 번의 최소/최대 간격(초) — 랜덤")]
+    public Vector2 lightFlickerInterval = new Vector2(0.05f, 0.2f);
+
     [Header("room bounds")]
     public Collider homeBound;
     public Vector3 roomSize = new Vector3(60f, 6f, 60f);
@@ -77,6 +87,35 @@ public class Room : MonoBehaviour
         if (activationTints == null) return;
         for (int i = 0; i < activationTints.Length; i++)
             if (activationTints[i] != null) activationTints[i].Apply(activation);
+    }
+
+#if UNITY_EDITOR
+    // 인스펙터에서 lightOn 토글 시 에디터에서 즉시 반영
+    private void OnValidate()
+    {
+        if (roomLight != null && roomLight.activeSelf != lightOn)
+            UnityEditor.EditorApplication.delayCall += () => { if (this && roomLight != null) roomLight.SetActive(lightOn); };
+    }
+#endif
+
+    // 조명 켜기/끄기 (lightOn 필드도 함께 갱신)
+    public void SetLight(bool on) { lightOn = on; if (roomLight != null) roomLight.SetActive(on); }
+    public void LightOn()  => SetLight(true);
+    public void LightOff() => SetLight(false);
+
+    // 조명을 몇 번 깜빡인 뒤 켠 채로 둠 (외부에서 StartCoroutine으로 호출)
+    public IEnumerator FlickerLightOn()
+    {
+        if (roomLight == null) yield break;
+        for (int i = 0; i < lightFlickerCount; i++)
+        {
+            roomLight.SetActive(false);
+            yield return new WaitForSeconds(UnityEngine.Random.Range(lightFlickerInterval.x, lightFlickerInterval.y));
+            roomLight.SetActive(true);
+            yield return new WaitForSeconds(UnityEngine.Random.Range(lightFlickerInterval.x, lightFlickerInterval.y));
+        }
+        roomLight.SetActive(true);   // 마지막엔 켜진 상태 유지
+        lightOn = true;
     }
 
     // 방 안 L/A 우세로 활성화 계산 (동수는 현 상태 유지 → 깜빡임 방지)
@@ -197,6 +236,7 @@ public class Room : MonoBehaviour
             var c = creatureList[i];
             if (c == null || c.IsDead || c.data == null) continue;
             if (c.IsGrabbed) continue;   // 분해·합성 중 개체는 건드리지 않음
+            if (c.IsControlled) continue; // 조종 중인 생물은 플레이어를 따라 방을 넘나드므로 정지 제외
             var id = c.data.creatureID;
             if (id == CreatureID.Door || id == CreatureID.Player) continue;
             c.SetMovementEnabled(!frozen);
@@ -380,6 +420,7 @@ public class Room : MonoBehaviour
     void Start()
     {
         roomID = gameObject.name;
+        if (roomLight != null) roomLight.SetActive(lightOn);   // 시작 시 조명 상태 적용
         if (RoomManager.Instance != null) RoomManager.Instance.Register(this);
 
         doors.RemoveAll(d => d == null);

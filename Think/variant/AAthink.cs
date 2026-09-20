@@ -9,13 +9,11 @@ public class AAThink : TentacleThink
 {
     private float grabbedSince = -1f;
 
-    // 방에 H가 있으면 L을 잡지 않음 (H가 곧 묶을 테니 물러남 → H가 깨끗이 bind)
+    // H가 잡은 AA는 isBound로 알아서 멈추므로, 방에 H가 있어도 나머지 AA는 계속 L을 쫓아 변환.
+    // (예전의 "방에 H 있으면 L 제외" 규칙은 제거 — 방 전체 AA가 멈춰버리는 부작용)
     public override bool IsValidTarget(Creature target)
     {
-        if (!base.IsValidTarget(target)) return false;
-        if (target.data != null && target.data.creatureID == CreatureID.L
-            && self.currentRoom != null && self.currentRoom.HasSpecies(CreatureID.H)) return false;
-        return true;
+        return base.IsValidTarget(target);
     }
 
     private int GrabbedCount()
@@ -51,6 +49,7 @@ public class AAThink : TentacleThink
         {
             var t = detected[i];
             if (!IsValidTarget(t)) continue;
+            if (IsCreatureDormant(t)) continue;   // 휴면 H로부턴 안 도망
             if (self.HasAction(t.data.creatureID, InteractionAction.Flee)) return true;
         }
         return false;

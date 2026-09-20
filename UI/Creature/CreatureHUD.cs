@@ -194,15 +194,22 @@ public class CreatureHUD : MonoBehaviour
                 }
                 else targetText.text = $"{lprod.currentSpawn}";
             }
-            // S: 부수는 대상은 벽
-            else if (targetCreature.GetComponent<SBreaker>() != null)
+            // S: dormant면 대상 없음, 아니면 벽
+            else if (targetCreature.GetComponent<SBreaker>() is SBreaker sbt)
             {
-                targetText.text = "wall";
+                targetText.text = (sbt.HudStatus() == "dormant") ? "" : "wall";
             }
-            // H: 묶은 AA (없으면 아래 일반 처리로)
-            else if (targetCreature.GetComponent<HBinder>() is HBinder hbt && hbt.HeldAA() != null)
+            // H: dormant면 대상 없음 / bind면 묶은 AA / chase면 쫓는 AA
+            else if (targetCreature.GetComponent<HBinder>() is HBinder hbt)
             {
-                targetText.text = hbt.HeldAA().data.creatureName;
+                if (hbt.HudStatus() == "dormant") targetText.text = "";
+                else if (hbt.HeldAA() != null) targetText.text = hbt.HeldAA().data.creatureName;
+                else
+                {
+                    Think2 hth = targetCreature.GetComponent<Think2>();
+                    Creature htc = hth != null ? hth.currentTarget.creature : null;
+                    targetText.text = htc != null ? htc.data.creatureName : "";
+                }
             }
             // AA가 L 잡고 있으면(변환 중): 만들 종(A)
             else if (targetCreature.data.creatureID == CreatureID.AA
@@ -232,7 +239,8 @@ public class CreatureHUD : MonoBehaviour
             case CreatureID.AA:
                 var aaGrab = cr.GetComponentInChildren<TentacleGrab2>();
                 if (aaGrab != null && aaGrab.HasActualGrab) return "changing to";   // 실제로 잡은 뒤에만
-                if (cr.intent == CreatureIntent.Chase) return "chase";
+                if (cr.intent == CreatureIntent.Flee) return "run away";            // H로부터 도망
+                if (cr.intent == CreatureIntent.Chase) return "chase";             // LL/L 쫓음
                 return "wander";
             case CreatureID.D:  return "decompose";
             case CreatureID.L:

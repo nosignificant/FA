@@ -228,6 +228,8 @@ public class Door : MonoBehaviour
     private void EvaluateConditions()
     {
         if (alwaysOpen) return;   // 항상 열린 통로는 조건과 무관하게 계속 열림
+        // 튜토리얼 방(어느 쪽이든)의 문은 조건 자동 개폐 안 함 (TutorialGuide가 수동 제어)
+        if ((roomA != null && roomA.isTutorial) || (roomB != null && roomB.isTutorial)) return;
 
         bool shouldOpen;
 
@@ -314,7 +316,7 @@ public class Door : MonoBehaviour
                     case GateType.EQUALS: return "equals";
                     default:              return "AND";
                 }
-            default: return "active";   // RoomState
+            default: return "is";   // RoomState (사용자 요청: active 아님)
         }
     }
 

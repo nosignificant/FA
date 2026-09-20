@@ -121,7 +121,15 @@ public class Think2 : MonoBehaviour
     private bool _frozen = false;   // dormant/bind 진입 시 proxy 1회 고정 후 완전 정지
     // 휴면 상태면 제자리 정지. HBinder/SBinder가 이 필드를 설정(H는 자기·AA 정지, S는 자기 정지).
     [System.NonSerialized] public bool dormant = false;
-    protected virtual bool IsDormant() => dormant || RoomStateGated();
+    public virtual bool IsDormant() => dormant || RoomStateGated();
+
+    // 대상 생물이 휴면(dormant) 상태인지 — 휴면 대상은 도망/추적에서 제외
+    public static bool IsCreatureDormant(Creature t)
+    {
+        if (t == null) return false;
+        var th = t.GetComponent<Think2>();
+        return th != null && th.IsDormant();
+    }
 
     // CreatureData의 방상태 게이트: 지정 상태가 아니면 휴면
     private bool RoomStateGated()
@@ -195,6 +203,7 @@ public class Think2 : MonoBehaviour
         {
             var t = detected[i];
             if (!IsValidTarget(t)) continue;
+            if (IsCreatureDormant(t)) continue;   // 휴면 대상으로부턴 안 도망
             if (self.HasAction(t.data.creatureID, InteractionAction.Flee)) return true;
         }
         return false;

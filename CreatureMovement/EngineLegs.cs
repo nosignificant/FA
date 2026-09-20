@@ -49,13 +49,25 @@ public class EngineLegs : MonoBehaviour
     void Update()
     {
         if (NeedToBalance()) StartCoroutine(LevelBody());
-        //방향 
-        movingDir = (followingTarget.position - body.position).normalized;
+
+        Vector3 toTarget = followingTarget.position - body.position;
+        //방향
+        movingDir = toTarget.normalized;
 
         //기준이 되는 타겟까지의 거리
-        float Dist = Vector3.Distance(body.position, followingTarget.position);
+        // 목표가 y축으로 위에 있으면(다리로 못 올라감) 수평거리로 판정 → 제자리 스텝 반복 방지
+        float Dist;
+        if (toTarget.y > followTriggerDist)
+        {
+            Vector3 flat = toTarget; flat.y = 0f;
+            Dist = flat.magnitude;
+        }
+        else
+        {
+            Dist = toTarget.magnitude;
+        }
 
-        //거리가 followTrigger보다 멀면 
+        //거리가 followTrigger보다 멀면
         if (Dist > followTriggerDist)
             Move();
         else

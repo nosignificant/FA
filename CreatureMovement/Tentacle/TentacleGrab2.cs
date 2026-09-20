@@ -19,6 +19,8 @@ public class TentacleGrab2 : MonoBehaviour
     public TentacleSlot[] tentacles;
     public int reservedForSpawn = -1;
     public float holdTime = 2f;
+    [Tooltip("이 거리 안의 대상만 잡음. 0 이하면 무제한")]
+    public float grabRange = 5f;
 
 
     void Start()
@@ -61,6 +63,14 @@ public class TentacleGrab2 : MonoBehaviour
         if (target.IsGrabbed || target.intent == CreatureIntent.Decomposing) return;
         if (forcedTargetID != CreatureID.Player && target.data.creatureID != forcedTargetID) return;
         if (!self.HasAction(target.data.creatureID, InteractionAction.Grab)) return;
+
+        // 거리 제한 — 이 범위 밖이면 안 잡음 (닿지도 않았는데 시간만으로 잡히는 것 방지)
+        if (grabRange > 0f)
+        {
+            Vector3 sp = self.rootTransform != null ? self.rootTransform.position : transform.position;
+            Vector3 tp = target.rootTransform != null ? target.rootTransform.position : target.transform.position;
+            if ((tp - sp).sqrMagnitude > grabRange * grabRange) return;
+        }
 
         // 다른 생물을 이미 잡고 있는 생물은 못 잡음
         var targetGrab = target.GetComponentInChildren<TentacleGrab2>();

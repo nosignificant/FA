@@ -27,6 +27,8 @@ class SynthesizeState : ThinkState
     public override void Refresh(List<Vector3> points)
     {
         if (tCreature == null || tentacleGrab == null) return;
+        // 합성 중엔 제자리 유지 — 안 그러면 newTarget.point가 기본값(원점)이라 proxy가 (0,0,0)으로 튐
+        newTarget.point = GetSelfPos();
         if (CanStartSynth()) ttThink.StartCoroutine(Synthesize());
     }
 

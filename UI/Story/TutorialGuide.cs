@@ -46,6 +46,14 @@ public class TutorialGuide : MonoBehaviour
     // 최초 1회 빙의 설명 대사용
     private Coroutine storyCo;
 
+    // Player 컴포넌트 지연 캐싱 (처음 접근 때 한 번만 가져와 재사용)
+    private PlayerInputManager _pim;
+    private PlayerLockOn _pl;
+    private CreaturePossess _cp;
+    private PlayerInputManager Pim => _pim != null ? _pim : (_pim = Player.Instance?.GetComponent<PlayerInputManager>());
+    private PlayerLockOn Pl => _pl != null ? _pl : (_pl = Player.Instance?.GetComponent<PlayerLockOn>());
+    private CreaturePossess Cp => _cp != null ? _cp : (_cp = Player.Instance?.GetComponent<CreaturePossess>());
+
     void Start()
     {
         tmp = tutorialUI.GetComponentInChildren<TextMeshProUGUI>();
@@ -148,8 +156,8 @@ public class TutorialGuide : MonoBehaviour
         // 씬마다 같은 roomID를 쓰므로 씬으로 먼저 분기
         switch (SceneManager.GetActiveScene().name)
         {
-            case "tutorial1": DispatchTutorial1(room); break;
-            case "tutorial2": DispatchTutorial2(room); break;
+            case "tutorial0": DispatchTutorial1(room); break;
+            case "tutorial_2": DispatchTutorial2(room); break;
         }
     }
 
@@ -183,6 +191,14 @@ public class TutorialGuide : MonoBehaviour
         }
     }
 
+    // 방이 L 상태가 되면 깜빡이며 조명 켜기 (튜토리얼 전용 하드코딩)
+    private IEnumerator LightWhenL(Room room)
+    {
+        while (room != null && room.Activation != Room.RoomActivation.L)
+            yield return null;
+        if (room != null) yield return room.FlickerLightOn();
+    }
+
     private void OpenDoor(int idx)
     {
         if (doors == null || idx < 0 || idx >= doors.Length) return;
@@ -191,59 +207,78 @@ public class TutorialGuide : MonoBehaviour
     }
     IEnumerator Tut0Routine(Room room)
     {
-        yield return SayLine("farewell apoptosis 회로 연산을 시작합니다.", 10f);
         doors[0].DoorCloseAndOpen(true);
-
-        doneRooms.Add(room.roomID);
+        yield return null;
     }
     IEnumerator Tut1Routine(Room room)
     {
-        keepAcrossRooms = true;
-        var pim = Player.Instance.GetComponent<PlayerInputManager>();
-        var pl = Player.Instance.GetComponent<PlayerLockOn>();
 
-        Say($"{pim.lockOnKey}를 눌러 생물을 관찰하십시오.");
-        while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.T)
-            yield return null;
+        yield return LightWhenL(room);
+        var pim = Pim;
+        var pl = Pl;
+        var cp = Cp;
 
-        yield return SayLine("생물은 회로의 일부입니다. 생물을 관찰하면, 해당 생물을 락온합니다. 락온 중에는 생물의 상태를 알 수 있습니다.");
+
+        yield return SayLine("farewell apoptosis 연산을 시작합니다.", 5f);
+
+        Say($"생물은 회로의 일부입니다. {pim.lockOnKey}를 눌러 생물을 관찰하십시오.");
+
+        while (pl.targetCreature == null) yield return null;
+
+        yield return SayLine("생물을 관찰하면, 생물의 현재 행동을 알 수 있습니다.");
         yield return SayLine($"관찰 중 {pim.lockOnKey}을 한 번 더 눌러 관찰 중인 생물을 전환할 수 있습니다.");
-        doors[0].DoorCloseAndOpen(false);
 
-        tmp.text = "이제 문을 관찰하십시오.";
+        tmp.text = $"어떤 생물은 당신이 조종할 수 있습니다. L을 관찰한 상태에서 {pim.possessKey}를 눌러 조종하십시오.";
+        while (!cp.IsPossessing) yield return null;
+        yield return SayLine($"조종 중 {pim.possessKey}를 다시 눌러 조종을 해제하십시오.");
+
+        tmp.text = "다음으로 문을 관찰하십시오.";
         while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.Door)
             yield return null;
-        yield return SayLine("문은 방의 상태에 따라 열리고 닫힙니다. 문이 열리는 조건은 문을 관찰하면 알 수 있습니다.");
-        yield return SayLine("현재 방의 문은 'h 생물이 가장 많은 상태'일 때 열립니다.");
-        yield return SayLine("다리를 넘어 왼쪽 방으로 이동하십시오.");
-        while (Player.Instance.currentRoom.roomID == "tut_1-1") yield return null;
-        yield return SayLine($"이곳에 h 생물이 있습니다.");
-        yield return SayLine($"생물을 바라보고 {pim.lockOnKey}한 후 {pim.possessKey}를 눌러 조종하십시오.");
-        yield return SayLine($"{pim.possessKey}를 다시 눌러 조종을 해제하십시오.");
-
-        while (!room.HasSpecies(CreatureID.H)) yield return null;
+        yield return SayLine("문은 방의 상태에 따라 열리고 닫힙니다.");
+        yield return SayLine("방의 상태는 L과 A 두 가지가 있습니다.");
+        yield return SayLine("방에 L 또는 A 생물이 과반이 되면, 방은 해당 상태가 됩니다.");
         OpenDoor(1);
-        doneRooms.Add(room.roomID);
+        yield return SayLine("다음 방으로 이동하십시오.");
 
+        doneRooms.Add(room.roomID);
     }
 
     IEnumerator Tut2Routine(Room room)
     {
+        var pim = Pim;
+        var pl = Pl;
+        var cp = Cp;
 
-        yield return SayLine("어떤 생물은 다른 생물을 생산하고 합성하는 능력을 갖고 있습니다.");
-        doors[1].DoorCloseAndOpen(false);
+        yield return SayLine("어떤 생물은 방의 상태에 따라 활성화되거나 비활성화됩니다.");
 
-        yield return SayLine("생물 L은 S를 2마리 합쳐 SS를 만들 수 있습니다.");
+        tmp.text = "H 생물을 활성화시키십시오.";
 
-        Say("생물 L이 합성하는 모습을 관찰하십시오.");
-        // TODO: HH/SS 제거됨 — 이 튜토리얼(합성 소개)은 새 모델(LL→L 생산 등)에 맞게 재작성 필요.
-        yield return new WaitForSeconds(3f);
+        while (true)
+        {
+            var hBrain = FindBrainInRoom(room, CreatureID.H);
+            if (hBrain != null && !hBrain.dormant) break;
+            yield return null;
+        }
+        tmp.text = "H 같은 ";
+        while (!cp.IsPossessing) yield return null;
 
-        yield return SayLine("이렇게 생물 L이 S생물 두 마리를 포획하면, SS로 합성할 수 있습니다.");
-        yield return SayLine("생물은 주변과 상호작용합니다. 생물마다 좋아하는 생물, 싫어하는 생물이 존재하고 가까이 다가가거나 멀어지려 합니다.");
-        OpenDoor(2);
-        doneRooms.Add(room.roomID);
-        yield return SayLine("다음 방으로 이동하십시오.");
+        tmp.text = "T 생물을 조종한 채로, R 생물을 락온하십시오.";
+
+
+    }
+
+    // 방 안에서 특정 종 생물의 Think2를 찾음 (없으면 null)
+    private Think2 FindBrainInRoom(Room room, CreatureID id)
+    {
+        if (room == null || room.creatureList == null) return null;
+        for (int i = 0; i < room.creatureList.Count; i++)
+        {
+            var c = room.creatureList[i];
+            if (c == null || c.IsDead || c.data == null) continue;
+            if (c.data.creatureID == id) return c.GetComponent<Think2>();
+        }
+        return null;
     }
 
     IEnumerator Tut3Routine(Room room)
@@ -253,9 +288,9 @@ public class TutorialGuide : MonoBehaviour
 
         yield return new WaitForSeconds(messageInterval / 2);
 
-        var pl = Player.Instance.GetComponent<PlayerLockOn>();
-        var pim = Player.Instance.GetComponent<PlayerInputManager>();
-        var cp = Player.Instance.GetComponent<CreaturePossess>();
+        var pl = Pl;
+        var pim = Pim;
+        var cp = Cp;
         Creature dc = doors[3].GetComponent<Creature>();
 
         tmp.text = "현재 방의 문을 관찰하십시오.";
@@ -267,11 +302,11 @@ public class TutorialGuide : MonoBehaviour
 
         tmp.text = "T 생물을 조종한 채로, R 생물을 락온하십시오.";
         while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.R) yield return null;
-        SayLine($"T 생물을 조종 중인 채로 R 생물을 락온하고 {pim.possessKey}를 누르면 T 생물과 R 생물이 연결됩니다.");
+        yield return SayLine($"T 생물을 조종 중인 채로 R 생물을 락온하고 {pim.possessKey}를 누르면 T 생물과 R 생물이 연결됩니다.");
 
         yield return SayLine("그러면 T 생물이 존재하는 방의 정보를 R 생물의 방에 보낼 수 있습니다.");
         yield return SayLine("그러면 T 생물을 다시 락온하면 다른 방과 연결되어 있는 여부를 알 수 있습니다.");
-        SayLine("연결되어 있는 T 생물을 다시 조종하려 시도하면 연결이 끊어집니다.");
+        yield return SayLine("연결되어 있는 T 생물을 다시 조종하려 시도하면 연결이 끊어집니다.");
         doneRooms.Add(room.roomID);
         OpenDoor(3);
 
@@ -354,7 +389,7 @@ public class TutorialGuide : MonoBehaviour
         yield return SayLine("해당 생물은 연약하여 조종을 시도하면 죽게 되는 듯합니다.");
         yield return SayLine("대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.");
 
-        var pim = Player.Instance.GetComponent<PlayerInputManager>();
+        var pim = Pim;
         yield return SayLine($"{pim.codexToggleKey}를 눌러 지금까지 모은 정보와 연 문의 개수를 확인할 수 있습니다.");
 
         SetTutorialVisible(false);

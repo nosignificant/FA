@@ -21,6 +21,12 @@ public class BreakableWall : MonoBehaviour
     public GameObject breakableObject;
     [Tooltip("breakable=on일 때 비활성화할 일반 벽 오브젝트")]
     public GameObject normalWall;
+    [Tooltip("부서졌을 때 켤 오브젝트 (부서진 잔해·구멍 비주얼). 안 부서진 동안은 꺼둠")]
+    public GameObject brokenObject;
+
+    [Header("시작 상태")]
+    [Tooltip("게임 시작부터 이미 부서진 상태로 둠 (통로로 열려있음)")]
+    public bool startBroken = false;
 
     [Header("breakable 색 (방 상태 L/A 따라 tint)")]
     [Tooltip("켜면 breakableObject를 roomA의 활성화 상태(L/A/None) 색으로 칠함")]
@@ -62,6 +68,8 @@ public class BreakableWall : MonoBehaviour
 
         // 방 상태 바뀔 때 색 갱신
         if (tintBreakable && roomA != null) roomA.OnActivationChanged += OnRoomActivation;
+
+        if (startBroken) Break();               // 시작부터 부서진 상태 (통로 열림)
     }
 
     private void OnDestroy()
@@ -110,6 +118,7 @@ public class BreakableWall : MonoBehaviour
         if (win) EnsureWindowInstance();        // 프리팹 선택 방식이면 생성
         if (window != null) window.SetActive(win);
         if (breakableObject != null) breakableObject.SetActive(breakable && !win);
+        if (brokenObject != null && !Broken) brokenObject.SetActive(false);   // 안 부서졌으면 꺼둠
         if (normalWall != null)
         {
             var mr = normalWall.GetComponent<MeshRenderer>();
@@ -209,6 +218,12 @@ public class BreakableWall : MonoBehaviour
 
         // 콜라이더 꺼서 물리적으로 통과 가능하게
         foreach (var col in GetComponentsInChildren<Collider>()) col.enabled = false;
+
+        // 부술 수 있는 벽 비주얼 오브젝트 비활성화
+        if (breakableObject != null) breakableObject.SetActive(false);
+
+        // 부서진 잔해/구멍 비주얼 켬
+        if (brokenObject != null) brokenObject.SetActive(true);
 
         // 벽 메시 숨김
         if (wallMesh != null) wallMesh.SetActive(false);

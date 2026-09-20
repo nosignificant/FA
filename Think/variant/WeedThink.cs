@@ -8,6 +8,8 @@ public class WeedThink : Think2
     public float weedReachThreshold = 5f;   // Think2.wanderReachThreshold와 이름 충돌 방지
     [Tooltip("목적지 도달 후 그 자리에 머무는 시간(초). 0이면 바로 다음 점으로")]
     public float dwellTime = 0f;
+    [Tooltip("한 타겟을 계속 주목하는 최대 시간(초). 지나면 다른 타겟을 찾음. 0=무제한")]
+    public float maxTrackTime = 0f;
 
     protected WeedWanderState weedWander;
 
@@ -24,6 +26,7 @@ public class WeedThink : Think2
         {
             reachThreshold = weedReachThreshold,
             dwellTime = dwellTime,
+            maxTrackTime = maxTrackTime,
         };
     }
 

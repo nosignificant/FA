@@ -280,6 +280,7 @@ public class CreaturePossess : MonoBehaviour
         {
             creature.Died += OnControlledDied;
             creature.intent = CreatureIntent.Controlled;
+            creature.SetMovementEnabled(true);   // 얼어있던(비활성) 방의 생물을 조종해도 움직이도록
 
             // 조종 중 락온을 고정하지 않음 — 다른 대상(수신기·L 생산기 등)을 락온해 연결/꽂기 할 수 있게
             Player.Instance.pl.ForceLock(creature);

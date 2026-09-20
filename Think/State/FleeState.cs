@@ -76,6 +76,7 @@ class FleeState : ThinkState
         {
             var t = detected[i];
             if (!think.IsValidTarget(t)) continue;
+            if (Think2.IsCreatureDormant(t)) continue;   // 휴면 대상으로부턴 안 도망
             if (!self.HasAction(t.data.creatureID, InteractionAction.Flee)) continue;
 
             int priority = self.GetActionPriority(t.data.creatureID, InteractionAction.Flee);
@@ -101,6 +102,7 @@ class FleeState : ThinkState
         {
             var t = detected[i];
             if (t == null || t.data == null) continue;
+            if (Think2.IsCreatureDormant(t)) continue;   // 휴면 대상은 밀어내는 힘에서 제외
 
             Transform tf = t.rootTransform;
 

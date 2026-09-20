@@ -60,7 +60,7 @@ public class Lcreature : TentacleCreature
         Room best = null, fallback = null;
         foreach (var d in currentRoom.doors)
         {
-            if (d == null) continue;
+            if (d == null || !d.isOpen) continue;   // 닫힌 문으로는 못 감
             Room other = d.GetOtherRoom(currentRoom);
             if (other == null) continue;
             fallback = other;
@@ -93,7 +93,8 @@ public class Lcreature : TentacleCreature
                 continue;
             }
 
-            if (intent == CreatureIntent.Synthesizing || intent == CreatureIntent.Flee)
+            // Flee(도망) 중에도 L 생산은 계속 — 합성 중일 때만 정지
+            if (intent == CreatureIntent.Synthesizing)
             {
                 yield return null;
                 continue;

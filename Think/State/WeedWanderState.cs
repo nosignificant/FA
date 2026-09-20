@@ -10,9 +10,12 @@ public class WeedWanderState : ThinkState
 {
     public float reachThreshold = 5f;   // 목적지 도달 판정 거리
     public float dwellTime = 0f;        // 도달 후 머무는 시간(초)
+    public float maxTrackTime = 0f;     // 한 타겟을 계속 주목하는 최대 시간(초, 0=무제한)
 
     private bool hasPoint = false;
     private float reachedTime = -1f;
+    private float trackStartTime = -1f; // 현재 타겟 주목 시작 시각
+    private Creature lastTracked = null;// 방금 주목 시간이 끝난 타겟(연속 재선택 방지)
 
     public WeedWanderState(Think2 think) : base(think) { }
 
@@ -21,6 +24,8 @@ public class WeedWanderState : ThinkState
         base.Enter(prev);
         hasPoint = false;
         reachedTime = -1f;
+        trackStartTime = -1f;
+        lastTracked = null;
     }
 
     public override void Refresh(List<Vector3> points)
@@ -31,6 +36,10 @@ public class WeedWanderState : ThinkState
         Creature target = StillTracking() ? newTarget.creature : FindNearestInRange();
         if (target != null)
         {
+            // 새 타겟을 잡으면 주목 타이머 시작
+            if (target != newTarget.creature || trackStartTime < 0f)
+                trackStartTime = Time.time;
+
             newTarget.point = target.rootTransform.position;   // 반경 안 생물 추적
             newTarget.creature = target;                       // HUD·상호작용에서 타겟 생물 표시용
             hasPoint = false;                                  // 놓치면 새 wander 시작
@@ -70,6 +79,14 @@ public class WeedWanderState : ThinkState
     {
         var c = newTarget.creature;
         if (c == null || !think.IsValidTarget(c)) return false;
+
+        // 주목 시간 초과 → lock 해제, 이 타겟은 다음 선택에서 잠시 제외
+        if (maxTrackTime > 0f && trackStartTime >= 0f && Time.time - trackStartTime >= maxTrackTime)
+        {
+            lastTracked = c;
+            return false;
+        }
+
         float r = think.scanner != null ? think.scanner.scanRadius : float.MaxValue;
         return (c.rootTransform.position - GetSelfPos()).sqrMagnitude <= r * r;
     }
@@ -89,11 +106,20 @@ public class WeedWanderState : ThinkState
         {
             var c = detected[i];
             if (!think.IsValidTarget(c)) continue;
+            if (c == lastTracked) continue;   // 방금 주목 끝난 타겟은 잠시 제외 (다른 타겟 우선)
 
             float sqr = (c.rootTransform.position - selfPos).sqrMagnitude;
             if (sqr > rSqr) continue;   // 반경 밖 → 추적 안 함
             if (sqr < bestSqr) { bestSqr = sqr; best = c; }
         }
+
+        // 다른 후보가 하나도 없으면 방금 그 타겟이라도 다시 (혼자뿐일 때 멈춤 방지)
+        if (best == null && lastTracked != null)
+        {
+            lastTracked = null;
+            return FindNearestInRange();
+        }
+        lastTracked = null;
         return best;
     }
 }
