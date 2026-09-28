@@ -26,7 +26,6 @@ public class TentacleGrab2 : MonoBehaviour
     void Start()
     {
         self = GetComponentInParent<Creature>();
-        if (self is Lcreature lc) reservedForSpawn = lc.spawnCreatureAtTentacleIndex;
         initTentacles();
     }
 

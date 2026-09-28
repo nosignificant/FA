@@ -30,6 +30,7 @@ public class QuadLegs : MonoBehaviour
     [Header("private")]
     private bool isMoving = false;
     private bool isReturning = false;
+    private bool _stopped = false;   // 이미 멈춰 정리 끝냈는지 (가만히 있을 때 반복 스텝 방지)
     private Coroutine moveCoroutine;
     private Transform groundTarget;
     private float[] theta;
@@ -71,6 +72,7 @@ public class QuadLegs : MonoBehaviour
     }
     void Move()
     {
+        _stopped = false;   // 다시 움직이기 시작 → 멈춤 정리 상태 해제
         if (isMoving) return;
 
         if (doesNeedToRot)
@@ -90,7 +92,11 @@ public class QuadLegs : MonoBehaviour
     {
         if (moveCoroutine != null) StopCoroutine(moveCoroutine);
         isMoving = false;
-        if (!isReturning) StartCoroutine(ReturnToStance());
+
+        if (_stopped) return;   // 이미 멈춰 정리 끝냄 → 가만히 있을 땐 스텝/재배치 안 함
+        _stopped = true;
+
+        if (!isReturning) StartCoroutine(ReturnToStance());   // 멈추는 순간 1회만 발 정렬
         StartCoroutine(LevelBody());
     }
 

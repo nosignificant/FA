@@ -21,16 +21,16 @@ public class BreakableWall : MonoBehaviour
     public GameObject breakableObject;
     [Tooltip("breakable=on일 때 비활성화할 일반 벽 오브젝트")]
     public GameObject normalWall;
-    [Tooltip("부서졌을 때 켤 오브젝트 (부서진 잔해·구멍 비주얼). 안 부서진 동안은 꺼둠")]
-    public GameObject brokenObject;
 
     [Header("시작 상태")]
     [Tooltip("게임 시작부터 이미 부서진 상태로 둠 (통로로 열려있음)")]
     public bool startBroken = false;
 
     [Header("breakable 색 (방 상태 L/A 따라 tint)")]
-    [Tooltip("켜면 breakableObject를 roomA의 활성화 상태(L/A/None) 색으로 칠함")]
+    [Tooltip("켜면 색을 roomA의 활성화 상태(L/A/None)에 따라 칠함")]
     public bool tintBreakable = false;
+    [Tooltip("색(tint)을 적용할 부모. 이 오브젝트 하위 Renderer 전부 칠함. 비우면 Breakable Object 사용")]
+    public GameObject tintTarget;
     [Tooltip("셰이더 색 프로퍼티 override. 비우면 자동(_BaseColor/_Color, SpriteRenderer는 .color)")]
     public string breakableColorProperty = "";
     public Color noneColor = Color.white;
@@ -58,6 +58,21 @@ public class BreakableWall : MonoBehaviour
     public Vector3 Position => transform.position;
 
     private int hits;
+
+#if UNITY_EDITOR
+    // 에디터에서 breakable 토글 시 즉시 표시 반영 (breakable 꺼지면 breakableObject active false)
+    private void OnValidate()
+    {
+        if (Application.isPlaying) return;
+        UnityEditor.EditorApplication.delayCall += () =>
+        {
+            if (this == null) return;
+            bool win = isWindow;
+            if (breakableObject != null) breakableObject.SetActive(breakable && !win);
+            if (tintTarget != null) tintTarget.SetActive(breakable && !win);
+        };
+    }
+#endif
 
     private void Start()
     {
@@ -118,20 +133,21 @@ public class BreakableWall : MonoBehaviour
         if (win) EnsureWindowInstance();        // 프리팹 선택 방식이면 생성
         if (window != null) window.SetActive(win);
         if (breakableObject != null) breakableObject.SetActive(breakable && !win);
-        if (brokenObject != null && !Broken) brokenObject.SetActive(false);   // 안 부서졌으면 꺼둠
+        if (tintTarget != null) tintTarget.SetActive(breakable && !win);   // 색칠 대상도 breakable 꺼지면 끔
         if (normalWall != null)
         {
             var mr = normalWall.GetComponent<MeshRenderer>();
             if (mr != null) mr.enabled = !(breakable || win);   // breakable이나 window면 일반 벽 메쉬 끔
         }
 
-        // breakable 비주얼을 roomA 상태(L/A/None) 색으로 틴트
-        if (tintBreakable && breakable && !win && breakableObject != null)
+        // 색 적용 대상: tintTarget 지정 시 그것, 없으면 breakableObject
+        GameObject colorRoot = tintTarget != null ? tintTarget : breakableObject;
+        if (tintBreakable && breakable && !win && colorRoot != null)
         {
             var state = roomA != null ? roomA.Activation : Room.RoomActivation.None;
             Color c = state == Room.RoomActivation.A ? aColor
                     : state == Room.RoomActivation.L ? lColor : noneColor;
-            var rs = breakableObject.GetComponentsInChildren<Renderer>(true);
+            var rs = colorRoot.GetComponentsInChildren<Renderer>(true);
             ActivationColor.Apply(rs, c, breakableColorProperty);
         }
     }
@@ -219,11 +235,8 @@ public class BreakableWall : MonoBehaviour
         // 콜라이더 꺼서 물리적으로 통과 가능하게
         foreach (var col in GetComponentsInChildren<Collider>()) col.enabled = false;
 
-        // 부술 수 있는 벽 비주얼 오브젝트 비활성화
+        // 부술 수 있는 벽 비주얼 오브젝트 비활성화 → 그 자리가 뚫려 통로가 됨
         if (breakableObject != null) breakableObject.SetActive(false);
-
-        // 부서진 잔해/구멍 비주얼 켬
-        if (brokenObject != null) brokenObject.SetActive(true);
 
         // 벽 메시 숨김
         if (wallMesh != null) wallMesh.SetActive(false);

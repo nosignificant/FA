@@ -48,7 +48,10 @@ public class Tentacle : MonoBehaviour
     {
         line = GetComponent<LineRender>();
 
-        brain = GetComponentInParent<Think2>();
+        // weed(WeedThink)일 때만 "주변에 뭐 없으면 제자리(_home)" 로직 적용. 그 외 촉수는 항상 target.
+        weedBrain = GetComponentInParent<WeedThink>();
+        // LL(생산기)의 촉수는 다른 물체를 조준하지 않고 항상 제자리 (잡는 메커니즘 없음)
+        isProducerTentacle = GetComponentInParent<Lcreature>() != null;
 
         //초기 위치
         if (tipTarget != null)
@@ -67,14 +70,17 @@ public class Tentacle : MonoBehaviour
         }
     }
 
-    private Think2 brain;   // wander(반응 없음) 판정
+    private WeedThink weedBrain;   // weed 촉수만 wander(제자리) 판정
     private Vector3 _home;
+    private bool isProducerTentacle;   // LL 생산기 촉수 → 항상 제자리
 
-    // 반응(대상 있음)이면 target, wander(대상 없음)면 제자리(home) → 로밍 proxy 안 따라감
+    // 기본: 항상 target을 향함.
+    // weed(WeedThink)면 반응 대상 없을 때만 제자리(_home). LL 생산기 촉수는 자기 tipTarget 기준.
     private Vector3 AimPos()
     {
-        bool wander = brain != null && brain.currentTarget.creature == null;
-        return wander ? _home : target.position;
+        if (isProducerTentacle) return tipTarget.position;
+        if (weedBrain != null && weedBrain.currentTarget.creature == null) return _home;   // weed 쉬기
+        return target != null ? target.position : _home;
     }
 
     void Update()

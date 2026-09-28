@@ -237,6 +237,7 @@ public class Room : MonoBehaviour
             if (c == null || c.IsDead || c.data == null) continue;
             if (c.IsGrabbed) continue;   // 분해·합성 중 개체는 건드리지 않음
             if (c.IsControlled) continue; // 조종 중인 생물은 플레이어를 따라 방을 넘나드므로 정지 제외
+            if (c.isBound) continue;      // H에 묶인 생물은 HBinder가 정지 관리 (여기서 깨우지 않음)
             var id = c.data.creatureID;
             if (id == CreatureID.Door || id == CreatureID.Player) continue;
             c.SetMovementEnabled(!frozen);

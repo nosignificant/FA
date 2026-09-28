@@ -157,7 +157,7 @@ public class TutorialGuide : MonoBehaviour
         switch (SceneManager.GetActiveScene().name)
         {
             case "tutorial0": DispatchTutorial1(room); break;
-            case "tutorial_2": DispatchTutorial2(room); break;
+            case "tutorial1": DispatchTutorial2(room); break;
         }
     }
 

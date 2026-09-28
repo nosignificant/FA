@@ -1,15 +1,23 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using CreatureTypes;
 
-// 생산기 (LL 프리팹에 부착): 촉수 발로 L 입자를 계속 생산. 같은 방에 AA가 있으면 회피 이동.
-public class Lcreature : TentacleCreature
+// 생산기 (LL 프리팹에 부착): 지정한 위치들 중 랜덤한 곳에 L 입자를 생성해 holdTime만큼 들고 있다 놓음.
+// 같은 방에 AA가 있으면 회피 이동. (합성 기능 없음 → Creature 상속)
+public class Lcreature : Creature
 {
     [Header("LBehavior")]
-    public float releaseInterval = 13f;
-    public float refillDelay = 3f;
+    [Tooltip("생산 간격(초)")]
+    public float spawnInterval = 3f;
+    [Tooltip("생성한 L을 소환 위치에 붙잡아 두는 시간(초). 지나면 놓아 자유롭게 흐름")]
+    public float holdTime = 10f;
     public bool needToSpawn = false;
-    public int spawnCreatureAtTentacleIndex = 0;
+
+    [Tooltip("이 부모의 하위 자식들을 생성 위치로 사용 (지정 시 아래 리스트 대신 이걸 씀)")]
+    public Transform spawnPointsParent;
+    [Tooltip("L을 생성할 위치 후보들 (이 중 랜덤). 비우면 자기 위치)")]
+    public List<Transform> spawnPoints = new();
 
     [Tooltip("생산하는 입자 (기본 L)")]
     public CreatureID currentSpawn = CreatureID.L;
@@ -19,20 +27,54 @@ public class Lcreature : TentacleCreature
     public bool fleeFromAA = true;
     public float fleeCheckInterval = 0.4f;
 
+    [Header("Runaway 시 회전 접기")]
+    [Tooltip("produce: 저장된 초기 회전 유지 / runaway(도망): 회전 0 / 복귀: 저장값으로")]
+    public Transform rotPartA;
+    public Transform rotPartB;
+    [Tooltip("회전 전환 속도 (클수록 빠르게 접힘/펴짐)")]
+    public float rotateSpeed = 8f;
+    private Quaternion _rotA = Quaternion.identity;
+    private Quaternion _rotB = Quaternion.identity;
+
     // HUD: 이 개체가 생산기인지
     public bool IsProducer => needToSpawn;
 
     private void Start()
     {
-        if (fleeFromAA) StartCoroutine(FleeAALoop());
-
-        if (tentacleGrab == null || tentacleGrab.tentacles == null) return;
-        if (needToSpawn)
+        // parent 지정 시 그 하위 자식들을 생성 위치로 사용
+        if (spawnPointsParent != null)
         {
-            tentacleGrab.reservedForSpawn = spawnCreatureAtTentacleIndex;
-            tentacleGrab.forcedTargetID = currentSpawn;
-            StartCoroutine(Lbehaviour());
+            spawnPoints = new List<Transform>();
+            foreach (Transform child in spawnPointsParent)
+                spawnPoints.Add(child);
         }
+
+        // 초기 회전 저장 (produce 상태에서 유지할 값)
+        if (rotPartA != null) _rotA = rotPartA.localRotation;
+        if (rotPartB != null) _rotB = rotPartB.localRotation;
+        if (rotPartA != null || rotPartB != null) StartCoroutine(RotFoldLoop());
+
+        if (fleeFromAA) StartCoroutine(FleeAALoop());
+        if (needToSpawn) StartCoroutine(Lbehaviour());
+    }
+
+    // runaway(도망) 중엔 회전 0, 그 외엔 저장된 초기 회전으로. (Creature.Update를 가리지 않게 코루틴)
+    private IEnumerator RotFoldLoop()
+    {
+        while (!IsDead)
+        {
+            bool runaway = intent == CreatureIntent.Flee;
+            ApplyFold(rotPartA, _rotA, runaway);
+            ApplyFold(rotPartB, _rotB, runaway);
+            yield return null;
+        }
+    }
+
+    private void ApplyFold(Transform t, Quaternion stored, bool runaway)
+    {
+        if (t == null) return;
+        Quaternion target = runaway ? Quaternion.identity : stored;   // 도망=0, 아니면 저장값
+        t.localRotation = Quaternion.Slerp(t.localRotation, target, Time.deltaTime * rotateSpeed);
     }
 
     // 같은 방에 AA가 있으면 인접(AA 없는) 방으로 이동 목표를 잡음
@@ -52,135 +94,105 @@ public class Lcreature : TentacleCreature
         }
     }
 
-    // AA 없는 인접 방 우선, 없으면 아무 문 너머 방으로
+    // AA 없는 인접 방 우선, 없으면 아무 통로 너머 방으로.
+    // 통로 = 열린 문 + 뚫린 벽(brokenPassages). 닫힌 문·안 뚫린 벽은 못 감.
     private Transform PickExitTargetAwayFromAA()
     {
-        if (currentRoom == null || currentRoom.doors == null) return null;
+        if (currentRoom == null) return null;
 
         Room best = null, fallback = null;
-        foreach (var d in currentRoom.doors)
-        {
-            if (d == null || !d.isOpen) continue;   // 닫힌 문으로는 못 감
-            Room other = d.GetOtherRoom(currentRoom);
-            if (other == null) continue;
-            fallback = other;
-            if (!other.HasSpecies(CreatureID.AA)) { best = other; break; }
-        }
+
+        if (currentRoom.doors != null)
+            foreach (var d in currentRoom.doors)
+            {
+                if (d == null || !d.isOpen) continue;   // 닫힌 문으로는 못 감
+                Room other = d.GetOtherRoom(currentRoom);
+                if (other == null) continue;
+                fallback = other;
+                if (!other.HasSpecies(CreatureID.AA)) { best = other; break; }
+            }
+
+        if (best == null && currentRoom.brokenPassages != null)
+            foreach (var w in currentRoom.brokenPassages)
+            {
+                if (w == null || !w.Broken) continue;   // 뚫린 벽만
+                Room other = w.GetOtherRoom(currentRoom);
+                if (other == null) continue;
+                fallback = other;
+                if (!other.HasSpecies(CreatureID.AA)) { best = other; break; }
+            }
+
         Room target = best != null ? best : fallback;
         return target != null ? target.transform : null;
     }
 
     private IEnumerator Lbehaviour()
     {
-        if (spawnCreatureAtTentacleIndex >= tentacleGrab.tentacles.Length) yield break;
-
-        while (currentRoom == null)
-            yield return null;
+        while (currentRoom == null) yield return null;
 
         while (!IsDead)
         {
-            // 조종 중엔 생산 정지 (촉수도 자유로워야 몸이 플레이어를 따라감)
-            if (IsControlled)
+            // 조종 중 / 비활성 방 / 합성 중이 아니면 생산
+            if (!IsControlled
+                && currentRoom != null && currentRoom.isActive
+                && intent != CreatureIntent.Synthesizing)
             {
-                yield return null;
-                continue;
+                SpawnAtRandomPoint();
             }
-
-            // 비활성 방은 생산 안 함
-            if (currentRoom == null || !currentRoom.isActive)
-            {
-                yield return null;
-                continue;
-            }
-
-            // Flee(도망) 중에도 L 생산은 계속 — 합성 중일 때만 정지
-            if (intent == CreatureIntent.Synthesizing)
-            {
-                yield return null;
-                continue;
-            }
-
-            Creature attached = SpawnAndAttach(spawnCreatureAtTentacleIndex);
-            if (attached == null)
-            {
-                yield return new WaitForSeconds(refillDelay);
-                continue;
-            }
-
-            float t = 0f;
-            bool consumed = false;
-            while (t < releaseInterval)
-            {
-                if (IsControlled) break;   // 조종 시작 → 들고 있던 스폰 놓고 촉수 해방 (아래 Release)
-                t += Time.deltaTime;
-                var slot = tentacleGrab.tentacles[spawnCreatureAtTentacleIndex];
-                if (!slot.isGrabbing || slot.grabbedCreature == null || slot.grabbedCreature != attached)
-                {
-                    consumed = true;
-                    break;
-                }
-                yield return null;
-            }
-
-            if (!consumed)
-                ReleaseAttached(spawnCreatureAtTentacleIndex);
-
-            yield return new WaitForSeconds(refillDelay);
+            yield return new WaitForSeconds(spawnInterval);   // 매번 현재 값 읽음
         }
     }
 
-    private Creature SpawnAndAttach(int idx)
+    // 지정 위치들 중 랜덤한 곳에 L 하나 생성 → holdTime만큼 그 자리에 붙잡았다 놓음
+    private void SpawnAtRandomPoint()
     {
         GameObject spawnThis = WhichOneSpawn(currentSpawn);
         if (spawnThis == null)
         {
             Debug.LogWarning($"[Lcreature] {name}: creatureDB에서 {currentSpawn} prefab을 못 찾음 (DB 등록 확인)");
-            return null;
-        }
-        if (idx < 0 || idx >= tentacleGrab.tentacles.Length) return null;
-
-        ref var slot = ref tentacleGrab.tentacles[idx];
-        if (slot.tentacle == null || slot.tentacle.foot == null) return null;
-
-        // 생물이 죽어서 null이 됐으면 슬롯 정리
-        if (slot.isGrabbing && slot.grabbedCreature == null)
-        {
-            slot.isGrabbing = false;
-            slot.isPending = false;
+            return;
         }
 
-        if (slot.isGrabbing || slot.grabbedCreature != null) return null;
+        Transform point = PickSpawnPoint();
+        Vector3 pos = point != null ? point.position
+                    : (rootTransform != null ? rootTransform.position : transform.position);
 
-        Transform foot = slot.tentacle.foot;
-        GameObject obj = Instantiate(spawnThis, foot.position, Quaternion.identity);
+        GameObject obj = Instantiate(spawnThis, pos, Quaternion.identity);
         Creature c = obj.GetComponent<Creature>();
-        if (c == null) { Destroy(obj); return null; }
+        if (c == null) { Destroy(obj); return; }
 
         currentRoom.RegisterCreature(c);
-
-        tentacleGrab.AttachToSlot(idx, c);
-
-        return c;
+        StartCoroutine(HoldThenRelease(c, point));
     }
 
-    private void ReleaseAttached(int idx)
+    // spawnPoints 중 랜덤 (비어있으면 null → 자기 위치)
+    private Transform PickSpawnPoint()
     {
-        if (idx < 0 || idx >= tentacleGrab.tentacles.Length) return;
+        if (spawnPoints != null && spawnPoints.Count > 0)
+            return spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Count)];
+        return null;
+    }
 
-        ref var slot = ref tentacleGrab.tentacles[idx];
-        Creature c = slot.grabbedCreature;
+    // 생성한 L을 holdTime 동안 소환 위치의 자식으로 붙였다가 놓음
+    private IEnumerator HoldThenRelease(Creature c, Transform point)
+    {
+        if (c == null) yield break;
 
-        slot.isGrabbing = false;
-        slot.grabbedCreature = null;
-        if (slot.tentacle != null) slot.tentacle.target = slot.oldTarget;
+        c.SetMovementEnabled(false);            // 물리·이동 정지
+        Transform ct = c.transform;
+        if (point != null) ct.SetParent(point, true);   // 자식으로 (world 유지 → LL 움직여도 자연히 따라감)
 
-        if (c == null || c.IsDead) return;
+        float t = 0f;
+        while (t < holdTime)
+        {
+            if (c == null || c.IsDead) yield break;
+            t += Time.deltaTime;
+            yield return null;
+        }
 
-        // AttachedTo의 정확한 역동작 (계층/컴포넌트/kinematic 복구)
-        c.Release();
-
-        // 풀리자마자 다시 잡히는 것 방지 — grab 면역
-        c.SetGrabImmunity(2f);
+        if (c == null || c.IsDead) yield break;
+        ct.SetParent(null, true);               // 부모에서 떼어냄 (world 유지)
+        c.SetMovementEnabled(true);             // 놓기 → 자유롭게 흐름
     }
 
     public GameObject WhichOneSpawn(CreatureID idx)
@@ -192,6 +204,5 @@ public class Lcreature : TentacleCreature
     public void SetLSpawnCreature(CreatureID idx)
     {
         currentSpawn = idx;
-        if (tentacleGrab != null) tentacleGrab.forcedTargetID = idx;
     }
 }

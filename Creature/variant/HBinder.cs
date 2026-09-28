@@ -51,7 +51,6 @@ public class HBinder : MonoBehaviour
         {
             UpdateActivated();   // 한번 켜지면 계속 켜짐(영구 래치)
 
-            Debug.Log($"[HBinder] {name} activated={activated} bound={(boundAA!=null)} nearestAA={NearestAAInRange(bindRange)?.name} bindRange={bindRange} room={self.currentRoom?.roomID}");
             if (activated)
             {
                 if (boundAA == null)
@@ -60,13 +59,8 @@ public class HBinder : MonoBehaviour
                     Creature aa = NearestAAInRange(bindRange);
                     if (aa != null) Bind(aa);
                 }
-                else if (boundAA.IsDead
-                         || boundAA.currentRoom != self.currentRoom
-                         || Dist(boundAA) > releaseRange)   // 죽음·방 이탈·멀어짐 → 해제
+                else if (boundAA.IsDead || Dist(boundAA) > releaseRange)   // 죽음·H에게서 멀어짐 → 해제
                 {
-                    Debug.Log($"[HBinder] {name} RELEASE — dead={boundAA.IsDead} " +
-                              $"roomMismatch={(boundAA.currentRoom != self.currentRoom)}(aa={boundAA.currentRoom?.roomID}/h={self.currentRoom?.roomID}) " +
-                              $"dist={Dist(boundAA):F2}(release={releaseRange})");
                     Release();
                 }
             }
@@ -124,16 +118,21 @@ public class HBinder : MonoBehaviour
     private void Bind(Creature aa)
     {
         boundAA = aa;
-        aa.isBound = true;   // AA 정지(활성 유지) → 이동·변환 중단, HUD "bound"
+        aa.isBound = true;                 // Think 정지(활성색 유지) → 추적·변환 중단, HUD "bound"
+        aa.SetMovementEnabled(false);      // 물리·다리까지 완전 정지 (잔여 속도로 미끄러져 풀리는 것 방지)
         Popup.Instance?.BurstMessage(self, "bound", Color.cyan);
     }
 
     private void Release()
     {
-        if (boundAA != null) boundAA.isBound = false;   // AA 정지 해제
-        self.isBound = false;                            // H 정지 해제
+        if (boundAA != null)
+        {
+            boundAA.isBound = false;           // AA Think 정지 해제
+            boundAA.SetMovementEnabled(true);  // 물리·다리 재개
+        }
+        self.isBound = false;                  // H 정지 해제
         boundAA = null;
-        if (bindLine != null) bindLine.Clear();          // 선 지움
+        if (bindLine != null) bindLine.Clear(); // 선 지움
     }
 
     // bind 선: H중심 ↔ AA중심. 매 프레임 갱신(둘 다 정지지만 부드럽게)
