@@ -1,6 +1,11 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
+// 절차적 4족 보행 (drift 기반 한 발씩):
+//  - 발마다 몸통 기준 "쉬는 자리(stance)"를 둠. 몸이 움직여 발이 stance에서 stepThreshold 넘게 벌어지면 내딛음.
+//  - 인접(각도 가까운) 다리는 동시에 안 들어 지지 유지 → 자연스러운 걸음.
+//  - 발은 호(sin arc)를 그리며 이동. 몸통 위치는 transform 직접, 높이는 발 평균에서 산출 (Rigidbody 관성 없음).
 public class QuadLegs : MonoBehaviour
 {
     [Header("Transform")]
@@ -8,174 +13,246 @@ public class QuadLegs : MonoBehaviour
     public Transform body;
     public Transform[] tipTargets;
 
-    [Header("Move")]
-    public float followTriggerDist = 1f;   // 이 거리 넘으면 몸 이동
-    public float stride = 5f;              // 발이 홈에서 이만큼 벌어지면 스텝
-    public float moveSpeed = 3f;           // 몸 이동/회전 속도
-    public float lateralDist = 1.5f;       // 발-몸통 옆 거리 (stance 반경)
-    public float stepTime = 0.2f;          // 발 한 발짝 이동 시간
-    public float stepHeight = 2f;          // 발 들어올리는 높이
+    [Header("이동")]
+    [Tooltip("타겟이 이 거리보다 멀면 몸통 이동")]
+    public float followTriggerDist = 1f;
+    public float moveSpeed = 3f;
+    [Tooltip("몸통이 이동방향으로 도는 속도")]
+    public float turnSpeed = 6f;
 
-    public bool doesNeedToRot = true;
-    [Header("rotation")]
-    public float rotationThreshold = 25f;  // 이 각도 넘으면 회전 우선(이동 억제)
+    [Header("발 딛기")]
+    [Tooltip("발이 쉬는 자리에서 이만큼 벌어지면 내딛음")]
+    public float stepThreshold = 2f;
+    [Tooltip("한 걸음이 나아가는 거리(전방 예측)")]
+    public float stride = 2.5f;
+    [Tooltip("발 드는 높이(호)")]
+    public float stepHeight = 1.5f;
+    [Tooltip("한 걸음 걸리는 시간(초, 작을수록 빠름)")]
+    public float stepDuration = 0.25f;
+    [Tooltip("동시에 들 수 있는 최대 발 수 (1=조심스런 걸음, 2=대각선 속보)")]
+    public int maxLegsStepping = 2;
+    [Tooltip("이 각도 안의 인접 다리는 동시에 안 듦 (지지 유지)")]
+    public float neighborAngle = 80f;
+    [Tooltip("발이 자기 홈 방향에서 벗어날 수 있는 최대 각도 (작을수록 다리 안 꼬임)")]
+    public float maxLegAngle = 40f;
+    [Tooltip("발이 몸통에서 벌어질 수 있는 반경 배율 (홈 반경 대비 최소/최대)")]
+    public float minRadiusRatio = 0.6f;
+    public float maxRadiusRatio = 1.5f;
 
-    [Header("Body follow (step 9~10)")]
-    public float standHeight = 3f;         // 발 평균 위 몸 높이
-    public float bodyLerp = 8f;            // 몸 위치/회전 스무딩 강도
-    public float tiltStrength = 6f;        // 발 높이차 → 기울기 스케일 (도/유닛)
-    public float maxTilt = 25f;            // pitch/roll 최대 각도
+    [Header("몸통 높이/균형")]
+    [Tooltip("발 평균 위로 이 높이만큼 몸통을 띄움")]
+    public float bodyHeight = 1.5f;
+    [Tooltip("몸통 높이 따라가는 속도")]
+    public float heightAdjustSpeed = 8f;
+    [Tooltip("바닥 기울기에 몸통을 맞추는 정도 (0=항상 수평)")]
+    [Range(0f, 1f)] public float tiltToGround = 0.5f;
 
     public LayerMask ground;
 
-    // private
-    private float[] theta;                 // 몸 forward 기준 발 방향 각도
-    private int[] gaitGroup;               // 대각 그룹 (0/1)
-    private bool[] isFront;                 // 앞다리 여부
-    private bool[] isRight;                 // 오른다리 여부
-    private bool[] isStepping;              // 현재 딛는 중인 발
-    private Vector3 movingDir;             // 수평 이동 방향
-    private bool moving;
+    // 내부
+    private float[] theta;        // 각 발의 몸통 정면 기준 방향 각(deg)
+    private float[] legRadius;    // 각 발의 몸통 기준 반경
+    private bool[] isStepping;
+    private Vector3[] plantedPos; // 딛고 있는 발의 월드 위치 (몸 움직여도 고정)
+    private Rigidbody rb;
+    private Creature owner;       // 방 경계 clamp용
 
     void Start()
     {
-        int n = tipTargets.Length;
+        owner = GetComponentInParent<Creature>();
+        if (body != null) rb = body.GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = true;   // 물리 관성 제거 (transform으로 직접 제어)
+
+        int n = tipTargets != null ? tipTargets.Length : 0;
         theta = new float[n];
-        gaitGroup = new int[n];
-        isFront = new bool[n];
-        isRight = new bool[n];
+        legRadius = new float[n];
         isStepping = new bool[n];
+        plantedPos = new Vector3[n];
 
         for (int i = 0; i < n; i++)
         {
             Vector3 offset = tipTargets[i].position - body.position;
-
-            // 몸 정면 기준 발 방향 각도 (기존 로직 유지)
+            offset.y = 0f;
+            legRadius[i] = Mathf.Max(0.1f, offset.magnitude);
             theta[i] = Vector2.SignedAngle(
                 new Vector2(offset.x, offset.z),
                 new Vector2(body.forward.x, body.forward.z));
-
-            // 앞/뒤·좌/우 분류 → 대각 gait 그룹
-            Vector3 local = body.InverseTransformPoint(tipTargets[i].position);
-            isFront[i] = local.z >= 0f;
-            isRight[i] = local.x >= 0f;
-            // 대각 쌍: (앞-오른, 뒤-왼) = 그룹0 / (앞-왼, 뒤-오른) = 그룹1
-            gaitGroup[i] = (isFront[i] == isRight[i]) ? 0 : 1;
+            plantedPos[i] = tipTargets[i].position;   // 초기 착지 위치
         }
     }
 
     void Update()
     {
-        if (body == null || tipTargets == null || tipTargets.Length == 0) return;
+        if (body == null || followingTarget == null || tipTargets == null) return;
 
-        // 수평 이동 방향
-        Vector3 flat = followingTarget.position - body.position;
-        flat.y = 0f;
+        Vector3 toTarget = followingTarget.position - body.position;
+        Vector3 flat = toTarget; flat.y = 0f;
         float dist = flat.magnitude;
-        movingDir = dist > 0.0001f ? flat / dist : body.forward;
-        moving = dist > followTriggerDist;
+        bool moving = dist > followTriggerDist;
+        Vector3 moveDir = flat.sqrMagnitude > 0.0001f ? flat.normalized : body.forward;
 
-        float yawAngle = Vector3.SignedAngle(body.forward, movingDir, Vector3.up);
-        bool rotatingFirst = doesNeedToRot && Mathf.Abs(yawAngle) > rotationThreshold;
-
-        // 1) 몸 수평 이동 (리드). 큰 회전이 필요하면 제자리 회전 우선.
-        if (moving && !rotatingFirst)
+        // 1) 몸통 이동·회전 (도착했으면 정지 → 발도 안 벌어져 스텝 안 함)
+        if (moving)
         {
-            float moveDist = Mathf.Min(moveSpeed * Time.deltaTime, dist);
-            Vector3 next = body.position + movingDir * moveDist;
-            next.y = body.position.y;   // Y는 아래(step 9)에서 따로 제어
-            body.position = next;
+            Vector3 next = body.position + moveDir * moveSpeed * Time.deltaTime;
+            next.y = body.position.y;   // 수평만 (높이는 아래서 발 기준으로)
+            body.position = ClampToRoom(next);   // 방 경계 밖으로 못 나가게 → PushInsideRoom 순간이동 방지
+
+            Quaternion look = Quaternion.LookRotation(moveDir, Vector3.up);
+            body.rotation = Quaternion.Slerp(body.rotation, look, Time.deltaTime * turnSpeed);
         }
 
-        // 2) 발별 독립 스텝 + gait 잠금 (step 5~6, 8)
+        // 2) 발 딛기 판정 (벌어진 발을, 인접 다리 안 들 때, 최대 수만큼)
+        TryStepLegs(moving ? moveDir : Vector3.zero);
+
+        // 3) 몸통 높이/기울기 (발 평균 기준)
+        AdjustBody();
+    }
+
+    // 몸 이동/회전 뒤에도 딛고 있는 발은 땅에 고정 (몸 자식이라 안 그러면 끌려감)
+    void LateUpdate()
+    {
+        if (tipTargets == null || plantedPos == null) return;
+        for (int i = 0; i < tipTargets.Length; i++)
+            if (!isStepping[i]) tipTargets[i].position = plantedPos[i];
+    }
+
+    // 다리 i의 홈 방향(월드, 수평)
+    private Vector3 HomeDir(int i)
+    {
+        float phi = Vector2.SignedAngle(new Vector2(body.forward.x, body.forward.z), Vector2.up);
+        float psi = (theta[i] + phi) * Mathf.Deg2Rad;
+        return new Vector3(Mathf.Sin(psi), 0f, Mathf.Cos(psi));
+    }
+
+    // 각 발의 현재 쉬는 자리(stance) 월드 위치 (바닥에 스냅)
+    private Vector3 StancePos(int i)
+    {
+        Vector3 p = body.position + HomeDir(i) * legRadius[i];
+        return FootUtil.SetTargetNearest(p, ground);
+    }
+
+    // 착지 목표를 홈 방향 부채꼴(각도·반경) 안으로 제한 → 다리 안 꼬임
+    private Vector3 ClampToLegArc(int i, Vector3 target)
+    {
+        Vector3 fromBody = target - body.position; fromBody.y = 0f;
+        if (fromBody.sqrMagnitude < 0.0001f) return StancePos(i);
+
+        Vector3 home = HomeDir(i);
+        float ang = Mathf.Clamp(Vector3.SignedAngle(home, fromBody, Vector3.up), -maxLegAngle, maxLegAngle);
+        float radius = Mathf.Clamp(fromBody.magnitude, legRadius[i] * minRadiusRatio, legRadius[i] * maxRadiusRatio);
+
+        Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * home;
+        Vector3 p = body.position + dir * radius;
+        return FootUtil.SetTargetNearest(p, ground);
+    }
+
+    private void TryStepLegs(Vector3 moveDir)
+    {
+        int steppingCount = 0;
+        for (int i = 0; i < isStepping.Length; i++) if (isStepping[i]) steppingCount++;
+        if (steppingCount >= maxLegsStepping) return;
+
+        // 가장 많이 벌어진 발부터 내딛음
+        int bestLeg = -1;
+        float bestDrift = stepThreshold;   // 이 이상 벌어져야 후보
+
         for (int i = 0; i < tipTargets.Length; i++)
         {
             if (isStepping[i]) continue;
 
-            Vector3 home = HomeTarget(i);
-            float planarDist = new Vector2(
-                tipTargets[i].position.x - home.x,
-                tipTargets[i].position.z - home.z).magnitude;
+            Vector3 stance = StancePos(i);
+            float drift = Horizontal(tipTargets[i].position - stance);
+            if (drift <= bestDrift) continue;
+            if (NeighborStepping(i)) continue;   // 인접 다리가 들고 있으면 이 발은 대기 (지지 유지)
 
-            if (planarDist > stride && CanStep(i))
-                StartCoroutine(StepFoot(i, home));
+            bestDrift = drift;
+            bestLeg = i;
         }
 
-        // 3) 몸 높이(step 9) + 회전(yaw + 발 높이차 tilt, step 10)
-        UpdateBodyPose();
+        if (bestLeg >= 0)
+        {
+            // 목표 = stance + 이동방향으로 stride의 절반만큼 앞 예측, 홈 부채꼴로 제한(안 꼬이게)
+            Vector3 target = StancePos(bestLeg) + moveDir * (stride * 0.5f);
+            target = ClampToLegArc(bestLeg, target);
+            StartCoroutine(StepLeg(bestLeg, target));
+        }
     }
 
-    // 몸에 붙은 발 홈 타겟 (step 3~4)
-    Vector3 HomeTarget(int i)
+    // 이미 스텝 중인 다리 중 각도상 인접한 게 있나
+    private bool NeighborStepping(int i)
     {
-        float phi = Vector2.SignedAngle(new Vector2(body.forward.x, body.forward.z), Vector2.up);
-        float psi = (theta[i] + phi) * Mathf.Deg2Rad;
-        Vector3 footDir = new Vector3(Mathf.Sin(psi), 0, Mathf.Cos(psi));
-
-        // 진행방향으로 앞서 딛기 (정지 시엔 lateral stance만)
-        float proj = moving ? Mathf.Max(0f, Vector3.Dot(movingDir, footDir)) : 0f;
-        Vector3 target = body.position + footDir * lateralDist + movingDir * (stride * proj);
-
-        // 아래로 레이캐스트해 땅에 붙이기 (step 4). 못 찾으면 현재 발 유지.
-        if (FootUtil.TryGround(target, ground, out Vector3 g)) target = g;
-        else target.y = tipTargets[i].position.y;
-        return target;
+        for (int j = 0; j < isStepping.Length; j++)
+        {
+            if (j == i || !isStepping[j]) continue;
+            if (Mathf.Abs(Mathf.DeltaAngle(theta[i], theta[j])) < neighborAngle) return true;
+        }
+        return false;
     }
 
-    // 반대 대각 그룹이 전부 땅에 닿아있을 때만 뗄 수 있음 (step 8)
-    bool CanStep(int i)
-    {
-        for (int j = 0; j < tipTargets.Length; j++)
-            if (gaitGroup[j] != gaitGroup[i] && isStepping[j]) return false;
-        return true;
-    }
-
-    IEnumerator StepFoot(int i, Vector3 target)
+    private IEnumerator StepLeg(int i, Vector3 target)
     {
         isStepping[i] = true;
-        yield return StartCoroutine(FootUtil.lerpMove(tipTargets[i], target, stepTime, stepHeight));
+        Vector3 start = tipTargets[i].position;
+
+        float t = 0f;
+        while (t < 1f)
+        {
+            t += Time.deltaTime / Mathf.Max(0.01f, stepDuration);
+            Vector3 p = Vector3.Lerp(start, target, t);
+            p.y += Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * stepHeight;   // 호(arc)
+            tipTargets[i].position = p;
+            yield return null;
+        }
         tipTargets[i].position = target;
+        plantedPos[i] = target;      // 착지 위치 저장 → 이후 고정
         isStepping[i] = false;
     }
 
-    // 몸 위치(Y=발평균+standHeight) + 회전(yaw + 발 높이차 기울기)
-    void UpdateBodyPose()
+    private void AdjustBody()
     {
-        int n = tipTargets.Length;
-        float avgY = 0f, frontY = 0f, backY = 0f, leftY = 0f, rightY = 0f;
-        int fN = 0, bN = 0, lN = 0, rN = 0;
+        if (tipTargets.Length == 0) return;
 
-        for (int i = 0; i < n; i++)
+        // 발 평균 위치 + 노멀
+        Vector3 avg = Vector3.zero;
+        Vector3 up = Vector3.zero;
+        for (int i = 0; i < tipTargets.Length; i++)
         {
-            float y = tipTargets[i].position.y;
-            avgY += y;
-            if (isFront[i]) { frontY += y; fN++; } else { backY += y; bN++; }
-            if (isRight[i]) { rightY += y; rN++; } else { leftY += y; lN++; }
+            avg += tipTargets[i].position;
+            if (Physics.Raycast(tipTargets[i].position + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 5f, ground))
+                up += hit.normal;
         }
-        avgY /= n;
-        if (fN > 0) frontY /= fN;
-        if (bN > 0) backY /= bN;
-        if (lN > 0) leftY /= lN;
-        if (rN > 0) rightY /= rN;
+        avg /= tipTargets.Length;
+        if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
+        up.Normalize();
 
-        float smooth = 1f - Mathf.Exp(-bodyLerp * Time.deltaTime);
+        // 높이: 발 평균 + bodyHeight
+        Vector3 bp = body.position;
+        bp.y = Mathf.Lerp(bp.y, avg.y + bodyHeight, Time.deltaTime * heightAdjustSpeed);
+        body.position = bp;
 
-        // step 9: 몸 높이 = 발 평균 + standHeight
-        Vector3 pos = body.position;
-        pos.y = Mathf.Lerp(pos.y, avgY + standHeight, smooth);
-        body.position = pos;
-
-        // yaw: 이동방향 바라보기 (수평 고정)
-        Vector3 flatForward = movingDir;
-        flatForward.y = 0f;
-        if (flatForward.sqrMagnitude < 0.0001f) { flatForward = body.forward; flatForward.y = 0f; }
-        Quaternion yawRot = Quaternion.LookRotation(flatForward.normalized, Vector3.up);
-
-        // step 10: 앞뒤/좌우 발 높이차 → pitch/roll
-        float pitch = Mathf.Clamp((backY - frontY) * tiltStrength, -maxTilt, maxTilt);
-        float roll = Mathf.Clamp((leftY - rightY) * tiltStrength, -maxTilt, maxTilt);
-        Quaternion tiltRot = Quaternion.Euler(pitch, 0f, roll);
-
-        body.rotation = Quaternion.Slerp(body.rotation, yawRot * tiltRot, smooth);
+        // 기울기: 바닥 노멀에 맞춤 (tiltToGround로 정도 조절), forward는 유지
+        Vector3 targetUp = Vector3.Slerp(Vector3.up, up, tiltToGround);
+        Vector3 fwd = Vector3.ProjectOnPlane(body.forward, targetUp).normalized;
+        if (fwd.sqrMagnitude > 0.0001f)
+        {
+            Quaternion targetRot = Quaternion.LookRotation(fwd, targetUp);
+            body.rotation = Quaternion.Slerp(body.rotation, targetRot, Time.deltaTime * heightAdjustSpeed);
+        }
     }
+
+    // 방 homeBound 안으로 수평 clamp. 조종 중/방 없으면 그대로.
+    private Vector3 ClampToRoom(Vector3 pos)
+    {
+        if (owner != null && owner.IsControlled) return pos;   // 조종 중엔 플레이어 따라 방 넘나들게
+        if (owner == null || owner.currentRoom == null || owner.currentRoom.homeBound == null) return pos;
+        Bounds b = owner.currentRoom.homeBound.bounds;
+        Vector3 c = b.center;
+        float ix = b.extents.x - 0.5f, iz = b.extents.z - 0.5f;
+        pos.x = Mathf.Clamp(pos.x, c.x - ix, c.x + ix);
+        pos.z = Mathf.Clamp(pos.z, c.z - iz, c.z + iz);
+        return pos;
+    }
+
+    private static float Horizontal(Vector3 v) { v.y = 0f; return v.magnitude; }
 }

@@ -1,5 +1,10 @@
 using UnityEngine;
 using System.Collections;
+
+// 절차적 다족 보행 (drift 기반 한 발씩) — QuadLegs와 동일 알고리즘, 발 개수 무관.
+//  - 발마다 몸통 기준 "쉬는 자리(stance)"를 두고, stepThreshold 넘게 벌어지면 한 발씩 내딛음.
+//  - 인접(각도 가까운) 다리는 동시에 안 듦 → 지지 유지. 발은 호(sin arc)로 이동.
+//  - 착지 목표를 홈 부채꼴로 제한 → 다리 안 꼬임. 몸통은 transform 직접(관성 없음), 높이는 발 평균에서.
 public class EngineLegs : MonoBehaviour
 {
     [Header("Transform")]
@@ -7,269 +12,220 @@ public class EngineLegs : MonoBehaviour
     public Transform body;
     public Transform[] tipTargets;
 
-
-    [Header("float")]
+    [Header("이동")]
     public float followTriggerDist = 1f;
-    public float stride = 5f;
-    public float stepTime = 0.1f;
     public float moveSpeed = 3f;
-    public float stepSpeed = 10f;         // 발 이동 속도
-    public float stepHeight = 2f;         // 발 들어올리는 높이
+    public float turnSpeed = 6f;
 
-    [Header("rotation")]
-    public float rotationThreshold = 25f; // 이 각도 넘으면 회전 먼저
-    public float miniStepAngle = 30f;     // 한 번에 회전하는 각도
+    [Header("발 딛기")]
+    public float stepThreshold = 2f;
+    public float stride = 2.5f;
+    public float stepHeight = 1.5f;
+    public float stepDuration = 0.25f;
+    [Tooltip("동시에 들 수 있는 최대 발 수")]
+    public int maxLegsStepping = 2;
+    [Tooltip("이 각도 안의 인접 다리는 동시에 안 듦")]
+    public float neighborAngle = 70f;
+    [Tooltip("발이 홈 방향에서 벗어날 최대 각도 (작을수록 안 꼬임)")]
+    public float maxLegAngle = 40f;
+    public float minRadiusRatio = 0.6f;
+    public float maxRadiusRatio = 1.5f;
 
-    public float balanceThres = 45f;
+    [Header("몸통 높이/균형")]
+    public float bodyHeight = 1.5f;
+    public float heightAdjustSpeed = 8f;
+    [Range(0f, 1f)] public float tiltToGround = 0.5f;
 
     public LayerMask ground;
 
-    [Header("private")]
-    private bool isMoving = false;
-    private bool isReturning = false;
-    private Coroutine moveCoroutine;
-    private Transform groundTarget;
-    private Vector3[] footLocalDir; // 발의 로컬 방향 벡터
-    private Vector3 movingDir;
+    private float[] theta;
+    private float[] legRadius;
+    private bool[] isStepping;
+    private Vector3[] plantedPos;   // 딛고 있는 발의 월드 위치 (몸 움직여도 고정)
     private Rigidbody rb;
+    private Creature owner;         // 방 경계 clamp용
 
     void Start()
     {
-        rb = body.GetComponent<Rigidbody>();
+        owner = GetComponentInParent<Creature>();
+        if (body != null) rb = body.GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = true;
 
-        footLocalDir = new Vector3[tipTargets.Length];
-        for (int i = 0; i < tipTargets.Length; i++)
+        int n = tipTargets != null ? tipTargets.Length : 0;
+        theta = new float[n];
+        legRadius = new float[n];
+        isStepping = new bool[n];
+        plantedPos = new Vector3[n];
+
+        for (int i = 0; i < n; i++)
         {
             Vector3 offset = tipTargets[i].position - body.position;
-            offset.y = 0;
-            footLocalDir[i] = body.InverseTransformDirection(offset.normalized);
+            offset.y = 0f;
+            legRadius[i] = Mathf.Max(0.1f, offset.magnitude);
+            theta[i] = Vector2.SignedAngle(
+                new Vector2(offset.x, offset.z),
+                new Vector2(body.forward.x, body.forward.z));
+            plantedPos[i] = tipTargets[i].position;
         }
     }
 
     void Update()
     {
-        if (NeedToBalance()) StartCoroutine(LevelBody());
+        if (body == null || followingTarget == null || tipTargets == null) return;
 
         Vector3 toTarget = followingTarget.position - body.position;
-        //방향
-        movingDir = toTarget.normalized;
+        Vector3 flat = toTarget; flat.y = 0f;
+        float dist = flat.magnitude;
+        bool moving = dist > followTriggerDist;
+        Vector3 moveDir = flat.sqrMagnitude > 0.0001f ? flat.normalized : body.forward;
 
-        //기준이 되는 타겟까지의 거리
-        // 목표가 y축으로 위에 있으면(다리로 못 올라감) 수평거리로 판정 → 제자리 스텝 반복 방지
-        float Dist;
-        if (toTarget.y > followTriggerDist)
+        if (moving)
         {
-            Vector3 flat = toTarget; flat.y = 0f;
-            Dist = flat.magnitude;
+            Vector3 next = body.position + moveDir * moveSpeed * Time.deltaTime;
+            next.y = body.position.y;
+            body.position = ClampToRoom(next);   // 방 경계 밖으로 못 나가게 → PushInsideRoom 순간이동 방지
+
+            Quaternion look = Quaternion.LookRotation(moveDir, Vector3.up);
+            body.rotation = Quaternion.Slerp(body.rotation, look, Time.deltaTime * turnSpeed);
         }
-        else
-        {
-            Dist = toTarget.magnitude;
-        }
 
-        //거리가 followTrigger보다 멀면
-        if (Dist > followTriggerDist)
-            Move();
-        else
-            Stop();
-
-
-    }
-    void Move()
-    {
-        if (isMoving) return;
-
-        float angle = Vector3.SignedAngle(body.forward, movingDir, Vector3.up);
-
-        if (Mathf.Abs(angle) > rotationThreshold)
-            moveCoroutine = StartCoroutine(RotateInSteps());
-        else
-            moveCoroutine = StartCoroutine(moveForward());
+        TryStepLegs(moving ? moveDir : Vector3.zero);
+        AdjustBody();
     }
 
-    void Stop()
+    // 몸 이동/회전 뒤에도 딛고 있는 발은 땅에 고정 (몸 자식이라 안 그러면 끌려감)
+    void LateUpdate()
     {
-        if (moveCoroutine != null) StopCoroutine(moveCoroutine);
-        isMoving = false;
-        if (!isReturning) StartCoroutine(ReturnToStance());
-        StartCoroutine(LevelBody());
-
+        if (tipTargets == null || plantedPos == null) return;
+        for (int i = 0; i < tipTargets.Length; i++)
+            if (!isStepping[i]) tipTargets[i].position = plantedPos[i];
     }
 
-    IEnumerator ReturnToStance()
+    private Vector3 HomeDir(int i)
     {
-        isReturning = true;
-        bool allDone = false;
-
-        while (!allDone)
-        {
-            allDone = true;
-            for (int i = 0; i < tipTargets.Length; i++)
-            {
-                Vector3 target = GetStancePos(i);
-                target = FootUtil.SetTargetGround(target, ground);
-                tipTargets[i].position = Vector3.MoveTowards(tipTargets[i].position, target, Time.deltaTime * stepSpeed);
-                if (Vector3.Distance(tipTargets[i].position, target) > 0.05f)
-                    allDone = false;
-            }
-            yield return null;
-        }
-        isReturning = false;
+        float phi = Vector2.SignedAngle(new Vector2(body.forward.x, body.forward.z), Vector2.up);
+        float psi = (theta[i] + phi) * Mathf.Deg2Rad;
+        return new Vector3(Mathf.Sin(psi), 0f, Mathf.Cos(psi));
     }
 
-    IEnumerator moveForward()
+    private Vector3 StancePos(int i)
     {
-        isMoving = true;
-        yield return StartCoroutine(LevelBody());
+        Vector3 p = body.position + HomeDir(i) * legRadius[i];
+        return FootUtil.SetTargetNearest(p, ground);
+    }
+
+    private Vector3 ClampToLegArc(int i, Vector3 target)
+    {
+        Vector3 fromBody = target - body.position; fromBody.y = 0f;
+        if (fromBody.sqrMagnitude < 0.0001f) return StancePos(i);
+
+        Vector3 home = HomeDir(i);
+        float ang = Mathf.Clamp(Vector3.SignedAngle(home, fromBody, Vector3.up), -maxLegAngle, maxLegAngle);
+        float radius = Mathf.Clamp(fromBody.magnitude, legRadius[i] * minRadiusRatio, legRadius[i] * maxRadiusRatio);
+
+        Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * home;
+        Vector3 p = body.position + dir * radius;
+        return FootUtil.SetTargetNearest(p, ground);
+    }
+
+    private void TryStepLegs(Vector3 moveDir)
+    {
+        int steppingCount = 0;
+        for (int i = 0; i < isStepping.Length; i++) if (isStepping[i]) steppingCount++;
+        if (steppingCount >= maxLegsStepping) return;
+
+        int bestLeg = -1;
+        float bestDrift = stepThreshold;
 
         for (int i = 0; i < tipTargets.Length; i++)
         {
-
-            // 1. 발 목표 계산 (발 고유 방향 + movingDir 기여만큼 stride)
-            Vector3 footDir = body.TransformDirection(footLocalDir[i]);
-            Vector3 target = body.position + footDir * stride + movingDir * stride * 0.5f;
-            target = FootUtil.SetTargetNearest(target, ground);
-
-            // 2. 발 먼저 빠르게 이동 (완료까지 대기)
-            yield return StartCoroutine(FootUtil.lerpMove(tipTargets[i], target, stepTime, stepHeight));
-            yield return new WaitForSeconds(stepTime);
-
-            // 3. 발 완료 후 몸통 따라오기
-            yield return StartCoroutine(RotBody(movingDir));
-            yield return new WaitForSeconds(stepTime);
-
-            yield return StartCoroutine(LevelBody());
+            if (isStepping[i]) continue;
+            Vector3 stance = StancePos(i);
+            float drift = Horizontal(tipTargets[i].position - stance);
+            if (drift <= bestDrift) continue;
+            if (NeighborStepping(i)) continue;
+            bestDrift = drift;
+            bestLeg = i;
         }
 
-        isMoving = false;
-    }
-
-
-    Vector3 GetStancePos(int i)
-    {
-        Vector3 footDir = body.TransformDirection(footLocalDir[i]);
-        return body.position + footDir * stride;
-    }
-
-    IEnumerator RotateInSteps()
-    {
-        isMoving = true;
-
-        float totalAngle = Vector3.SignedAngle(body.forward, movingDir, Vector3.up);
-        int stepCount = Mathf.Max(1, Mathf.CeilToInt(Mathf.Abs(totalAngle) / miniStepAngle));
-        float anglePerStep = totalAngle / stepCount;
-
-        Vector3 originalForward = body.forward;
-
-        for (int step = 0; step < stepCount; step++)
+        if (bestLeg >= 0)
         {
-            // 이번 스텝의 목표 방향
-            Vector3 stepDir = Quaternion.Euler(0, anglePerStep * (step + 1), 0) * originalForward;
-
-            // 몸통 회전
-            float t = 0f;
-            Quaternion startRot = body.rotation;
-            Quaternion targetRot = Quaternion.LookRotation(stepDir);
-            while (t < 1f)
-            {
-                t += Time.deltaTime * 4f;
-                body.rotation = Quaternion.Slerp(startRot, targetRot, Mathf.Min(t, 1f));
-                yield return null;
-            }
-
-            // 발 stance 목표 위치 계산
-            Vector3[] targets = new Vector3[tipTargets.Length];
-            for (int i = 0; i < tipTargets.Length; i++)
-            {
-                // stepDir 기준으로 임시 회전 적용해서 stance 계산
-                Quaternion stepRot = Quaternion.LookRotation(stepDir);
-                Vector3 footDir = stepRot * footLocalDir[i];
-                targets[i] = body.position + footDir * stride;
-                targets[i] = FootUtil.SetTargetGround(targets[i], ground);
-            }
-
-            // 짝수 발(k=0) → 홀수 발(k=1) 순으로 재배치
-            for (int k = 0; k < 2; k++)
-            {
-                bool allDone = false;
-                while (!allDone)
-                {
-                    allDone = true;
-                    for (int i = k; i < tipTargets.Length; i += 2)
-                    {
-                        yield return StartCoroutine(FootUtil.lerpMove(tipTargets[i], targets[i], stepTime, stepHeight));
-
-                        if (Vector3.Distance(tipTargets[i].position, targets[i]) > 0.05f)
-                            allDone = false;
-                    }
-                    yield return null;
-                }
-            }
+            Vector3 target = StancePos(bestLeg) + moveDir * (stride * 0.5f);
+            target = ClampToLegArc(bestLeg, target);
+            StartCoroutine(StepLeg(bestLeg, target));
         }
-
-        isMoving = false;
     }
 
-    IEnumerator RotBody(Vector3 dir)
+    private bool NeighborStepping(int i)
     {
-        float t = 0f;
-        Quaternion startRot = body.rotation;
-        Quaternion targetRot = Quaternion.LookRotation(dir.normalized);
-        Vector3 startPos = body.position;
-        Vector3 movePos = body.position + dir * stride;
-
-        while (t < 1f)
+        for (int j = 0; j < isStepping.Length; j++)
         {
-            t += Time.deltaTime;
-            body.rotation = Quaternion.Slerp(startRot, targetRot, t * 1.4f);
-
-            Vector3 nextPos = Vector3.Lerp(startPos, movePos, t * 1.4f);
-            Vector3 moveDir = (movePos - body.position).normalized;
-            moveDir.y = 0;
-
-            if (rb != null)
-                rb.AddForce(moveDir * moveSpeed, ForceMode.Force);
-            else
-                body.position = nextPos;
-
-            yield return new WaitForFixedUpdate();
+            if (j == i || !isStepping[j]) continue;
+            if (Mathf.Abs(Mathf.DeltaAngle(theta[i], theta[j])) < neighborAngle) return true;
         }
+        return false;
     }
 
-    IEnumerator LevelBody()
+    private IEnumerator StepLeg(int i, Vector3 target)
     {
-        // 한 번만 시도 (지속 기울어짐 = outer while 무한루프 방지)
-        if (!NeedToBalance()) yield break;
-
-        if (rb != null) rb.angularVelocity = Vector3.zero;
-
-        Quaternion startRot = body.rotation;
-        Vector3 flatForward = body.forward;
-        flatForward.y = 0;
-        if (flatForward.sqrMagnitude < 0.0001f) flatForward = Vector3.forward;
-        flatForward.Normalize();
-        Quaternion targetRot = Quaternion.LookRotation(flatForward);
+        isStepping[i] = true;
+        Vector3 start = tipTargets[i].position;
 
         float t = 0f;
         while (t < 1f)
         {
-            if (rb != null) rb.angularVelocity = Vector3.zero;
-            t += Time.deltaTime * 3f;
-            if (rb != null) rb.MoveRotation(Quaternion.Slerp(startRot, targetRot, t));
-            yield return new WaitForFixedUpdate();
+            t += Time.deltaTime / Mathf.Max(0.01f, stepDuration);
+            Vector3 p = Vector3.Lerp(start, target, t);
+            p.y += Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * stepHeight;
+            tipTargets[i].position = p;
+            yield return null;
+        }
+        tipTargets[i].position = target;
+        plantedPos[i] = target;      // 착지 위치 저장 → 이후 고정
+        isStepping[i] = false;
+    }
+
+    private void AdjustBody()
+    {
+        if (tipTargets.Length == 0) return;
+
+        Vector3 avg = Vector3.zero;
+        Vector3 up = Vector3.zero;
+        for (int i = 0; i < tipTargets.Length; i++)
+        {
+            avg += tipTargets[i].position;
+            if (Physics.Raycast(tipTargets[i].position + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 5f, ground))
+                up += hit.normal;
+        }
+        avg /= tipTargets.Length;
+        if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
+        up.Normalize();
+
+        Vector3 bp = body.position;
+        bp.y = Mathf.Lerp(bp.y, avg.y + bodyHeight, Time.deltaTime * heightAdjustSpeed);
+        body.position = bp;
+
+        Vector3 targetUp = Vector3.Slerp(Vector3.up, up, tiltToGround);
+        Vector3 fwd = Vector3.ProjectOnPlane(body.forward, targetUp).normalized;
+        if (fwd.sqrMagnitude > 0.0001f)
+        {
+            Quaternion targetRot = Quaternion.LookRotation(fwd, targetUp);
+            body.rotation = Quaternion.Slerp(body.rotation, targetRot, Time.deltaTime * heightAdjustSpeed);
         }
     }
 
-
-    bool NeedToBalance()
+    // 방 homeBound 안으로 수평 clamp (경계에서 멈춤). 방 없으면 그대로.
+    private Vector3 ClampToRoom(Vector3 pos)
     {
-        Quaternion startRot = body.rotation;
-        Vector3 euler = body.rotation.eulerAngles;
-
-        float xDiff = Mathf.Abs(Mathf.DeltaAngle(euler.x, 0f));
-        float zDiff = Mathf.Abs(Mathf.DeltaAngle(euler.z, 0f));
-        if (xDiff > balanceThres || zDiff > balanceThres) return true;
-        else return false;
+        if (owner != null && owner.IsControlled) return pos;   // 조종 중엔 플레이어 따라 방 넘나들게
+        if (owner == null || owner.currentRoom == null || owner.currentRoom.homeBound == null) return pos;
+        Bounds b = owner.currentRoom.homeBound.bounds;
+        Vector3 inset = new Vector3(b.extents.x - 0.5f, b.extents.y, b.extents.z - 0.5f);
+        Vector3 c = b.center;
+        pos.x = Mathf.Clamp(pos.x, c.x - inset.x, c.x + inset.x);
+        pos.z = Mathf.Clamp(pos.z, c.z - inset.z, c.z + inset.z);
+        return pos;
     }
+
+    private static float Horizontal(Vector3 v) { v.y = 0f; return v.magnitude; }
 }
-
