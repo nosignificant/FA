@@ -175,29 +175,19 @@ public class Creature : MonoBehaviour
         if (currentRoom != null && currentRoom.homeBound != null &&
             currentRoom.homeBound.bounds.Contains(pos)) return;
 
+        // 다른 방 bounds에 들어왔으면 그 방으로 등록만 함 (되돌림 없음 — 9cd272a 이전 방식 복원)
         foreach (var kvp in RoomManager.Instance.rooms)
         {
             Room r = kvp.Value;
             if (r == null || r == currentRoom || r.homeBound == null) continue;
             if (r.homeBound.bounds.Contains(pos))
             {
-                // 통로(열린 문/뚫린 벽) '근처'에서 넘는 게 아니면 = 막힌 벽 클립 → 막고 되돌림.
-                // 조종 중 생물은 다리(통로 아님)로 넘나들 수 있으니 예외.
-                if (!IsControlled && currentRoom != null && !NearConnectingPassage(currentRoom, r, pos))
-                {
-                    PushInsideRoom(currentRoom, pos);
-                    return;
-                }
                 currentRoom?.UnregisterCreature(this);
                 r.RegisterCreature(this);
                 return;
             }
         }
-
-        // 어느 방에도 없음(맵 이탈) → 마지막 방 안으로 되돌림 (밀려서 튕겨나가는 것 방지)
-        // 단, 조종 중인 생물은 다리(방 밖)를 건널 수 있어야 하니 제외
-        if (!IsControlled && currentRoom != null && currentRoom.homeBound != null)
-            PushInsideRoom(currentRoom, pos);
+        // 어느 방에도 없음(문턱/복도) → 그대로 둠. PushInsideRoom으로 되돌리지 않음.
     }
 
     [Tooltip("이 거리 안에서 통로(문/뚫린 벽)를 지나야 방 이동 허용 (막힌 벽 클립 방지)")]

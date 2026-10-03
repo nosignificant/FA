@@ -55,11 +55,9 @@ public class QuadLegs : MonoBehaviour
     private bool[] isStepping;
     private Vector3[] plantedPos; // 딛고 있는 발의 월드 위치 (몸 움직여도 고정)
     private Rigidbody rb;
-    private Creature owner;       // 방 경계 clamp용
 
     void Start()
     {
-        owner = GetComponentInParent<Creature>();
         if (body != null) rb = body.GetComponent<Rigidbody>();
         if (rb != null) rb.isKinematic = true;   // 물리 관성 제거 (transform으로 직접 제어)
 
@@ -94,9 +92,9 @@ public class QuadLegs : MonoBehaviour
         // 1) 몸통 이동·회전 (도착했으면 정지 → 발도 안 벌어져 스텝 안 함)
         if (moving)
         {
-            Vector3 next = body.position + moveDir * moveSpeed * Time.deltaTime;
-            next.y = body.position.y;   // 수평만 (높이는 아래서 발 기준으로)
-            body.position = ClampToRoom(next);   // 방 경계 밖으로 못 나가게 → PushInsideRoom 순간이동 방지
+            // proxy(수평 위치)를 넘지 않게 다가감 — 지나쳐서 좌우로 흔들리는 것 방지
+            Vector3 flatTarget = new Vector3(followingTarget.position.x, body.position.y, followingTarget.position.z);
+            body.position = Vector3.MoveTowards(body.position, flatTarget, moveSpeed * Time.deltaTime);
 
             Quaternion look = Quaternion.LookRotation(moveDir, Vector3.up);
             body.rotation = Quaternion.Slerp(body.rotation, look, Time.deltaTime * turnSpeed);
@@ -239,19 +237,6 @@ public class QuadLegs : MonoBehaviour
             Quaternion targetRot = Quaternion.LookRotation(fwd, targetUp);
             body.rotation = Quaternion.Slerp(body.rotation, targetRot, Time.deltaTime * heightAdjustSpeed);
         }
-    }
-
-    // 방 homeBound 안으로 수평 clamp. 조종 중/방 없으면 그대로.
-    private Vector3 ClampToRoom(Vector3 pos)
-    {
-        if (owner != null && owner.IsControlled) return pos;   // 조종 중엔 플레이어 따라 방 넘나들게
-        if (owner == null || owner.currentRoom == null || owner.currentRoom.homeBound == null) return pos;
-        Bounds b = owner.currentRoom.homeBound.bounds;
-        Vector3 c = b.center;
-        float ix = b.extents.x - 0.5f, iz = b.extents.z - 0.5f;
-        pos.x = Mathf.Clamp(pos.x, c.x - ix, c.x + ix);
-        pos.z = Mathf.Clamp(pos.z, c.z - iz, c.z + iz);
-        return pos;
     }
 
     private static float Horizontal(Vector3 v) { v.y = 0f; return v.magnitude; }

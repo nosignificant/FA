@@ -457,7 +457,6 @@ public class Room : MonoBehaviour
         {
             KillStrayD();
             EnsureOneD();
-            KeepCreaturesInBounds();
             yield return wait;
         }
     }

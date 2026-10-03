@@ -176,26 +176,22 @@ public class CreaturePossess : MonoBehaviour
         return false;
     }
 
-    // 하차 위치가 어느 방 안이면 그대로(조종해 들어간 그 방에 내림), 어느 방에도 없을 때만 기준 방 경계로 당김.
+    // 하차 위치가 방(마지막으로 속한 방) 밖이면 경계 안쪽 최근접점으로 당김.
     private Vector3 ClampToRoom(Vector3 pos)
     {
-        // 1) pos가 실제로 들어있는 방이 있으면 그대로 둠 (옛 생물 방으로 되돌리지 않음)
-        if (RoomManager.Instance != null)
-        {
-            foreach (var kv in RoomManager.Instance.rooms)
-            {
-                var r = kv.Value;
-                if (r != null && r.homeBound != null && r.homeBound.bounds.Contains(pos))
-                    return pos;
-            }
-        }
-
-        // 2) 어느 방에도 없음(틈/다리 밖 등) → 기준 방 경계 안쪽으로 당김
+        // proxy(=조종 생물)가 실제 있는 방을 우선 기준. (조종 중 방 이동 시 플레이어 currentRoom이 어긋날 수 있음)
         Room room = controlledCreature != null ? controlledCreature.currentRoom : null;
         if (room == null && Player.Instance != null) room = Player.Instance.currentRoom;
-        if (room == null || room.homeBound == null) return pos;
+        if (room == null || room.homeBound == null) return pos;   // 기준 방 없으면 그대로
 
         Bounds b = room.homeBound.bounds;
+
+        bool insideXYZ = pos.x >= b.min.x && pos.x <= b.max.x &&
+                        pos.z >= b.min.z && pos.z <= b.max.z &&
+                        pos.y >= b.min.y && pos.y <= b.max.y;
+
+        if (insideXYZ) return pos;
+
         Vector3 inside = b.ClosestPoint(pos);
         Vector3 toCenter = b.center - inside;
         toCenter.y = 0f;
