@@ -252,7 +252,7 @@ public class TutorialGuide : MonoBehaviour
 
         yield return SayLine("어떤 생물은 방의 상태에 따라 활성화되거나 비활성화됩니다.");
 
-        tmp.text = "H 생물을 활성화시키십시오.";
+        tmp.text = "방의 상태를 바꿔 H 생물을 활성화시키십시오.";
 
         while (true)
         {
@@ -262,9 +262,6 @@ public class TutorialGuide : MonoBehaviour
         }
         tmp.text = "H 같은 ";
         while (!cp.IsPossessing) yield return null;
-
-        tmp.text = "T 생물을 조종한 채로, R 생물을 락온하십시오.";
-
 
     }
 

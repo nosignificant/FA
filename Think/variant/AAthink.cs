@@ -61,6 +61,8 @@ public class AAThink : TentacleThink
         {
             var t = detected[i];
             if (!IsValidTarget(t)) continue;
+            if (t.IsGrabbed) continue;                        // 이미 잡힌 L은 쫓지 않음 (Chase인데 타겟 null 방지)
+            if (t.currentRoom != self.currentRoom) continue;  // 다른 방 L도 제외 (currentTarget 비어 HUD 공백 방지)
             if (self.HasAction(t.data.creatureID, InteractionAction.Chase)) return true;
         }
         return false;

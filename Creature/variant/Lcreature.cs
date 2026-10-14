@@ -85,10 +85,14 @@ public class Lcreature : Creature
         while (!IsDead)
         {
             // 플레이어가 조종 중이면 도망 로직이 이동을 덮어쓰지 않음
-            if (!IsControlled && tc != null && currentRoom != null && currentRoom.HasSpecies(CreatureID.AA))
+            if (!IsControlled && tc != null && currentRoom != null)
             {
-                Transform t = PickExitTargetAwayFromAA();
-                if (t != null) tc.SetMovementTarget(t);
+                bool aaHere = currentRoom.HasSpecies(CreatureID.AA);
+                int openDoors = 0;
+                if (currentRoom.doors != null) foreach (var d in currentRoom.doors) if (d != null && d.isOpen) openDoors++;
+                Transform t = aaHere ? PickExitTargetAwayFromAA() : null;
+                Debug.Log($"[LLFlee] {name} room={currentRoom.roomID} AA여기={aaHere} 등록문수={currentRoom.doors?.Count} 열린문={openDoors} 탈출로={(t != null)}");
+                if (aaHere && t != null) tc.SetMovementTarget(t);
             }
             yield return wait;
         }

@@ -273,8 +273,8 @@ public class Door : MonoBehaviour
                 return requiredState.ToString();
             case ConditionMode.SignalGate:
                 return gate == GateType.EQUALS ? InputRoom(InA) : InputSpecies(InA);
-            default: // RoomState
-                return roomA != null ? roomA.roomID : "-";
+            default: // RoomState (사용자 요청: 방이름 대신 "open" → "open / at / A"로 읽힘)
+                return "open";
         }
     }
 
@@ -292,7 +292,7 @@ public class Door : MonoBehaviour
                     case GateType.EQUALS: return "equals";
                     default:              return "AND";
                 }
-            default: return "is";   // RoomState (사용자 요청: active 아님)
+            default: return "at";   // RoomState (사용자 요청: "open / at / A" 형식, 방이름 안 씀)
         }
     }
 

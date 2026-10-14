@@ -48,12 +48,22 @@ public class CreatureActivationTint : MonoBehaviour
     public Color aOutline = Color.black;
     public Color noneOutline = Color.black;
 
+    [Header("텍스처 스왑 (dormant=없음 / 활성=texture)")]
+    [Tooltip("켜면 휴면 땐 텍스처 제거, 각성 땐 activeTexture 입힘")]
+    public bool swapTexture = false;
+    [Tooltip("텍스처 프로퍼티. URP Lit=_BaseMap, Unlit/Built-in=_MainTex")]
+    public string textureProperty = "_BaseMap";
+    [Tooltip("각성 시 입힐 텍스처. 비우면 프리팹에 원래 있던 텍스처를 그대로 씀")]
+    public Texture activeTexture;
+    private Texture[] _origTex;   // 프리팹 원래 텍스처 (렌더러별)
+
     public float interval = 0.3f;
 
     private Creature self;
     private Think2 think;
     private Renderer[] _resolved;
     private int _lastKey = int.MinValue;
+    private int _lastTexState = -1;   // -1=아직 적용 안 함 (처음 1회 강제 적용)
 
     private void Awake()
     {
@@ -61,7 +71,26 @@ public class CreatureActivationTint : MonoBehaviour
         think = GetComponent<Think2>();
     }
 
-    private void Start() => StartCoroutine(Loop());
+    private void Start()
+    {
+        if (swapTexture) CaptureOriginalTextures();   // 텍스처 제거 전에 원래 텍스처 저장
+        StartCoroutine(Loop());
+    }
+
+    // 프리팹 머티리얼에 이미 있던 텍스처를 렌더러별로 저장 (각성 시 복원용)
+    private void CaptureOriginalTextures()
+    {
+        var rs = Resolve();
+        _origTex = new Texture[rs.Length];
+        string prop = string.IsNullOrEmpty(textureProperty) ? "_BaseMap" : textureProperty;
+        for (int i = 0; i < rs.Length; i++)
+        {
+            var r = rs[i];
+            if (r == null || r is SpriteRenderer) continue;
+            var mat = r.sharedMaterial;   // 공유 머티리얼에서 원본 텍스처만 읽음(인스턴스 안 만듦)
+            if (mat != null && mat.HasProperty(prop)) _origTex[i] = mat.GetTexture(prop);
+        }
+    }
 
     private IEnumerator Loop()
     {
@@ -98,7 +127,40 @@ public class CreatureActivationTint : MonoBehaviour
                     ActivationColor.Apply(rs, outlineCol, outlineColorProperty);   // 외곽선(_OutlineColor)
                 _lastKey = key;
             }
+
+            // 텍스처 스왑: 휴면=없음(null) / 각성=activeTexture (dormant 변화 시에만 적용)
+            if (swapTexture)
+            {
+                bool dormantNow = think == null || think.dormant;
+                int texState = dormantNow ? 0 : 1;
+                if (texState != _lastTexState)
+                {
+                    ApplyTexture(dormantNow);
+                    _lastTexState = texState;
+                }
+            }
+
             yield return wait;
+        }
+    }
+
+    // 휴면=텍스처 제거(null) / 각성=activeTexture(지정 시) 또는 프리팹 원래 텍스처
+    private void ApplyTexture(bool dormant)
+    {
+        var rs = Resolve();
+        if (rs == null) return;
+        string prop = string.IsNullOrEmpty(textureProperty) ? "_BaseMap" : textureProperty;
+        for (int i = 0; i < rs.Length; i++)
+        {
+            var r = rs[i];
+            if (r == null || r is SpriteRenderer) continue;   // 스프라이트는 머티리얼 텍스처 방식 아님
+            var mat = r.material;   // 인스턴스
+            if (mat == null || !mat.HasProperty(prop)) continue;
+
+            Texture tex = dormant ? null
+                        : (activeTexture != null ? activeTexture
+                           : (_origTex != null && i < _origTex.Length ? _origTex[i] : null));
+            mat.SetTexture(prop, tex);
         }
     }
 
