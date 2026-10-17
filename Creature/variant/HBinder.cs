@@ -30,7 +30,7 @@ public class HBinder : MonoBehaviour
         self = GetComponent<Creature>();
         think = GetComponent<Think2>();
         scanner = GetComponent<CreatureScanner>();
-        self.canMigrate = false;   // 도구 — 방에 묶임
+        // canMigrate 강제 안 함 — 플레이어 조종으로 방 이동 가능해야 하므로 Creature 기본값/인스펙터 값 존중
         if (bindLine == null) bindLine = GetComponentInChildren<LineRender>();
     }
 
@@ -153,7 +153,9 @@ public class HBinder : MonoBehaviour
     {
         if (boundAA != null) return "bind";
         if (!IsAwake()) return "dormant";
-        return "chase";   // 활성 상태면 AA를 쫓음
+        // 활성이어도 실제 쫓는 AA가 있을 때만 chase. 없으면 wander(대상 없는 chase 표기 방지)
+        bool chasing = think != null && think.currentTarget.creature != null;
+        return chasing ? "chase" : "wander";
     }
 
     public Creature HeldAA() => boundAA;

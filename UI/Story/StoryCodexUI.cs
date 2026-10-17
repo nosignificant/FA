@@ -17,11 +17,15 @@ public class StoryCodexUI : MonoBehaviour
     [Header("빈 상태")]
     public GameObject emptyHint;             // 하나도 없을 때 표시할 안내 (선택)
 
-    [Header("선택 하이라이트 (테두리 박스)")]
+    [Header("선택 하이라이트 (테두리 박스) — 마우스 스크롤 모드에선 미사용")]
     public RectTransform selectionBox;
     public Vector2 selectionPadding = new(8f, 4f);
     [Tooltip("폰트 메트릭으로 인한 미세 어긋남 보정(px). 보통 Y만 살짝")]
     public Vector2 selectionOffset = Vector2.zero;
+
+    [Header("마우스 휠 스크롤")]
+    [Tooltip("휠 한 번당 스크롤 양 (0~1 normalized 기준). 방향 반대면 음수로")]
+    public float scrollSpeed = 2f;
 
     private readonly List<TMP_Text> pool = new();
     private int activeCount = 0;
@@ -64,15 +68,12 @@ public class StoryCodexUI : MonoBehaviour
         Refresh();
     }
 
-    // CodexMenu가 W/S 입력을 넘겨줌
-    public void MoveSelection(int dir)
+    // PlayerInputManager가 마우스 휠 값을 넘겨줌 (위=양수)
+    public void ScrollBy(float wheel)
     {
-        if (activeCount == 0) return;
-        int prev = selected;
-        selected = Mathf.Clamp(selected + dir, 0, activeCount - 1);
-        if (selected == prev) return;   // 끝에서 더 눌러도 안 바뀌면 스크롤 안 함
-        ApplyHighlight();
-        EnsureVisible(selected);
+        if (scrollRect == null) return;
+        scrollRect.verticalNormalizedPosition =
+            Mathf.Clamp01(scrollRect.verticalNormalizedPosition + wheel * scrollSpeed);
     }
 
     // ── 선택 박스 맞춤 ────────────────────────────────────────
@@ -152,16 +153,8 @@ public class StoryCodexUI : MonoBehaviour
 
         if (emptyHint != null) emptyHint.SetActive(shown == 0);
 
-        selected = Mathf.Clamp(selected, 0, Mathf.Max(0, activeCount - 1));
-        if (activeCount > 0)
-        {
-            ApplyHighlight();
-            EnsureVisible(selected);
-        }
-        else if (selectionBox != null)
-        {
-            selectionBox.gameObject.SetActive(false);
-        }
+        // 마우스 스크롤 모드 — 키보드 선택 박스는 안 씀
+        if (selectionBox != null) selectionBox.gameObject.SetActive(false);
     }
 
     private TMP_Text GetEntry(int i)

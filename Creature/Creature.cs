@@ -175,6 +175,10 @@ public class Creature : MonoBehaviour
         if (currentRoom != null && currentRoom.homeBound != null &&
             currentRoom.homeBound.bounds.Contains(pos)) return;
 
+        // 이동 불가(도구=canMigrate false) 생물은 방 소속 고정 — 자기 방 경계 벽 쫓다 넘어가도 방 안 바뀜.
+        // (플레이어 조종 중이면 예외 — 끌고 가서 옮길 수 있게)
+        if (!canMigrate && !IsControlled && currentRoom != null) return;
+
         // 다른 방 bounds에 들어왔으면 그 방으로 등록만 함 (되돌림 없음 — 9cd272a 이전 방식 복원)
         foreach (var kvp in RoomManager.Instance.rooms)
         {
@@ -182,6 +186,9 @@ public class Creature : MonoBehaviour
             if (r == null || r == currentRoom || r.homeBound == null) continue;
             if (r.homeBound.bounds.Contains(pos))
             {
+                // 통로(열린 문/부서진 벽) 근처에서만 방 이동 허용 — 막힌 벽 뚫고 넘어가는 것 방지(자율 생물).
+                // 단 플레이어 조종 중이면 통로 무관하게 허용(직접 들고 옮기는 것). 최초 배정(currentRoom null)도 통과.
+                if (currentRoom != null && !IsControlled && !NearConnectingPassage(currentRoom, r, pos)) continue;
                 currentRoom?.UnregisterCreature(this);
                 r.RegisterCreature(this);
                 return;
@@ -207,10 +214,13 @@ public class Creature : MonoBehaviour
                 Transform t = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
                 if ((t.position - pos).sqrMagnitude <= reachSqr) return true;
             }
+        // 부서진 벽: 내 방(a)의 부서진 벽이 pos 근처면 통과 허용.
+        // 목적지 방(b)이 벽의 roomB와 맞는지는 안 따짐 — roomB 자동할당이 불안정해서,
+        // "자기 방 벽에 난 구멍 근처면 넘어간다"로 단순화 (roomA=부모방은 신뢰 가능).
         if (a.brokenPassages != null)
             foreach (var w in a.brokenPassages)
             {
-                if (w == null || !w.Broken || w.GetOtherRoom(a) != b) continue;
+                if (w == null || !w.Broken) continue;
                 if ((w.Position - pos).sqrMagnitude <= reachSqr) return true;
             }
         return false;

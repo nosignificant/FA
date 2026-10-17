@@ -147,6 +147,13 @@ public class TutorialGuide : MonoBehaviour
         if (tmp != null) tmp.text = "";
         SetTutorialVisible(false);
 
+        // tut_1 방에서만 DoF focusDistance 40 (그 외 방에선 해제 → 평소값)
+        if (StatuesMenu.Instance != null)
+        {
+            if (room.roomID == "tut_1") StatuesMenu.Instance.SetBaseFocus(40f);
+            else StatuesMenu.Instance.ClearBaseFocus();
+        }
+
         if (doneRooms.Contains(room.roomID))
         {
             SetTutorialVisible(false);
@@ -157,7 +164,7 @@ public class TutorialGuide : MonoBehaviour
         switch (SceneManager.GetActiveScene().name)
         {
             case "tutorial0": DispatchTutorial1(room); break;
-            case "tutorial1": DispatchTutorial2(room); break;
+            case "level1_after": Dispatch_afterLvl1(room); break;
         }
     }
 
@@ -169,8 +176,7 @@ public class TutorialGuide : MonoBehaviour
             case "tut_0": StartCoroutine(Tut0Routine(room)); break;
             case "tut_1": co = StartCoroutine(Tut1Routine(room)); break;
             case "tut_2": co = StartCoroutine(Tut2Routine(room)); break;
-            case "tut_3": co = StartCoroutine(Tut3Routine(room)); break;
-            case "tut_4": co = StartCoroutine(Tut4Routine(room)); break;
+
             case "pro_main":
                 SetTutorialVisible(false);
                 if (!productionPlayed && ProductionImage != null)
@@ -183,11 +189,11 @@ public class TutorialGuide : MonoBehaviour
     }
 
     // ── tutorial2 씬: roomID별 라우팅 (여기에 방 루틴 추가) ─────
-    private void DispatchTutorial2(Room room)
+    private void Dispatch_afterLvl1(Room room)
     {
         switch (room.roomID)
         {
-            // 예: case "tut_0": co = StartCoroutine(T2_Room0(room)); break;
+            case "tut_0": StartCoroutine(Tut0Routine(room)); break;
         }
     }
 
@@ -221,22 +227,34 @@ public class TutorialGuide : MonoBehaviour
 
         yield return SayLine("farewell apoptosis 연산을 시작합니다.", 5f);
 
-        Say($"생물은 회로의 일부입니다. {pim.lockOnKey}를 눌러 생물을 관찰하십시오.");
+        yield return SayLine($"저는 당신의 선택에 따라 생각하고 결론을 내립니다.");
+        yield return SayLine($"{pim.codexToggleKey}를 눌러 파악하십시오.");
 
+        while (!StatuesMenu.AnyOpen) yield return null;
+        yield return SayLine("확인되었습니다.", 3f);
+        yield return SayLine($"{pim.codexToggleKey}를 다시 눌러 해제하십시오.");
+        while (StatuesMenu.AnyOpen) yield return null;
+
+        yield return SayLine($"생물은 나의 회로의 일부입니다. {pim.lockOnKey}를 눌러 생물을 관찰하십시오.");
         while (pl.targetCreature == null) yield return null;
 
-        yield return SayLine("생물을 관찰하면, 생물의 현재 행동을 알 수 있습니다.");
+        yield return SayLine("생물은 주변과 상호작용합니다. 생물을 관찰하면, 생물의 현재 행동을 알 수 있습니다.");
         yield return SayLine($"관찰 중 {pim.lockOnKey}을 한 번 더 눌러 관찰 중인 생물을 전환할 수 있습니다.");
 
-        tmp.text = $"어떤 생물은 당신이 조종할 수 있습니다. L을 관찰한 상태에서 {pim.possessKey}를 눌러 조종하십시오.";
+        tmp.text = $"어떤 생물은 당신이 조종할 수 있습니다. LL을 관찰한 상태에서 {pim.possessKey}를 눌러 조종하십시오.";
         while (!cp.IsPossessing) yield return null;
         yield return SayLine($"조종 중 {pim.possessKey}를 다시 눌러 조종을 해제하십시오.");
+        while (cp.IsPossessing) yield return null;
 
         tmp.text = "다음으로 문을 관찰하십시오.";
         while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.Door)
             yield return null;
-        yield return SayLine("문은 방의 상태에 따라 열리고 닫힙니다.");
-        yield return SayLine("방의 상태는 L과 A 두 가지가 있습니다.");
+        yield return SayLine("방의 상태는 문을 여는 조건이 됩니다.");
+        yield return SayLine("방의 상태는 L과 A 두 가지로, 색으로 구분됩니다.");
+
+        yield return SayLine("A를 관찰하십시오. A는 방을 검은 색으로 만듭니다.");
+        while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.A) yield return null;
+
         yield return SayLine("방에 L 또는 A 생물이 과반이 되면, 방은 해당 상태가 됩니다.");
         OpenDoor(1);
         yield return SayLine("다음 방으로 이동하십시오.");
@@ -246,13 +264,18 @@ public class TutorialGuide : MonoBehaviour
 
     IEnumerator Tut2Routine(Room room)
     {
+        // H 활성화는 L/A 생물을 데리러 옆 방을 왕복해야 함 → 그 동안 방 전환 트리거 무시(대사 중복 방지)
+        keepAcrossRooms = true;
+
         var pim = Pim;
         var pl = Pl;
         var cp = Cp;
+        Say("H를 관찰하십시오.");
+        while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.H) yield return null;
 
         yield return SayLine("어떤 생물은 방의 상태에 따라 활성화되거나 비활성화됩니다.");
 
-        tmp.text = "방의 상태를 바꿔 H 생물을 활성화시키십시오.";
+        tmp.text = "방의 상태를 바꿔 H를 활성화시키십시오.";
 
         while (true)
         {
@@ -260,8 +283,28 @@ public class TutorialGuide : MonoBehaviour
             if (hBrain != null && !hBrain.dormant) break;
             yield return null;
         }
-        tmp.text = "H 같은 ";
-        while (!cp.IsPossessing) yield return null;
+
+        yield return SayLine("확인되었습니다.", 3f);
+        yield return SayLine("생물은 각기 다른 특성을 가지고 있습니다. 생물을 활성화시키고 관찰해 행동을 파악하십시오.");
+
+        doneRooms.Add(room.roomID);
+
+        // 대사 끝 → 방 전환 감시 재개. lastRoom을 현재 방으로 맞춰 다음 방부터 정상 트리거
+        lastRoom = Player.Instance != null && Player.Instance.currentRoom != null
+            ? Player.Instance.currentRoom.roomID : lastRoom;
+        SetTutorialVisible(false);
+        keepAcrossRooms = false;
+    }
+
+    IEnumerator Afterlvl1_Routine1(Room room)
+    {
+        yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술의 등장으로 인류는 생물에 대한 새로운 정의가 필요했습니다.");
+
+        yield return SayLine("인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.");
+
+        yield return SayLine("저는 인류 전체의 선을 증대시키기 위해 건설되었고, 이와 관련된 연산은 필연적이었습니다.");
+
+        doors[4].DoorCloseAndOpen(false);
 
     }
 
@@ -276,64 +319,6 @@ public class TutorialGuide : MonoBehaviour
             if (c.data.creatureID == id) return c.GetComponent<Think2>();
         }
         return null;
-    }
-
-    IEnumerator Tut3Routine(Room room)
-    {
-        // 빙의로 AA를 옮기면 플레이어 방이 바뀌므로, 이 루틴 동안은 방 전환을 무시해 대사 유지
-        keepAcrossRooms = true;
-
-        yield return new WaitForSeconds(messageInterval / 2);
-
-        var pl = Pl;
-        var pim = Pim;
-        var cp = Cp;
-        Creature dc = doors[3].GetComponent<Creature>();
-
-        tmp.text = "현재 방의 문을 관찰하십시오.";
-        while (pl.targetCreature == null || pl.targetCreature != dc) yield return null;
-        yield return SayLine("이 문의 조건은 특수합니다. 두 방의 우세종이 같아야 열립니다.");
-        yield return SayLine("두 방 중 하나는 현재 R 생물이 있는 방입니다.");
-        tmp.text = "하나의 방은 당신이 선택할 수 있습니다. T 생물 조종을 시도하십시오.";
-        while (!cp.IsPossessing) yield return null;
-
-        tmp.text = "T 생물을 조종한 채로, R 생물을 락온하십시오.";
-        while (pl.targetCreature == null || pl.targetCreature.data.creatureID != CreatureID.R) yield return null;
-        yield return SayLine($"T 생물을 조종 중인 채로 R 생물을 락온하고 {pim.possessKey}를 누르면 T 생물과 R 생물이 연결됩니다.");
-
-        yield return SayLine("그러면 T 생물이 존재하는 방의 정보를 R 생물의 방에 보낼 수 있습니다.");
-        yield return SayLine("그러면 T 생물을 다시 락온하면 다른 방과 연결되어 있는 여부를 알 수 있습니다.");
-        yield return SayLine("연결되어 있는 T 생물을 다시 조종하려 시도하면 연결이 끊어집니다.");
-        doneRooms.Add(room.roomID);
-        OpenDoor(3);
-
-        // 대사 끝 → 방 전환 감시 재개. lastRoom을 현재 방으로 맞춰 다음 방부터 정상 트리거
-        lastRoom = Player.Instance != null && Player.Instance.currentRoom != null
-            ? Player.Instance.currentRoom.roomID : lastRoom;
-        SetTutorialVisible(false);
-        keepAcrossRooms = false;
-    }
-
-    IEnumerator Tut4Routine(Room room)
-    {
-        yield return new WaitForSeconds(messageInterval / 2);
-
-        doors[3].DoorCloseAndOpen(false);
-
-        yield return SayLine("D는 방 안의 생물 수가 과도하게 많아지면 생물을 분해합니다.");
-
-        Say("D가 분해한 생물 수는 오른쪽 위에 표시됩니다.");
-        int decomposedBefore = room.decomposedCounts.Values.Sum();
-        while (room.decomposedCounts.Values.Sum() <= decomposedBefore) yield return null;
-
-        yield return SayLine("방은 내부에서 분해된 생물 수를 확인하고 가장 많이 분해된 생물을 확인하는 문을 개방합니다.");
-        yield return SayLine("문에 대한 정보는 하단의 방위 표시, 또는 관찰을 통해 알 수 있습니다.");
-        yield return SayLine("생물은 회로의 일부이고 당신이 조작한 회로에 따라 저는 생각합니다.");
-
-        OpenDoor(4);
-
-        doneRooms.Add(room.roomID);
-        // 패널은 방을 떠날 때(Update의 방 전환 정리)에서 숨김 — 방에 있는 동안 유지
     }
 
     private IEnumerator PlayProductionImage()
@@ -383,7 +368,7 @@ public class TutorialGuide : MonoBehaviour
 
     IEnumerator StoryText()
     {
-        yield return SayLine("해당 생물은 연약하여 조종을 시도하면 죽게 되는 듯합니다.");
+        yield return SayLine("해당 생물은 조종을 시도하면 분해되는 듯합니다.");
         yield return SayLine("대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.");
 
         var pim = Pim;

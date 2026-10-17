@@ -33,8 +33,7 @@ public class PlayerInputManager : MonoBehaviour
         SyncPossessUI();
     }
 
-    // 상태창 입력. J로 토글, 열려 있으면 방향키(↑/↓)로 story 선택 이동.
-    // W/S는 이동에 쓰므로 여기선 방향키만 사용.
+    // 상태창 입력. C로 토글, 열려 있으면 마우스 휠로 story 목록 스크롤.
     private void HandleCodex()
     {
         var codex = StatuesMenu.Instance;
@@ -44,8 +43,8 @@ public class PlayerInputManager : MonoBehaviour
 
         if (!StatuesMenu.AnyOpen) return;
 
-        if (Input.GetKeyDown(KeyCode.UpArrow)) codex.Navigate(-1);
-        else if (Input.GetKeyDown(KeyCode.DownArrow)) codex.Navigate(1);
+        float wheel = Input.GetAxis("Mouse ScrollWheel");
+        if (Mathf.Abs(wheel) > 0.0001f) codex.Scroll(wheel);
     }
 
     // F: 빙의 토글

@@ -17,13 +17,15 @@ public class RoomMigration : MonoBehaviour
     [Header("열린 문으로 배회 이동 (A/H)")]
     [Tooltip("쫓을 대상이 없어도, 열린 문이 있으면 그쪽 방으로 흘러가려는 확률")]
     [Range(0f, 1f)] public float wanderMigrateChance = 0.7f;
+    [Tooltip("이동 시도 후 이 시간(초) 안에 못 넘어가면 포기하고 다시 wander")]
+    public float migrateTimeout = 5f;
 
     [System.NonSerialized] public float lastMigrateTime = -999f;
     [System.NonSerialized] public Vector3 migrateTargetPoint; //state쪽에서 사용
     [System.NonSerialized] public bool isMigrating = false;  // 문 통과 중(소속 갱신 전) → KeepCreaturesInBounds 예외
     private Room lastKnownRoom;
-    private Room previousRoom;          // 직전에 있던 방 (되돌아가기 억제)
     private bool wanderDrifting = false; // 열린 문으로 흘러가기로 결정된 상태 (쿨다운당 1회 추첨 유지)
+    private float _driftStart;           // wanderDrifting 시작 시각 (타임아웃 포기용)
 
     public bool MigrateOnCooldown => Time.time - lastMigrateTime < migrateCooldown;
 
@@ -41,7 +43,6 @@ public class RoomMigration : MonoBehaviour
         // bounds 기반 소속이 실제로 바뀌면 → 이주 완료 처리 + 쿨다운 시작
         if (self.currentRoom != lastKnownRoom)
         {
-            previousRoom = lastKnownRoom;
             lastKnownRoom = self.currentRoom;
             lastMigrateTime = Time.time;
             isMigrating = false;
@@ -61,7 +62,18 @@ public class RoomMigration : MonoBehaviour
     public bool WantsWanderMigrate()
     {
         if (!WandersThroughDoors() || self.currentRoom == null) return false;
-        if (wanderDrifting) return true;            // 이미 흘러가기로 정함 — 유지
+        if (wanderDrifting)
+        {
+            // 제한시간 내 못 넘어가면 포기 → wander 복귀, 쿨다운 후 재시도
+            if (Time.time - _driftStart > migrateTimeout)
+            {
+                wanderDrifting = false;
+                isMigrating = false;
+                lastMigrateTime = Time.time;
+                return false;
+            }
+            return true;            // 아직 흘러가는 중 — 유지
+        }
         if (MigrateOnCooldown) return false;        // 아직 추첨 타이밍 아님
 
         // 되돌아가기 제외하고 갈 수 있는 통로(문/부서진 벽)가 있나
@@ -70,6 +82,7 @@ public class RoomMigration : MonoBehaviour
         if (Random.value < wanderMigrateChance)
         {
             wanderDrifting = true;
+            _driftStart = Time.time;    // 이동 시도 타이머 시작
             return true;
         }
 
@@ -185,7 +198,6 @@ public class RoomMigration : MonoBehaviour
     {
         if (o == null) return false;
         if (ShouldAvoidRoom(o)) return false;
-        if (avoidBacktrack && o == previousRoom) return false;
         if (avoidBacktrack && IsCrowded(o)) return false;
         return true;
     }

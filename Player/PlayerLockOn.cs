@@ -17,6 +17,8 @@ public class PlayerLockOn : MonoBehaviour
     public Vector3 aimOffset = new Vector3(0, 1.0f, 0);
     [Tooltip("이 반경 안의 생물은 방이 달라도 락온 후보에 포함")]
     public float lockRadius = 30f;
+    [Tooltip("락온 우선순위: 바라보는 방향(각도)에 거리를 얼마나 섞을지. 작을수록 '시선 방향' 우선, 클수록 '가까운 것' 우선")]
+    public float lockDistanceWeight = 0.1f;
 
     [Tooltip("락온 대상 떨림 보정 시간(클수록 부드럽지만 반응 느림). 0이면 보정 없음")]
     public float aimSmoothTime = 0.12f;
@@ -127,7 +129,6 @@ public class PlayerLockOn : MonoBehaviour
         if (cam == null || room == null) return;
 
         Vector3 playerPos = transform.position;
-        Vector2 screenCenter = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
         List<Creature> lockables = new();
 
         // 현재 방 + 문 생물
@@ -162,11 +163,11 @@ public class PlayerLockOn : MonoBehaviour
             })
             .OrderBy(c =>
             {
+                // 바라보는 방향(카메라 정면 기준 각도) 우선, 거리는 보조 — 다른 방이어도 시선에 있으면 먼저.
                 Vector3 lockPos = GetLockPosition(c);
-                Vector3 sp = cam.WorldToScreenPoint(lockPos);
+                float angle = Vector3.Angle(cam.transform.forward, lockPos - cam.transform.position); // 0=정면
                 float worldDist = (lockPos - playerPos).magnitude;
-                float screenDist = ((Vector2)sp - screenCenter).magnitude;
-                return worldDist + screenDist * 0.01f;
+                return angle + worldDist * lockDistanceWeight;
             })
             .ToList();
     }

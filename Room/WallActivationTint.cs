@@ -14,6 +14,12 @@ public class WallActivationTint : MonoBehaviour
     public Color lColor = new Color(0.6f, 1f, 0.3f);   // 연두
     public Color aColor = new Color(0.9f, 0.2f, 0.2f); // 빨강
 
+    [Header("레벨 선택으로 틴트 (ChoiceProgress 기반)")]
+    [Tooltip("켜면 방 상태 대신 '지정 레벨의 클리어 선택(A/L)' 색으로 고정 (한 번 칠함, 방 상태 무시)")]
+    public bool byLevelChoice = false;
+    [Tooltip("몇 번째 레벨 기록을 볼지 (1=level1, 2=level2...). ChoiceProgress 기록 순서")]
+    public int choiceLevelIndex = 1;
+
     [Header("outline 색 (MatteDither 등)")]
     [Tooltip("외곽선 색도 상태에 따라 바꿀지 (_OutlineColor 있는 셰이더용)")]
     public bool tintOutline = false;
@@ -41,8 +47,27 @@ public class WallActivationTint : MonoBehaviour
         return _resolved;
     }
 
+    private void Start()
+    {
+        // 레벨 선택 기반이면 시작 시 기록된 상태로 한 번 칠함 (Room의 상태 변경 호출은 Apply에서 무시/덮어씀)
+        if (byLevelChoice) Apply(Room.RoomActivation.None);
+    }
+
+    // ChoiceProgress에서 지정 레벨의 선택(A/L)을 RoomActivation으로. 기록 없으면 None.
+    private Room.RoomActivation RecordedLevelState()
+    {
+        var all = ChoiceProgress.All();
+        int i = choiceLevelIndex - 1;
+        if (i < 0 || i >= all.Count) return Room.RoomActivation.None;
+        var c = all[i];
+        if (c == CreatureTypes.CreatureID.A) return Room.RoomActivation.A;
+        if (c == CreatureTypes.CreatureID.L) return Room.RoomActivation.L;
+        return Room.RoomActivation.None;
+    }
+
     public void Apply(Room.RoomActivation state)
     {
+        if (byLevelChoice) state = RecordedLevelState();   // 방 상태 대신 레벨 기록 사용
         var rs = Resolve();
 
         Color col = state == Room.RoomActivation.A ? aColor

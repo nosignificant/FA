@@ -43,6 +43,8 @@ public class Think2 : MonoBehaviour
     [Header("EQS (Point Query)")]
     public float pointSpacing = 2f;
     public int maxPoints = 35;
+    [Tooltip("배회 점을 방 경계에서 이만큼 안쪽으로 제한 (옆방과 bounds 겹칠 때 밖으로 새는 것 완화)")]
+    public float wanderBoundsShrink = 2f;
 
     [Header("Wander")]
     [Tooltip("점에 못 닿아도 이 시간마다 새 wander 점")]
@@ -123,6 +125,40 @@ public class Think2 : MonoBehaviour
     [System.NonSerialized] public bool dormant = false;
     public virtual bool IsDormant() => dormant || RoomStateGated();
 
+    [Header("각성 팝업 (dormant→활성)")]
+    [Tooltip("휴면에서 깨어나는 순간 생물 위치에서 방 상태 색 팝업을 쏨 (텍스트 없음, 벽 상태변화 팝업과 동일)")]
+    public bool activationPopup = true;
+    [Tooltip("한 번에 쏠 팝업 수")]
+    [Min(1)] public int activationPopupCount = 3;
+    [Tooltip("재발동 최소 간격(초) — 깜빡임 방지")]
+    public float activationPopupCooldown = 2f;
+    private bool _wasDormant;
+    private bool _dormInit;
+    private float _lastActivationPopup = -999f;
+
+    // 휴면에서 깨어나는 순간 생물 위치에서 방 상태 색 팝업을 방사 (벽 상태변화 팝업과 같은 스타일)
+    private void FireActivationPopup()
+    {
+        if (!activationPopup || Popup.Instance == null) return;
+        if (self == null || self.rootTransform == null) return;
+        if (Time.time - _lastActivationPopup < activationPopupCooldown) return;
+        _lastActivationPopup = Time.time;
+
+        Vector3 pos = self.rootTransform.position;
+        var room = self.currentRoom;
+        Color col = room == null ? Color.white
+                  : room.Activation == Room.RoomActivation.A ? room.announceAColor
+                  : room.Activation == Room.RoomActivation.L ? room.announceLColor : Color.white;
+
+        int n = Mathf.Max(1, activationPopupCount);
+        for (int i = 0; i < n; i++)
+        {
+            float ang = (i / (float)n) * Mathf.PI * 2f + UnityEngine.Random.Range(-0.4f, 0.4f);
+            Vector3 dir = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang));   // 수평 방사
+            Popup.Instance.BurstDirectional(pos, dir, "", col);
+        }
+    }
+
     // 대상 생물이 휴면(dormant) 상태인지 — 휴면 대상은 도망/추적에서 제외
     public static bool IsCreatureDormant(Creature t)
     {
@@ -157,6 +193,12 @@ public class Think2 : MonoBehaviour
                              $"currentState={currentState != null} — 컴포넌트 누락 확인");
             return;
         }
+
+        // dormant→활성 전환 감지 → 각성 팝업 (처음 1회는 초기화만, 깨어날 때만 발동)
+        bool curDorm = IsDormant();
+        if (_dormInit && _wasDormant && !curDorm) FireActivationPopup();
+        _wasDormant = curDorm;
+        _dormInit = true;
 
         if (manualControl) return;
         if (self.IsGrabbed) return;
@@ -276,7 +318,7 @@ public class Think2 : MonoBehaviour
         {
             Vector3 p = center + Random.insideUnitSphere * r;
             //내 방이 있을 때 벗어나면 제외, 내 방 없으면 그냥 돌아다니게 
-            if (hasBounds && !IsInsideBounds(p, self.currentRoom.homeBound.bounds, 0f)) continue;
+            if (hasBounds && !IsInsideBounds(p, self.currentRoom.homeBound.bounds, wanderBoundsShrink)) continue;
             //걷는 생물이면 y높이 제한 
             if (self.data != null && self.data.walkingCreature) { if (p.y > center.y + 15 || p.y < center.y - 15) continue; }
             points.Add(p);

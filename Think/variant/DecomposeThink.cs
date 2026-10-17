@@ -16,6 +16,7 @@ public class Dthink : Think2
     protected override void Awake()
     {
         base.Awake();
+        if (self != null) self.canMigrate = false;   // D는 방 유지용 — 방 밖으로 이주 안 함
         initDecomposeState();
     }
 

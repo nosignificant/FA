@@ -132,15 +132,17 @@ public class BreakableWall : MonoBehaviour
         bool win = isWindow;
         if (win) EnsureWindowInstance();        // 프리팹 선택 방식이면 생성
         if (window != null) window.SetActive(win);
-        if (breakableObject != null) breakableObject.SetActive(breakable && !win);
-        if (tintTarget != null) tintTarget.SetActive(breakable && !win);   // 색칠 대상도 breakable 꺼지면 끔
+        // 부서지면(Broken) breakableObject(조각)만 꺼둠 — tint 갱신 때 다시 켜지는 것 방지.
+        // 부모(tintTarget)는 Broken이어도 유지해서 틀/틴트를 남긴다.
+        if (breakableObject != null) breakableObject.SetActive(breakable && !win && !Broken);
+        if (tintTarget != null) tintTarget.SetActive(breakable && !win);
         if (normalWall != null)
         {
             var mr = normalWall.GetComponent<MeshRenderer>();
             if (mr != null) mr.enabled = !(breakable || win);   // breakable이나 window면 일반 벽 메쉬 끔
         }
 
-        // 색 적용 대상: tintTarget 지정 시 그것, 없으면 breakableObject
+        // 색 적용 대상: tintTarget 지정 시 그것, 없으면 breakableObject (부서져도 부모 틴트는 유지)
         GameObject colorRoot = tintTarget != null ? tintTarget : breakableObject;
         if (tintBreakable && breakable && !win && colorRoot != null)
         {
@@ -169,18 +171,35 @@ public class BreakableWall : MonoBehaviour
     private void AutoDetectRooms()
     {
         if (roomA == null) roomA = GetComponentInParent<Room>();
+        if (roomB != null) return;
 
+        Vector3 p = transform.position;
+
+        // 1순위: roomA 중심에서 벽 쪽(= 밖) 방향으로 한 발 나간 점을 포함하는 방 = 벽 너머 방
+        if (roomA != null && roomA.homeBound != null)
+        {
+            Vector3 away = p - roomA.homeBound.bounds.center; away.y = 0f;
+            if (away.sqrMagnitude > 0.0001f)
+            {
+                away.Normalize();
+                Vector3 probe = p + away * Mathf.Max(1f, oppositeBreakRange);
+                foreach (var room in FindObjectsOfType<Room>())
+                {
+                    if (room == roomA || room.homeBound == null) continue;
+                    if (room.homeBound.bounds.Contains(probe)) { roomB = room; break; }
+                }
+            }
+        }
+
+        // 폴백: 가장 가까운 다른 방
         if (roomB == null)
         {
-            Vector3 p = transform.position;
             Room best = null;
             float bd = float.MaxValue;
             foreach (var room in FindObjectsOfType<Room>())
             {
-                if (room == roomA) continue;
-                var col = room.homeBound != null ? room.homeBound : room.GetComponent<Collider>();
-                if (col == null) continue;
-                float d = col.bounds.SqrDistance(p);   // 방 안이면 0
+                if (room == roomA || room.homeBound == null) continue;
+                float d = room.homeBound.bounds.SqrDistance(p);   // 방 안이면 0
                 if (d < bd) { bd = d; best = room; }
             }
             roomB = best;

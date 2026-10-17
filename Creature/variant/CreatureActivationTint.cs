@@ -18,11 +18,10 @@ public class CreatureActivationTint : MonoBehaviour
     public Color aColor = new Color(0.9f, 0.2f, 0.2f); // 방 A일 때
     public Color roomNoneColor = Color.white;          // 방 None일 때
 
-    [Header("각성/휴면 색 (tintByRoomState 꺼져있을 때)")]
-    [Tooltip("각성(dormant 아님) 시 이 생물 고유의 색 (베이스 _Color)")]
-    public Color activeColor = new Color(0.3f, 0.8f, 1f);
-    [Tooltip("휴면(dormant) 시 색")]
+    [Header("휴면 색 (tintByRoomState 꺼져있을 때)")]
+    [Tooltip("휴면(dormant) 시 색. 각성(dormant 아님) 시엔 프리팹 원래 색으로 복원")]
     public Color dormantColor = Color.gray;
+    private Color[] _origCol;   // 프리팹 원래 베이스 색 (렌더러별, 각성 복원용)
 
     [Header("halftone dot 색 (_DotColor)")]
     [Tooltip("점(dot) 색도 같이 바꿀지")]
@@ -74,7 +73,40 @@ public class CreatureActivationTint : MonoBehaviour
     private void Start()
     {
         if (swapTexture) CaptureOriginalTextures();   // 텍스처 제거 전에 원래 텍스처 저장
+        if (!tintByRoomState) CaptureOriginalColors();   // 각성 시 복원할 프리팹 원래 색 저장
         StartCoroutine(Loop());
+    }
+
+    // 프리팹 머티리얼의 원래 베이스 색을 렌더러별로 저장 (각성 시 복원용)
+    private void CaptureOriginalColors()
+    {
+        var rs = Resolve();
+        _origCol = new Color[rs.Length];
+        for (int i = 0; i < rs.Length; i++)
+        {
+            var r = rs[i];
+            if (r == null) { _origCol[i] = Color.white; continue; }
+            if (r is SpriteRenderer sr) { _origCol[i] = sr.color; continue; }
+            var mat = r.sharedMaterial;   // 공유 머티리얼에서 원본 색만 읽음(인스턴스 안 만듦)
+            string prop = mat != null ? ActivationColor.ResolveProp(mat, colorProperty) : null;
+            _origCol[i] = (mat != null && prop != null && mat.HasProperty(prop)) ? mat.GetColor(prop) : Color.white;
+        }
+    }
+
+    // 각성 시: 각 렌더러를 저장해둔 프리팹 원래 베이스 색으로 복원
+    private void RestoreOriginalColors(Renderer[] rs)
+    {
+        if (_origCol == null || rs == null) return;
+        for (int i = 0; i < rs.Length; i++)
+        {
+            var r = rs[i];
+            if (r == null || i >= _origCol.Length) continue;
+            if (r is SpriteRenderer sr) { sr.color = _origCol[i]; continue; }
+            var mat = r.material;   // 인스턴스
+            if (mat == null) continue;
+            string prop = ActivationColor.ResolveProp(mat, colorProperty);
+            if (prop != null && mat.HasProperty(prop)) mat.SetColor(prop, _origCol[i]);
+        }
     }
 
     // 프리팹 머티리얼에 이미 있던 텍스처를 렌더러별로 저장 (각성 시 복원용)
@@ -99,6 +131,7 @@ public class CreatureActivationTint : MonoBehaviour
         {
             int key;
             Color baseCol, dotCol, outlineCol;
+            bool dormant = think == null || think.dormant;
 
             if (tintByRoomState)
             {
@@ -110,9 +143,8 @@ public class CreatureActivationTint : MonoBehaviour
             }
             else
             {
-                bool dormant = think == null || think.dormant;
                 key = dormant ? 0 : 1;
-                baseCol    = dormant ? dormantColor : activeColor;
+                baseCol    = dormantColor;   // 휴면색 (각성 시엔 아래서 프리팹 원래 색 복원)
                 dotCol     = dormant ? dormantDotColor : activeDotColor;
                 outlineCol = dormant ? dormantOutline : activeOutline;
             }
@@ -120,7 +152,10 @@ public class CreatureActivationTint : MonoBehaviour
             if (key != _lastKey)   // 바뀔 때만 적용
             {
                 var rs = Resolve();
-                ActivationColor.Apply(rs, baseCol, colorProperty);   // 베이스(_Color)
+                if (!tintByRoomState && !dormant)
+                    RestoreOriginalColors(rs);                       // 각성 = 프리팹 원래 베이스 색
+                else
+                    ActivationColor.Apply(rs, baseCol, colorProperty);   // 베이스(_Color)
                 if (tintDots && !string.IsNullOrEmpty(dotColorProperty))
                     ActivationColor.Apply(rs, dotCol, dotColorProperty);   // 점(_DotColor)
                 if (tintOutline && !string.IsNullOrEmpty(outlineColorProperty))

@@ -88,10 +88,7 @@ public class Lcreature : Creature
             if (!IsControlled && tc != null && currentRoom != null)
             {
                 bool aaHere = currentRoom.HasSpecies(CreatureID.AA);
-                int openDoors = 0;
-                if (currentRoom.doors != null) foreach (var d in currentRoom.doors) if (d != null && d.isOpen) openDoors++;
                 Transform t = aaHere ? PickExitTargetAwayFromAA() : null;
-                Debug.Log($"[LLFlee] {name} room={currentRoom.roomID} AA여기={aaHere} 등록문수={currentRoom.doors?.Count} 열린문={openDoors} 탈출로={(t != null)}");
                 if (aaHere && t != null) tc.SetMovementTarget(t);
             }
             yield return wait;

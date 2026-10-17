@@ -80,6 +80,25 @@ public class Popup : MonoBehaviour
         StartCoroutine(SpawnRoutine(worldPos + offset, msgs, fixedLifeTime, spawnInterval, color));
     }
 
+    [Header("방향 팝업(상태 변화) 랜덤")]
+    [Tooltip("크기 랜덤 배율 범위 (프리팹 기본 스케일에 곱함)")]
+    public Vector2 directionalSizeRange = new Vector2(0.6f, 1.5f);
+    [Tooltip("수명 랜덤 편차 (0.4면 ±40%)")]
+    [Range(0f, 1f)] public float directionalLifeJitter = 0.3f;
+
+    // 지정 위치에서 지정 방향으로 팝업 하나 발사 (방 상태 변화 알림 등 — 방향 고정, 카메라 분산 안 함)
+    // 크기·속도·수명을 개체마다 랜덤하게 흩어 단조로움 방지
+    public void BurstDirectional(Vector3 worldPos, Vector3 dir, string message = "", Color? color = null)
+    {
+        if (popupPrefab == null) { Debug.LogWarning("[Popup] BurstDirectional: popupPrefab 미할당"); return; }
+        float spd = speed * (1f + Random.Range(-speedJitter, speedJitter));
+        float life = fixedLifeTime * (1f + Random.Range(-directionalLifeJitter, directionalLifeJitter));
+
+        var ft = Instantiate(popupPrefab, worldPos, Quaternion.identity);
+        ft.transform.localScale *= Random.Range(directionalSizeRange.x, directionalSizeRange.y);   // 크기 랜덤
+        ft.Launch(message, dir.normalized, spd, life, color);
+    }
+
     // 스토리 생물 빙의 → 현재 단계 대사 줄들을 "줄당 하나씩" 뿌림 (외부에서 호출)
     public void BurstStoryLines(Creature target)
     {

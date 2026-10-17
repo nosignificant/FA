@@ -10,7 +10,9 @@ using CreatureTypes;
 public class LevelPortal : MonoBehaviour
 {
     [Header("전환 대상")]
-    [Tooltip("불러올 씬 이름 (Build Settings에 등록되어 있어야 함)")]
+    [Tooltip("켜면 LevelFlow 맵(현재 씬→다음 씬)에서 자동 결정. 각 씬마다 targetScene 안 바꿔도 됨")]
+    public bool useFlowMap = true;
+    [Tooltip("useFlowMap이 꺼져있거나 맵에 없을 때 쓸 씬 이름 (Build Settings 등록 필요)")]
     public string targetScene;
     [Tooltip("Additive면 현재 씬 위에 겹쳐 로드, 아니면 교체")]
     public bool additive = false;
@@ -20,6 +22,8 @@ public class LevelPortal : MonoBehaviour
     public bool recordAsChoice = false;
     [Tooltip("이 문의 판정 종 (예: A문이면 A, L문이면 L)")]
     public CreatureID choiceId = CreatureID.A;
+    [Tooltip("이 포탈 통과 시 로딩 화면에 'level N clear L/A' 표시 (레벨 클리어 포탈이면 켬)")]
+    public bool showClearOnPass = true;
 
     [Header("옵션")]
     [Tooltip("들어온 뒤 이 시간(초) 대기 후 전환 (0이면 즉시)")]
@@ -65,9 +69,18 @@ public class LevelPortal : MonoBehaviour
 
     private void Load()
     {
-        if (string.IsNullOrEmpty(targetScene))
+        // 다음 씬 결정: useFlowMap이면 LevelFlow(현재 씬→다음 씬)에서, 아니면/없으면 targetScene.
+        string scene = targetScene;
+        if (useFlowMap)
         {
-            Debug.LogWarning($"[LevelPortal] {name}: targetScene이 비어 있습니다.");
+            string fromFlow = LevelFlow.GetNext(SceneManager.GetActiveScene().name, choiceId);
+            if (!string.IsNullOrEmpty(fromFlow)) scene = fromFlow;
+            else Debug.LogWarning($"[LevelPortal] {name}: LevelFlow에 '{SceneManager.GetActiveScene().name}' 다음 씬 없음 → targetScene 사용");
+        }
+
+        if (string.IsNullOrEmpty(scene))
+        {
+            Debug.LogWarning($"[LevelPortal] {name}: 로드할 씬이 없음 (LevelFlow·targetScene 둘 다 비어있음)");
             return;
         }
 
@@ -76,13 +89,14 @@ public class LevelPortal : MonoBehaviour
         // 로딩바가 있으면 SceneLoader로 (additive는 로더 미지원 → 직접 로드)
         if (!additive && SceneLoader.Instance != null)
         {
-            Debug.Log($"[LevelPortal] SceneLoader로 '{targetScene}' 로드");
-            SceneLoader.Instance.Load(targetScene);
+            Debug.Log($"[LevelPortal] SceneLoader로 '{scene}' 로드");
+            if (showClearOnPass) SceneLoader.Instance.RequestClear(choiceId);   // 통과 = 클리어 → clear 표시
+            SceneLoader.Instance.Load(scene);
         }
         else
         {
-            Debug.Log($"[LevelPortal] 직접 '{targetScene}' 로드 (SceneLoader={(SceneLoader.Instance != null)})");
-            SceneManager.LoadScene(targetScene, additive ? LoadSceneMode.Additive : LoadSceneMode.Single);
+            Debug.Log($"[LevelPortal] 직접 '{scene}' 로드 (SceneLoader={(SceneLoader.Instance != null)})");
+            SceneManager.LoadScene(scene, additive ? LoadSceneMode.Additive : LoadSceneMode.Single);
         }
     }
 

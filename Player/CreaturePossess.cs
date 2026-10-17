@@ -334,7 +334,7 @@ public class CreaturePossess : MonoBehaviour
         if (proxyCol != null) { Destroy(proxyCol); proxyCol = null; }
     }
 
-    // WASD: 수평 이동 / E: 상승 Q: 하강
+    // WASD: 수평 이동만 (고도 조절 없음 — 바닥 높이 유지, 높이는 다리/물리가 잡음)
     // 입력 방향만 계산 — 실제 이동은 FixedUpdate에서 proxyRb로 처리(벽 충돌 적용)
     private void DriveProxy()
     {
@@ -343,17 +343,12 @@ public class CreaturePossess : MonoBehaviour
         float h = Input.GetAxisRaw("Horizontal");
         float v = Input.GetAxisRaw("Vertical");
 
-        // 수직 입력 (E 상승, Q 하강)
-        float up = 0f;
-        if (Input.GetKey(KeyCode.E)) up += 1f;
-        if (Input.GetKey(KeyCode.Q)) up -= 1f;
-
-        // 카메라 기준 평면 방향
+        // 카메라 기준 평면 방향 (수평만)
         Vector3 fwd = cameraTransform != null ? cameraTransform.forward : Vector3.forward;
         Vector3 right = cameraTransform != null ? cameraTransform.right : Vector3.right;
         fwd.y = 0f; right.y = 0f;
         fwd.Normalize(); right.Normalize();
 
-        driveDir = (fwd * v + right * h + Vector3.up * up).normalized;
+        driveDir = (fwd * v + right * h).normalized;
     }
 }

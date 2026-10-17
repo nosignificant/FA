@@ -146,8 +146,59 @@ public class Room : MonoBehaviour
         if (a == activation) return;
         activation = a;
         RefreshWalls();                     // 벽 색 갱신
+        AnnounceActivation(a);              // 벽 랜덤 위치 → 중심으로 팝업(상태 변화 시각 알림)
         OnActivationChanged?.Invoke(a);
         OnCreatureCountChanged?.Invoke();   // 문 조건 재평가
+    }
+
+    [Header("상태 변화 알림 팝업")]
+    [Tooltip("방이 L/A로 바뀔 때 각 breakable 벽에서 방 중심으로 팝업을 띄워 알림")]
+    public bool announceActivationPopup = true;
+    [Tooltip("벽 하나당 띄울 팝업 수")]
+    [Min(1)] public int popupsPerWall = 2;
+    public Color announceLColor = new Color(0.6f, 1f, 0.3f);
+    public Color announceAColor = new Color(0.9f, 0.2f, 0.2f);
+
+    // 방 상태가 L/A로 바뀌면 '모든 breakable 벽'에서 방 중심 방향으로 팝업을 쏴 시각적으로 알림
+    private void AnnounceActivation(RoomActivation a)
+    {
+        if (!announceActivationPopup || a == RoomActivation.None) return;   // 켜질 때만 알림
+        if (Popup.Instance == null) return;
+
+        // Wall 아래 자식으로 있는 BreakableWall 전부 (등록 리스트 아님 — breakable=false/tint전용도 포함)
+        var walls = GetComponentsInChildren<BreakableWall>(true);
+        if (walls.Length == 0) return;
+
+        Vector3 center = homeBound != null ? homeBound.bounds.center : transform.position;
+        Color col = a == RoomActivation.A ? announceAColor : announceLColor;
+
+        foreach (var w in walls)                         // 벽마다
+        {
+            if (w == null) continue;
+            for (int k = 0; k < popupsPerWall; k++)
+            {
+                Vector3 p = WallPoint(w);                 // 벽 면 위 랜덤 점 (매번 다른 위치)
+                Vector3 dir = center - p; dir.y = 0f;     // 수평으로 중심을 향해
+                if (dir.sqrMagnitude < 0.01f) dir = Vector3.forward;
+                Popup.Instance.BurstDirectional(p, dir, "", col);   // 텍스트 없이 색 마커만
+            }
+        }
+    }
+
+    // 벽 면 위 랜덤 점 (렌더러 bounds 안에서 랜덤). 단조로운 pivot 고정 방지.
+    private Vector3 WallPoint(BreakableWall w)
+    {
+        Bounds b = default; bool has = false;
+        foreach (var r in w.GetComponentsInChildren<Renderer>(true))
+        {
+            if (r == null) continue;
+            if (!has) { b = r.bounds; has = true; } else b.Encapsulate(r.bounds);
+        }
+        if (!has) return w.Position;
+        return new Vector3(
+            UnityEngine.Random.Range(b.min.x, b.max.x),
+            UnityEngine.Random.Range(b.min.y, b.max.y),
+            UnityEngine.Random.Range(b.min.z, b.max.z));
     }
 
     private IEnumerator ActivationLoop()
@@ -325,6 +376,7 @@ public class Room : MonoBehaviour
 
     void Awake()
     {
+        roomID = gameObject.name;   // Start보다 먼저 확정 — BWall/Door 등이 Start에서 읽어도 일관
         if (homeBound == null) homeBound = GetComponent<Collider>();
         InitWallSlots();
     }
@@ -420,7 +472,6 @@ public class Room : MonoBehaviour
 
     void Start()
     {
-        roomID = gameObject.name;
         if (roomLight != null) roomLight.SetActive(lightOn);   // 시작 시 조명 상태 적용
         if (RoomManager.Instance != null) RoomManager.Instance.Register(this);
 

@@ -31,6 +31,7 @@ public class Interaction : MonoBehaviour
             case LL: return GetActionForLL(targetID, action);
             case D: return GetActionForD(targetID, action);
             case Timid: return GetActionForTimid(targetID, action);
+            case WalkingWeed: return GetActionForWalkingWeed(targetID, action);
             default: return int.MinValue;
         }
     }
@@ -81,6 +82,13 @@ public class Interaction : MonoBehaviour
         if (action != InteractionAction.Flee) return int.MinValue;
         if (targetID == Timid || targetID == CreatureID.Door) return int.MinValue;   // 동족·문은 안 피함
         return 40;   // 그 외 모든 종에게서 도망
+    }
+
+    // M(WalkingWeed): 플레이어만 피해 도망. 그 외 상호작용 없음.
+    private static int GetActionForWalkingWeed(CreatureID targetID, InteractionAction action)
+    {
+        if (action == InteractionAction.Flee && targetID == CreatureID.Player) return 40;
+        return int.MinValue;
     }
 
     // D: 과밀한 방의 입자 L/A만 분해 (개체수 조절).

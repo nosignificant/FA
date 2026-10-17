@@ -26,6 +26,7 @@ public class Door : MonoBehaviour
         RoomState,   // 양쪽 방 중 하나가 requiredState(L/A)로 활성화되면 열림
         LevelCount,  // 레벨 전체에서 requiredState로 활성화된 방이 levelCountN개 이상이면 열림
         SignalGate,  // 발신기 신호들을 논리게이트(AND/OR/NOT/EQUALS)로 판정
+        LevelChoice, // 지정 레벨을 A/L 중 무엇으로 클리어했는지(ChoiceProgress) 표시 — 개폐 안 함(표시/tint 전용)
     }
 
     [Header("Condition")]
@@ -36,6 +37,17 @@ public class Door : MonoBehaviour
 
     [Tooltip("LevelCount 모드: requiredState로 활성화된 방이 레벨 안에 이 개수 이상이면 열림")]
     public int levelCountN = 3;
+
+    [Header("LevelChoice (레벨 클리어 선택 표시)")]
+    [Tooltip("몇 번째 레벨의 기록을 볼지 (1=level1, 2=level2...). ChoiceProgress 기록 순서 기준")]
+    public int choiceLevelIndex = 1;
+
+    [Header("HUD 라벨 직접 작성 (선택)")]
+    [Tooltip("켜면 아래 3칸(이름/동사/목적어)을 모드 자동 라벨 대신 그대로 HUD에 표시")]
+    public bool useCustomLabel = false;
+    public string customName = "";    // name 칸 (조건1)
+    public string customVerb = "";    // status 칸 (연산/동사)
+    public string customObject = "";  // target 칸 (조건2)
 
     [Header("Condition Graphics (선택)")]
     [Tooltip("조건 종류별로 켤 그래픽. 비워두면 아무것도 안 함. 시작 시·조건 바뀔 때 해당하는 것만 켜짐.")]
@@ -89,11 +101,16 @@ public class Door : MonoBehaviour
     public void ApplyConditionGraphic()
     {
         bool isRoomState = conditionMode == ConditionMode.RoomState;
+        bool isLevelChoice = conditionMode == ConditionMode.LevelChoice;
+        bool stateMode = isRoomState || isLevelChoice;   // L/A 스프라이트·색 쓰는 모드
         if (levelCountGraphic != null) levelCountGraphic.SetActive(conditionMode == ConditionMode.LevelCount);
         if (signalGateGraphic != null) signalGateGraphic.SetActive(conditionMode == ConditionMode.SignalGate);
 
-        bool wantL = isRoomState && requiredState == Room.RoomActivation.L;
-        bool wantA = isRoomState && requiredState == Room.RoomActivation.A;
+        // 표시 상태: RoomState=requiredState / LevelChoice=기록된 선택
+        Room.RoomActivation dispState = isLevelChoice ? RecordedLevelState() : requiredState;
+
+        bool wantL = stateMode && dispState == Room.RoomActivation.L;
+        bool wantA = stateMode && dispState == Room.RoomActivation.A;
         if (roomStateGraphicL != null) roomStateGraphicL.SetActive(wantL);
         if (roomStateGraphicA != null) roomStateGraphicA.SetActive(wantA);
 
@@ -104,10 +121,10 @@ public class Door : MonoBehaviour
             if (wantA && roomStateGraphicA != null) TintGraphic(roomStateGraphicA, aColor, roomStateColorProperty);
         }
 
-        // 문짝(3D) 색 — 스프라이트와 별개. requiredState에 맞는 색으로. 본체 Renderer만(자식 제외).
-        if (tintDoorPanels && isRoomState)
+        // 문짝(3D) 색 — 스프라이트와 별개. dispState(L/A)에 맞는 색으로. 본체 Renderer만(자식 제외).
+        if (tintDoorPanels && stateMode && dispState != Room.RoomActivation.None)
         {
-            Color dc = requiredState == Room.RoomActivation.A ? aDoorColor : lDoorColor;
+            Color dc = dispState == Room.RoomActivation.A ? aDoorColor : lDoorColor;
             if (rightDoor != null) TintSelf(rightDoor.gameObject, dc, doorPanelColorProperty);
             if (leftDoor  != null) TintSelf(leftDoor.gameObject,  dc, doorPanelColorProperty);
         }
@@ -157,8 +174,11 @@ public class Door : MonoBehaviour
 
         ApplyConditionGraphic();   // 조건 종류에 맞는 그래픽만 켜기
 
-        // 조명을 현재 isOpen 상태에 맞춰 초기화 (닫힌 채 시작 시 조명 꺼짐)
-        if (light != null) light.SetActive(isOpen);
+        // 항상 열린 통로는 '문'처럼 취급 안 함 → 락온 불가, 불도 안 켬
+        if (alwaysOpen && self != null) self.lockable = false;
+
+        // 조명을 현재 isOpen 상태에 맞춰 초기화 (alwaysOpen이면 불 안 켬)
+        if (light != null) light.SetActive(isOpen && !alwaysOpen);
 
         // isOpen을 켜둔 채 시작하거나 alwaysOpen이면 열린 상태로 시작
         if (isOpen || alwaysOpen) DoorCloseAndOpen(true);
@@ -201,9 +221,23 @@ public class Door : MonoBehaviour
 
     private void Reevaluate() => EvaluateConditions();
 
+    // ChoiceProgress에서 이 문이 가리키는 레벨의 기록된 선택(A/L)을 RoomActivation으로.
+    // 아직 안 한(기록 없는) 레벨은 None.
+    public Room.RoomActivation RecordedLevelState()
+    {
+        var all = ChoiceProgress.All();
+        int i = choiceLevelIndex - 1;
+        if (i < 0 || i >= all.Count) return Room.RoomActivation.None;
+        var c = all[i];
+        if (c == CreatureID.A) return Room.RoomActivation.A;
+        if (c == CreatureID.L) return Room.RoomActivation.L;
+        return Room.RoomActivation.None;
+    }
+
     private void EvaluateConditions()
     {
         if (alwaysOpen) return;   // 항상 열린 통로는 조건과 무관하게 계속 열림
+        if (conditionMode == ConditionMode.LevelChoice) return;   // 표시/tint 전용 — 자동 개폐 안 함
         // 튜토리얼 방(어느 쪽이든)의 문은 조건 자동 개폐 안 함 (TutorialGuide가 수동 제어)
         if ((roomA != null && roomA.isTutorial) || (roomB != null && roomB.isTutorial)) return;
 
@@ -267,12 +301,15 @@ public class Door : MonoBehaviour
     // name 칸 (조건1)
     public string Operand1Label()
     {
+        if (useCustomLabel) return customName;
         switch (conditionMode)
         {
             case ConditionMode.LevelCount:
                 return requiredState.ToString();
             case ConditionMode.SignalGate:
                 return gate == GateType.EQUALS ? InputRoom(InA) : InputSpecies(InA);
+            case ConditionMode.LevelChoice:
+                return "level" + choiceLevelIndex;
             default: // RoomState (사용자 요청: 방이름 대신 "open" → "open / at / A"로 읽힘)
                 return "open";
         }
@@ -281,6 +318,7 @@ public class Door : MonoBehaviour
     // status 칸 (연산/동사)
     public string ConditionLabel()
     {
+        if (useCustomLabel) return customVerb;
         switch (conditionMode)
         {
             case ConditionMode.LevelCount: return "rooms ≥";   // "rooms ≥"
@@ -292,6 +330,7 @@ public class Door : MonoBehaviour
                     case GateType.EQUALS: return "equals";
                     default:              return "AND";
                 }
+            case ConditionMode.LevelChoice: return "is";   // "levelN is 상태"
             default: return "at";   // RoomState (사용자 요청: "open / at / A" 형식, 방이름 안 씀)
         }
     }
@@ -299,6 +338,7 @@ public class Door : MonoBehaviour
     // target 칸 (조건2)
     public string GateTargetLabel()
     {
+        if (useCustomLabel) return customObject;
         switch (conditionMode)
         {
             case ConditionMode.LevelCount:
@@ -306,6 +346,8 @@ public class Door : MonoBehaviour
             case ConditionMode.SignalGate:
                 if (gate == GateType.NOT) return "";
                 return gate == GateType.EQUALS ? InputRoom(InB) : InputSpecies(InB);
+            case ConditionMode.LevelChoice:
+                return RecordedLevelState().ToString();   // 기록된 선택 "A"/"L"/"None"
             default: // RoomState
                 return requiredState.ToString();   // "L" 또는 "A"
         }
@@ -351,8 +393,8 @@ public class Door : MonoBehaviour
         if (moveCo != null) StopCoroutine(moveCo);   // 이동 애니만 중단 (TickEvaluate는 유지)
         moveCo = StartCoroutine(MoveDoor(open));
 
-        //불 켜기
-        if (light != null) light.SetActive(open);
+        //불 켜기 (alwaysOpen 통로는 불 안 켬)
+        if (light != null) light.SetActive(open && !alwaysOpen);
         if (RoomManager.Instance != null && Player.Instance?.currentRoom != null)
             RoomManager.Instance.UpdateActiveRooms(Player.Instance.currentRoom);
 
