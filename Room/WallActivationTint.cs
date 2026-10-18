@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 // 방 활성화 상태(L/A/None)에 따라 색이 바뀌는 벽/바닥용 컴포넌트.
@@ -19,6 +20,14 @@ public class WallActivationTint : MonoBehaviour
     public bool byLevelChoice = false;
     [Tooltip("몇 번째 레벨 기록을 볼지 (1=level1, 2=level2...). ChoiceProgress 기록 순서")]
     public int choiceLevelIndex = 1;
+
+    [Header("순차 색 변경 (웨이브)")]
+    [Tooltip("켜면 자식 스프라이트/렌더러를 한 번에 안 칠하고 하나씩 순차로 칠함")]
+    public bool sequential = false;
+    [Tooltip("스프라이트 하나당 간격(초)")]
+    public float sequentialStep = 0.08f;
+    private Coroutine _seqCo;
+    private readonly Renderer[] _one = new Renderer[1];
 
     [Header("outline 색 (MatteDither 등)")]
     [Tooltip("외곽선 색도 상태에 따라 바꿀지 (_OutlineColor 있는 셰이더용)")]
@@ -70,6 +79,14 @@ public class WallActivationTint : MonoBehaviour
         if (byLevelChoice) state = RecordedLevelState();   // 방 상태 대신 레벨 기록 사용
         var rs = Resolve();
 
+        // 순차(웨이브): 자식을 하나씩 딜레이 주며 칠함
+        if (sequential && sequentialStep > 0f && isActiveAndEnabled && rs != null && rs.Length > 1)
+        {
+            if (_seqCo != null) StopCoroutine(_seqCo);
+            _seqCo = StartCoroutine(ApplySequential(rs, state));
+            return;
+        }
+
         Color col = state == Room.RoomActivation.A ? aColor
                   : state == Room.RoomActivation.L ? lColor : noneColor;
         ActivationColor.Apply(rs, col, colorProperty);   // 베이스(_Color/_BaseColor)
@@ -87,6 +104,37 @@ public class WallActivationTint : MonoBehaviour
                      : state == Room.RoomActivation.L ? lEmission : noneEmission;
             ApplyEmission(rs, ec);
         }
+    }
+
+    // 렌더러들을 하나씩 순차로 칠함 (sequentialStep 간격)
+    private IEnumerator ApplySequential(Renderer[] rs, Room.RoomActivation state)
+    {
+        var wait = new WaitForSeconds(sequentialStep);
+        for (int i = 0; i < rs.Length; i++)
+        {
+            ApplyOne(rs[i], state);
+            yield return wait;
+        }
+        _seqCo = null;
+    }
+
+    // 렌더러 하나에 base(+outline/emission) 색 적용
+    private void ApplyOne(Renderer r, Room.RoomActivation state)
+    {
+        if (r == null) return;
+        _one[0] = r;
+
+        Color col = state == Room.RoomActivation.A ? aColor
+                  : state == Room.RoomActivation.L ? lColor : noneColor;
+        ActivationColor.Apply(_one, col, colorProperty);
+
+        if (tintOutline && !string.IsNullOrEmpty(outlineColorProperty))
+            ActivationColor.Apply(_one, state == Room.RoomActivation.A ? aOutline
+                                      : state == Room.RoomActivation.L ? lOutline : noneOutline, outlineColorProperty);
+
+        if (tintEmission && !string.IsNullOrEmpty(emissionColorProperty))
+            ApplyEmission(_one, state == Room.RoomActivation.A ? aEmission
+                                   : state == Room.RoomActivation.L ? lEmission : noneEmission);
     }
 
     // 발광색 적용 + URP Lit이면 _EMISSION 키워드 켜야 실제로 발광함

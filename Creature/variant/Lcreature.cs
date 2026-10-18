@@ -162,8 +162,12 @@ public class Lcreature : Creature
         Creature c = obj.GetComponent<Creature>();
         if (c == null) { Destroy(obj); return; }
 
+        c.SetMovementEnabled(false);                             // 먼저 정지(kinematic) — 이 상태에서 reparent해야 안전
+        obj.transform.SetParent(CreatureRoot.Container, true);   // _Creatures 자식으로 (LL 회전 안 따라감)
+
         currentRoom.RegisterCreature(c);
-        StartCoroutine(HoldThenRelease(c, point));
+        Popup.Instance?.BurstMessage(c, "produce");              // 생산 연출 (decompose 버스트처럼)
+        StartCoroutine(HoldThenRelease(c));
     }
 
     // spawnPoints 중 랜덤 (비어있으면 null → 자기 위치)
@@ -174,14 +178,12 @@ public class Lcreature : Creature
         return null;
     }
 
-    // 생성한 L을 holdTime 동안 소환 위치의 자식으로 붙였다가 놓음
-    private IEnumerator HoldThenRelease(Creature c, Transform point)
+    // 생성한 L을 holdTime 동안 생산 위치에 고정(제자리 정지)했다 놓음.
+    // parent는 _Creatures 그대로 → LL이 회전/이동해도 따라가지 않음.
+    private IEnumerator HoldThenRelease(Creature c)
     {
         if (c == null) yield break;
-
-        c.SetMovementEnabled(false);            // 물리·이동 정지
-        Transform ct = c.transform;
-        if (point != null) ct.SetParent(point, true);   // 자식으로 (world 유지 → LL 움직여도 자연히 따라감)
+        // 정지는 SpawnAtRandomPoint에서 이미 함(reparent 전). holdTime 뒤 놓음.
 
         float t = 0f;
         while (t < holdTime)
@@ -192,7 +194,6 @@ public class Lcreature : Creature
         }
 
         if (c == null || c.IsDead) yield break;
-        ct.SetParent(null, true);               // 부모에서 떼어냄 (world 유지)
         c.SetMovementEnabled(true);             // 놓기 → 자유롭게 흐름
     }
 

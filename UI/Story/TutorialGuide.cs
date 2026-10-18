@@ -38,6 +38,10 @@ public class TutorialGuide : MonoBehaviour
     public float fadeOutTime = 1.5f;
     private bool productionPlayed = false;
 
+    [Header("tut_0 키보드 조작 이미지 (나가면 페이드아웃)")]
+    public Image keyboardImage;
+    private Coroutine _kbFadeCo;
+
     // 튜토리얼(방) 상태
     private string lastRoom = "";
     private Coroutine co;
@@ -153,6 +157,9 @@ public class TutorialGuide : MonoBehaviour
             if (room.roomID == "tut_1") StatuesMenu.Instance.SetBaseFocus(40f);
             else StatuesMenu.Instance.ClearBaseFocus();
         }
+
+        // tut_0 키보드 조작 이미지: tut_0이면 표시(페이드인), 나가면 페이드아웃
+        ShowKeyboardImage(room.roomID == "tut_0");
 
         if (doneRooms.Contains(room.roomID))
         {
@@ -319,6 +326,38 @@ public class TutorialGuide : MonoBehaviour
             if (c.data.creatureID == id) return c.GetComponent<Think2>();
         }
         return null;
+    }
+
+    // tut_0 키보드 이미지 표시/숨김 (알파 페이드). on=true면 페이드인, false면 페이드아웃 후 끔.
+    private void ShowKeyboardImage(bool on)
+    {
+        if (keyboardImage == null) return;
+        if (_kbFadeCo != null) StopCoroutine(_kbFadeCo);
+        _kbFadeCo = StartCoroutine(FadeImageAlpha(keyboardImage, on ? 1f : 0f, on ? fadeInTime : fadeOutTime));
+    }
+
+    private IEnumerator FadeImageAlpha(Image img, float target, float dur)
+    {
+        if (img == null) yield break;
+        if (target > 0f && !img.gameObject.activeSelf) img.gameObject.SetActive(true);
+
+        Color col = img.color;
+        float start = col.a;
+        if (dur <= 0f) { col.a = target; img.color = col; }
+        else
+        {
+            float t = 0f;
+            while (t < dur)
+            {
+                t += Time.deltaTime;
+                col.a = Mathf.Lerp(start, target, t / dur);
+                img.color = col;
+                yield return null;
+            }
+            col.a = target; img.color = col;
+        }
+        if (target <= 0f) img.gameObject.SetActive(false);   // 완전 투명이면 끔
+        _kbFadeCo = null;
     }
 
     private IEnumerator PlayProductionImage()
