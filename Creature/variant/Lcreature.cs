@@ -162,11 +162,14 @@ public class Lcreature : Creature
         Creature c = obj.GetComponent<Creature>();
         if (c == null) { Destroy(obj); return; }
 
-        c.SetMovementEnabled(false);                             // 먼저 정지(kinematic) — 이 상태에서 reparent해야 안전
-        obj.transform.SetParent(CreatureRoot.Container, true);   // _Creatures 자식으로 (LL 회전 안 따라감)
+        c.intent = CreatureIntent.ProducedBy;                    // 생산 중 상태 (Think 정지, intent 유지)
+        c.SetMovementEnabled(false);                             // 정지(kinematic) — reparent 전
+        // 생산 중엔 LL(소환 위치)의 자식 → LL 따라감. 위치 지정이 있으면 그 point, 없으면 LL 본체.
+        Transform holdParent = point != null ? point : (rootTransform != null ? rootTransform : transform);
+        obj.transform.SetParent(holdParent, true);
 
         currentRoom.RegisterCreature(c);
-        Popup.Instance?.BurstMessage(c, "produce");              // 생산 연출 (decompose 버스트처럼)
+        Popup.Instance?.BurstMessage(c, "produce");              // 생산 연출 (색은 Popup 메시지표에서)
         StartCoroutine(HoldThenRelease(c));
     }
 
@@ -178,23 +181,47 @@ public class Lcreature : Creature
         return null;
     }
 
-    // 생성한 L을 holdTime 동안 생산 위치에 고정(제자리 정지)했다 놓음.
-    // parent는 _Creatures 그대로 → LL이 회전/이동해도 따라가지 않음.
+    // 생산 중(ProducedBy): LL 자식으로 따라가며 holdTime 대기 → 끝나면 _Creatures로 옮기고 Wander로 놓음.
     private IEnumerator HoldThenRelease(Creature c)
     {
         if (c == null) yield break;
-        // 정지는 SpawnAtRandomPoint에서 이미 함(reparent 전). holdTime 뒤 놓음.
+        // intent=ProducedBy, 정지, LL 자식 상태는 SpawnAtRandomPoint에서 이미 세팅됨.
+
+        // 몸체(Rigidbody)들의 초기 로컬 위치/회전 기억 → hold 동안 강체처럼 spawnPoint에 고정.
+        // (방 활성 전환 등으로 kinematic이 풀려도 매 프레임 복원해 이탈 방지)
+        Rigidbody[] bodies = c.GetComponentsInChildren<Rigidbody>(true);
+        var localPos = new Vector3[bodies.Length];
+        var localRot = new Quaternion[bodies.Length];
+        for (int i = 0; i < bodies.Length; i++)
+        {
+            if (bodies[i] == null) continue;
+            localPos[i] = bodies[i].transform.localPosition;
+            localRot[i] = bodies[i].transform.localRotation;
+        }
 
         float t = 0f;
         while (t < holdTime)
         {
             if (c == null || c.IsDead) yield break;
+
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                var rb = bodies[i];
+                if (rb == null) continue;
+                if (!rb.isKinematic) rb.isKinematic = true;       // 풀렸으면 재고정
+                rb.transform.localPosition = localPos[i];         // 이탈분 복원 (spawnPoint 기준 제자리)
+                rb.transform.localRotation = localRot[i];
+            }
+
             t += Time.deltaTime;
             yield return null;
         }
 
         if (c == null || c.IsDead) yield break;
-        c.SetMovementEnabled(true);             // 놓기 → 자유롭게 흐름
+
+        c.transform.SetParent(CreatureRoot.Container, true);   // 놓을 때 _Creatures 자식으로 (LL 안 따라감)
+        c.intent = CreatureIntent.Wander;                      // 생산 종료 → 배회 (Think이 이어받음)
+        c.SetMovementEnabled(true);                            // 자유롭게 흐름
     }
 
     public GameObject WhichOneSpawn(CreatureID idx)

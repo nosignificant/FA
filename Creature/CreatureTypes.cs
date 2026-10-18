@@ -11,6 +11,7 @@ namespace CreatureTypes
         Decomposing = 4,
         Synthesizing = 6,
         Controlled = 7,
+        ProducedBy = 10,   // LL이 생산 중 들고 있는 상태 (LL 자식으로 따라감, holdTime 동안)
     }
 
     public enum InteractionAction

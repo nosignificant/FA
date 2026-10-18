@@ -201,6 +201,7 @@ public class Think2 : MonoBehaviour
         _dormInit = true;
 
         if (manualControl) return;
+        if (self.intent == CreatureIntent.ProducedBy) return;   // LL이 생산 중 들고 있음 → think 정지(intent 유지)
         if (self.IsGrabbed) return;
         // 정지: bind/dormant면 진입 시 proxy를 자기 위치로 한 번만 고정 → 이후 think 완전 정지(EQS 안 움직임)
         if (self.isBound || IsDormant())

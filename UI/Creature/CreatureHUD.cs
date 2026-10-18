@@ -233,6 +233,7 @@ public class CreatureHUD : MonoBehaviour
     {
         // H에게 묶인 AA(isBound)·다른 생물에 잡힌 것(IsGrabbed) 다 "grabbed"로 표시
         if (cr.isBound || cr.IsGrabbed) return "grabbed";
+        if (cr.intent == CreatureIntent.ProducedBy) return "produce";   // LL이 생산 중 들고 있음
 
         switch (cr.data.creatureID)
         {

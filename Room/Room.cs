@@ -289,6 +289,7 @@ public class Room : MonoBehaviour
             if (c.IsGrabbed) continue;   // 분해·합성 중 개체는 건드리지 않음
             if (c.IsControlled) continue; // 조종 중인 생물은 플레이어를 따라 방을 넘나드므로 정지 제외
             if (c.isBound) continue;      // H에 묶인 생물은 HBinder가 정지 관리 (여기서 깨우지 않음)
+            if (c.intent == CreatureIntent.ProducedBy) continue; // 생산 중(LL이 들고 있음)인 L은 Lcreature가 정지 관리
             var id = c.data.creatureID;
             if (id == CreatureID.Door || id == CreatureID.Player) continue;
             c.SetMovementEnabled(!frozen);
@@ -427,6 +428,18 @@ public class Room : MonoBehaviour
             if (c != null && !c.IsDead && c.data != null && c.data.creatureID == id) return true;
         }
         return false;
+    }
+
+    // 방 안 특정 종의 살아있는 개체 수
+    public int CountSpecies(CreatureID id)
+    {
+        int n = 0;
+        for (int i = 0; i < creatureList.Count; i++)
+        {
+            var c = creatureList[i];
+            if (c != null && !c.IsDead && c.data != null && c.data.creatureID == id) n++;
+        }
+        return n;
     }
 
     // ── decompose ────────────────────────────────────────────────────────

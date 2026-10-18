@@ -31,16 +31,14 @@ public class TutorialGuide : MonoBehaviour
     [Tooltip("인트로 끝나면 패널 숨김 (false면 마지막 줄 유지)")]
     public bool introHideOnEnd = false;
 
-    [Header("ProductionImage 페이드 설정")]
-    public Image ProductionImage;
+    [Header("이미지 페이드 시간")]
     public float fadeInTime = 1.5f;
-    public float holdTime = 2.0f;
     public float fadeOutTime = 1.5f;
-    private bool productionPlayed = false;
 
-    [Header("tut_0 키보드 조작 이미지 (나가면 페이드아웃)")]
+    [Header("tut_0 키보드 조작 이미지 (나가면/일시정지 시 페이드아웃)")]
     public Image keyboardImage;
     private Coroutine _kbFadeCo;
+    private bool _kbWantShown;
 
     // 튜토리얼(방) 상태
     private string lastRoom = "";
@@ -137,6 +135,8 @@ public class TutorialGuide : MonoBehaviour
     // ── 방 진입 트리거 ──────────────────────────────────────────
     void Update()
     {
+        UpdateKeyboardImage();         // tut_0 + 일시정지 아님일 때만 표시 (매 프레임 상태 체크)
+
         if (keepAcrossRooms) return;   // 방 전환 무시 (진행 중인 대사 유지)
 
         if (Player.Instance == null) return;
@@ -157,9 +157,6 @@ public class TutorialGuide : MonoBehaviour
             if (room.roomID == "tut_1") StatuesMenu.Instance.SetBaseFocus(40f);
             else StatuesMenu.Instance.ClearBaseFocus();
         }
-
-        // tut_0 키보드 조작 이미지: tut_0이면 표시(페이드인), 나가면 페이드아웃
-        ShowKeyboardImage(room.roomID == "tut_0");
 
         if (doneRooms.Contains(room.roomID))
         {
@@ -184,14 +181,7 @@ public class TutorialGuide : MonoBehaviour
             case "tut_1": co = StartCoroutine(Tut1Routine(room)); break;
             case "tut_2": co = StartCoroutine(Tut2Routine(room)); break;
 
-            case "pro_main":
-                SetTutorialVisible(false);
-                if (!productionPlayed && ProductionImage != null)
-                {
-                    productionPlayed = true;
-                    StartCoroutine(PlayProductionImage());
-                }
-                break;
+            case "pro_main": SetTutorialVisible(false); break;
         }
     }
 
@@ -328,6 +318,20 @@ public class TutorialGuide : MonoBehaviour
         return null;
     }
 
+    // tut_0이고 일시정지 아닐 때만 키보드 이미지 표시. 상태 바뀔 때만 토글(페이드 재시작 방지).
+    private void UpdateKeyboardImage()
+    {
+        if (keyboardImage == null) return;
+        bool paused = Pause.Instance != null && Pause.Instance.IsOpen;
+        var room = Player.Instance != null ? Player.Instance.currentRoom : null;
+        bool want = !paused && room != null && room.roomID == "tut_0";
+        if (want != _kbWantShown)
+        {
+            _kbWantShown = want;
+            ShowKeyboardImage(want);
+        }
+    }
+
     // tut_0 키보드 이미지 표시/숨김 (알파 페이드). on=true면 페이드인, false면 페이드아웃 후 끔.
     private void ShowKeyboardImage(bool on)
     {
@@ -349,7 +353,7 @@ public class TutorialGuide : MonoBehaviour
             float t = 0f;
             while (t < dur)
             {
-                t += Time.deltaTime;
+                t += Time.unscaledDeltaTime;   // 일시정지(timeScale=0) 중에도 진행
                 col.a = Mathf.Lerp(start, target, t / dur);
                 img.color = col;
                 yield return null;
@@ -358,42 +362,6 @@ public class TutorialGuide : MonoBehaviour
         }
         if (target <= 0f) img.gameObject.SetActive(false);   // 완전 투명이면 끔
         _kbFadeCo = null;
-    }
-
-    private IEnumerator PlayProductionImage()
-    {
-        ProductionImage.gameObject.SetActive(true);
-        Color col = ProductionImage.color;
-        col.a = 0f;
-        ProductionImage.color = col;
-
-        // 페이드 인
-        float t = 0f;
-        while (t < fadeInTime)
-        {
-            t += Time.deltaTime;
-            col.a = Mathf.Clamp01(t / fadeInTime);
-            ProductionImage.color = col;
-            yield return null;
-        }
-        col.a = 1f;
-        ProductionImage.color = col;
-
-        yield return new WaitForSeconds(holdTime);
-
-        // 페이드 아웃
-        t = 0f;
-        while (t < fadeOutTime)
-        {
-            t += Time.deltaTime;
-            col.a = 1f - Mathf.Clamp01(t / fadeOutTime);
-            ProductionImage.color = col;
-            yield return null;
-        }
-        col.a = 0f;
-        ProductionImage.color = col;
-
-        ProductionImage.gameObject.SetActive(false);
     }
 
     // ── 최초 1회: 첫 CreatureStory 단계 상승 시 빙의 설명 ──────────

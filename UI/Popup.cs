@@ -24,6 +24,29 @@ public class Popup : MonoBehaviour
     public float spawnScatter = 0.3f;
     public Vector3 offset = new Vector3(0f, 1f, 0f);
 
+    [Header("메시지별 색 (호출 시 color 미지정이면 이 표에서 문구로 찾음)")]
+    [Tooltip("표에 없는 문구는 defaultColor 사용")]
+    public Color defaultColor = Color.white;
+    public MessageColor[] messageColors =
+    {
+        new MessageColor { message = "produce",     color = new Color(0.3f, 1f, 0.3f) },
+        new MessageColor { message = "decomposed",  color = new Color(1f, 0.5f, 0.3f) },
+        new MessageColor { message = "synthesized", color = new Color(0.4f, 0.7f, 1f) },
+    };
+
+    [System.Serializable]
+    public struct MessageColor { public string message; public Color color; }
+
+    // color가 지정됐으면 그대로, 아니면 문구로 표에서 찾고, 없으면 defaultColor
+    private Color ResolveColor(string message, Color? color)
+    {
+        if (color.HasValue) return color.Value;
+        if (messageColors != null)
+            for (int i = 0; i < messageColors.Length; i++)
+                if (messageColors[i].message == message) return messageColors[i].color;
+        return defaultColor;
+    }
+
     public static Popup Instance { get; private set; }
 
     private void Awake() => Instance = this;
@@ -65,7 +88,7 @@ public class Popup : MonoBehaviour
     {
         string[] msgs = new string[burstCount];
         for (int i = 0; i < burstCount; i++) msgs[i] = message;
-        SpawnAt(target, msgs, fixedLifeTime, -1f, color);
+        SpawnAt(target, msgs, fixedLifeTime, -1f, ResolveColor(message, color));
     }
 
     // 외부에서 임의 문구 팝업 (예: 조종 시작 시 "controlled"). color 지정 가능
@@ -77,7 +100,7 @@ public class Popup : MonoBehaviour
         if (popupPrefab == null) return;
         string[] msgs = new string[burstCount];
         for (int i = 0; i < burstCount; i++) msgs[i] = message;
-        StartCoroutine(SpawnRoutine(worldPos + offset, msgs, fixedLifeTime, spawnInterval, color));
+        StartCoroutine(SpawnRoutine(worldPos + offset, msgs, fixedLifeTime, spawnInterval, ResolveColor(message, color)));
     }
 
     [Header("방향 팝업(상태 변화) 랜덤")]
@@ -96,7 +119,7 @@ public class Popup : MonoBehaviour
 
         var ft = Instantiate(popupPrefab, worldPos, Quaternion.identity);
         ft.transform.localScale *= Random.Range(directionalSizeRange.x, directionalSizeRange.y);   // 크기 랜덤
-        ft.Launch(message, dir.normalized, spd, life, color);
+        ft.Launch(message, dir.normalized, spd, life, ResolveColor(message, color));
     }
 
     // 스토리 생물 빙의 → 현재 단계 대사 줄들을 "줄당 하나씩" 뿌림 (외부에서 호출)
