@@ -101,6 +101,21 @@ class ChaseState : ThinkState
         needToChase = d > runThreshold;
         if (needToChase) newTarget.point = GetNewPoint(points);
 
+        // 조종 중인 생물을 쫓을 땐 standoff 거리 유지 — 너무 붙어 카메라 가리는 것 방지
+        if (chaseC.IsControlled && think.possessStandoff > 0f)
+        {
+            Vector3 tp = chaseC.rootTransform.position;
+            Vector3 off = newTarget.point - tp;
+            float m = off.magnitude;
+            // 목표 점이 standoff 안쪽이면 바깥 링(자기 방향)으로 밀어냄
+            if (m < think.possessStandoff)
+            {
+                Vector3 dir = m > 0.01f ? off / m
+                                        : (think.self.rootTransform.position - tp).normalized;
+                newTarget.point = tp + dir * think.possessStandoff;
+            }
+        }
+
         if (think is TentacleThink tt && tt.tentacleGrab != null && newTarget.creature != null)
             tt.tentacleGrab.TryGrab(newTarget.creature);
     }

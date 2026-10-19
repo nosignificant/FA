@@ -16,11 +16,24 @@ public class Creature : MonoBehaviour
 
     public Transform kabschIn;
 
+    [Header("HUD 커스텀 라벨 (lock-on 시)")]
+    [Tooltip("켜면 종족 상태 대신 아래 3칸을 그대로 HUD에 표시 (이름 / 행동 / 대상). NPC·목표물 등 직접 문구 지정용")]
+    public bool useCustomHudLabel = false;
+    [Tooltip("왼쪽 칸 (이름)")]
+    public string customHudName = "";
+    [Tooltip("가운데 칸 (행동/동사)")]
+    public string customHudVerb = "";
+    [Tooltip("오른쪽 칸 (대상)")]
+    public string customHudObject = "";
+
 
     [Header("bool")]
     public bool isAttached = false;
     public bool grabbable = true;
     public bool canMigrate = true;
+    // true면 방이 비활성돼도 안 얼고(SetCreaturesFrozen 제외), 통로 무관하게 방 소속 갱신.
+    // p53 같은 '항상 플레이어를 따라다니는 동반자'용 (P53Think가 켬).
+    [System.NonSerialized] public bool alwaysActive;
     private Coroutine _grabImmunityCo;
 
     public void SetGrabImmunity(float seconds)
@@ -177,7 +190,7 @@ public class Creature : MonoBehaviour
 
         // 이동 불가(도구=canMigrate false) 생물은 방 소속 고정 — 자기 방 경계 벽 쫓다 넘어가도 방 안 바뀜.
         // (플레이어 조종 중이면 예외 — 끌고 가서 옮길 수 있게)
-        if (!canMigrate && !IsControlled && currentRoom != null) return;
+        if (!canMigrate && !IsControlled && !alwaysActive && currentRoom != null) return;
 
         // 다른 방 bounds에 들어왔으면 그 방으로 등록만 함 (되돌림 없음 — 9cd272a 이전 방식 복원)
         foreach (var kvp in RoomManager.Instance.rooms)
@@ -188,7 +201,7 @@ public class Creature : MonoBehaviour
             {
                 // 통로(열린 문/부서진 벽) 근처에서만 방 이동 허용 — 막힌 벽 뚫고 넘어가는 것 방지(자율 생물).
                 // 단 플레이어 조종 중이면 통로 무관하게 허용(직접 들고 옮기는 것). 최초 배정(currentRoom null)도 통과.
-                if (currentRoom != null && !IsControlled && !NearConnectingPassage(currentRoom, r, pos)) continue;
+                if (currentRoom != null && !IsControlled && !alwaysActive && !NearConnectingPassage(currentRoom, r, pos)) continue;
                 currentRoom?.UnregisterCreature(this);
                 r.RegisterCreature(this);
                 return;

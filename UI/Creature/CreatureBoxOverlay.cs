@@ -24,6 +24,10 @@ public class CreatureBoxOverlay : MonoBehaviour
     [Tooltip("생물 목록 갱신 주기(초) — 위치는 매 프레임, 목록만 주기적")]
     public float refreshInterval = 0.3f;
 
+    [Header("가림(occlusion)")]
+    [Tooltip("카메라→생물 사이에 이 레이어(벽/바닥 = Ground)가 있으면 그 생물의 박스를 숨김. 비우면(Nothing) 가림 검사 안 함")]
+    public LayerMask groundMask;
+
     private Camera cam;
     private PlayerLockOn pl;
     private readonly List<RectTransform> pool = new();
@@ -67,6 +71,9 @@ public class CreatureBoxOverlay : MonoBehaviour
             float dist = Vector3.Distance(cam.transform.position, col.bounds.center);
             if (dist > maxVisibleDistance || dist < minVisibleDistance) continue;
 
+            // 카메라→생물 사이에 ground(벽/바닥)가 있으면 가려진 것 → 박스 숨김
+            if (IsOccludedByGround(col.bounds.center, dist)) continue;
+
             if (!ScreenRect(col.bounds, out Vector3 center, out Vector2 size)) continue;
 
             var box = GetBox(used++);
@@ -74,6 +81,16 @@ public class CreatureBoxOverlay : MonoBehaviour
             box.position = center;   // 스크린 좌표 (ScreenSpace-Overlay)
         }
         HideFrom(used);
+    }
+
+    // 카메라에서 생물 중심까지 사이에 ground 레이어가 있으면 true(가려짐). groundMask 비면 검사 안 함.
+    private bool IsOccludedByGround(Vector3 targetCenter, float dist)
+    {
+        if (groundMask == 0) return false;
+        Vector3 from = cam.transform.position;
+        Vector3 dir = targetCenter - from;
+        if (dist <= 0.1f) return false;
+        return Physics.Raycast(from, dir.normalized, dist - 0.1f, groundMask, QueryTriggerInteraction.Ignore);
     }
 
     // 방들의 creatureList에서 대상 생물 목록 수집 (주기적)

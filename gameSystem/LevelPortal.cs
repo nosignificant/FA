@@ -22,6 +22,8 @@ public class LevelPortal : MonoBehaviour
     public bool recordAsChoice = false;
     [Tooltip("이 문의 판정 종 (예: A문이면 A, L문이면 L)")]
     public CreatureID choiceId = CreatureID.A;
+    [Tooltip("켜면 choiceId 대신 '방금 확정한 선택'(마지막 ChoiceProgress)으로 다음 씬·클리어 표시를 결정. 수신기(R) 확정 흐름용")]
+    public bool useConfirmedChoice = false;
     [Tooltip("이 포탈 통과 시 로딩 화면에 'level N clear L/A' 표시 (레벨 클리어 포탈이면 켬)")]
     public bool showClearOnPass = true;
 
@@ -54,7 +56,8 @@ public class LevelPortal : MonoBehaviour
         triggered = true;
 
         // 이 포탈로 다음 레벨에 갔다 = 이 문을 선택 → 기록 (엔딩 분기용)
-        if (recordAsChoice) ChoiceProgress.Record(choiceId);
+        // useConfirmedChoice면 수신기 확정에서 이미 기록했으므로 여기선 기록 안 함(중복 방지)
+        if (recordAsChoice && !useConfirmedChoice) ChoiceProgress.Record(choiceId);
 
         if (delay > 0f) StartCoroutine(LoadAfterDelay());
         else Load();
@@ -67,13 +70,26 @@ public class LevelPortal : MonoBehaviour
         Load();
     }
 
+    // 분기에 쓸 선택: useConfirmedChoice면 방금 확정한 것(마지막 기록), 아니면 이 포탈의 choiceId
+    private CreatureID EffectiveChoice()
+    {
+        if (useConfirmedChoice)
+        {
+            var all = ChoiceProgress.All();
+            if (all.Count > 0) return all[all.Count - 1];
+        }
+        return choiceId;
+    }
+
     private void Load()
     {
+        CreatureID choice = EffectiveChoice();
+
         // 다음 씬 결정: useFlowMap이면 LevelFlow(현재 씬→다음 씬)에서, 아니면/없으면 targetScene.
         string scene = targetScene;
         if (useFlowMap)
         {
-            string fromFlow = LevelFlow.GetNext(SceneManager.GetActiveScene().name, choiceId);
+            string fromFlow = LevelFlow.GetNext(SceneManager.GetActiveScene().name, choice);
             if (!string.IsNullOrEmpty(fromFlow)) scene = fromFlow;
             else Debug.LogWarning($"[LevelPortal] {name}: LevelFlow에 '{SceneManager.GetActiveScene().name}' 다음 씬 없음 → targetScene 사용");
         }
@@ -90,7 +106,7 @@ public class LevelPortal : MonoBehaviour
         if (!additive && SceneLoader.Instance != null)
         {
             Debug.Log($"[LevelPortal] SceneLoader로 '{scene}' 로드");
-            if (showClearOnPass) SceneLoader.Instance.RequestClear(choiceId);   // 통과 = 클리어 → clear 표시
+            if (showClearOnPass) SceneLoader.Instance.RequestClear(choice);   // 통과 = 클리어 → clear 표시
             SceneLoader.Instance.Load(scene);
         }
         else

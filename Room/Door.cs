@@ -25,7 +25,6 @@ public class Door : MonoBehaviour
     {
         RoomState,   // 양쪽 방 중 하나가 requiredState(L/A)로 활성화되면 열림
         LevelCount,  // 레벨 전체에서 requiredState로 활성화된 방이 levelCountN개 이상이면 열림
-        SignalGate,  // 발신기 신호들을 논리게이트(AND/OR/NOT/EQUALS)로 판정
         LevelChoice, // 지정 레벨을 A/L 중 무엇으로 클리어했는지(ChoiceProgress) 표시 — 개폐 안 함(표시/tint 전용)
     }
 
@@ -52,7 +51,6 @@ public class Door : MonoBehaviour
     [Header("Condition Graphics (선택)")]
     [Tooltip("조건 종류별로 켤 그래픽. 비워두면 아무것도 안 함. 시작 시·조건 바뀔 때 해당하는 것만 켜짐.")]
     public GameObject levelCountGraphic;
-    public GameObject signalGateGraphic;
 
     [Header("RoomState 그래픽 (requiredState별 다른 스프라이트)")]
     [Tooltip("RoomState 모드 + requiredState=L 일 때 켤 그래픽")]
@@ -76,16 +74,7 @@ public class Door : MonoBehaviour
     public Color lDoorColor = new Color(0.6f, 1f, 0.3f);   // L일 때 문짝 색
     public Color aDoorColor = new Color(0.9f, 0.2f, 0.2f); // A일 때 문짝 색
 
-    [Header("SignalGate")]
-    [Tooltip("이 문이 읽을 수신기. 있으면 슬롯0/1을 입력으로 사용")]
-    public SignalReceiver receiver;
-    public GateType gate = GateType.AND;
-    [Tooltip("receiver가 없을 때 직접 지정하는 입력 A (NOT·게이트배선 등)")]
-    public SignalInput inputA = new SignalInput();
-    [Tooltip("receiver가 없을 때 직접 지정하는 입력 B")]
-    public SignalInput inputB = new SignalInput();
-
-    [Tooltip("LevelCount·SignalGate 재평가 주기(초). 다른 방/문 변화에 반응해야 해서 주기적으로 확인")]
+    [Tooltip("LevelCount 재평가 주기(초). 다른 방/문 변화에 반응해야 해서 주기적으로 확인")]
     public float checkInterval = 0.25f;
 
     [Header("State")]
@@ -104,7 +93,6 @@ public class Door : MonoBehaviour
         bool isLevelChoice = conditionMode == ConditionMode.LevelChoice;
         bool stateMode = isRoomState || isLevelChoice;   // L/A 스프라이트·색 쓰는 모드
         if (levelCountGraphic != null) levelCountGraphic.SetActive(conditionMode == ConditionMode.LevelCount);
-        if (signalGateGraphic != null) signalGateGraphic.SetActive(conditionMode == ConditionMode.SignalGate);
 
         // 표시 상태: RoomState=requiredState / LevelChoice=기록된 선택
         Room.RoomActivation dispState = isLevelChoice ? RecordedLevelState() : requiredState;
@@ -195,9 +183,9 @@ public class Door : MonoBehaviour
 
         EvaluateConditions();
 
-        // LevelCount·SignalGate는 roomA/roomB 이벤트만으로 부족(다른 방/문·신호 변화에 반응해야 함) → 주기 확인.
+        // LevelCount는 roomA/roomB 이벤트만으로 부족(다른 방/문 변화에 반응해야 함) → 주기 확인.
         // RoomState는 양쪽 방의 OnCreatureCountChanged(활성화 변경 포함)로 충분.
-        if (conditionMode == ConditionMode.LevelCount || conditionMode == ConditionMode.SignalGate)
+        if (conditionMode == ConditionMode.LevelCount)
             StartCoroutine(TickEvaluate());
     }
 
@@ -249,10 +237,6 @@ public class Door : MonoBehaviour
                 shouldOpen = CountActiveRooms(requiredState) >= levelCountN;
                 break;
 
-            case ConditionMode.SignalGate:
-                shouldOpen = EvaluateGate();
-                break;
-
             default: // RoomState — 양쪽 방 중 하나가 requiredState로 활성화되면 열림
                 bool aMatch = roomA != null && roomA.Activation == requiredState;
                 bool bMatch = roomB != null && roomB.Activation == requiredState;
@@ -263,40 +247,10 @@ public class Door : MonoBehaviour
         if (shouldOpen != isOpen) DoorCloseAndOpen(shouldOpen);   // 상태 바뀔 때만
     }
 
-    // 유효 수신기: 문에 직접 지정한 게 있으면 그것, 없으면 이 문이 속한 방(roomA)의 수신기(R)
-    private SignalReceiver EffectiveReceiver
-        => receiver != null ? receiver : (roomA != null ? roomA.signalReceiver : null);
-
-    // SignalGate 입력: 수신기가 있으면 슬롯, 없으면 직접 지정한 inputA/B
-    private SignalInput InA => EffectiveReceiver != null ? EffectiveReceiver.slot0 : inputA;
-    private SignalInput InB => EffectiveReceiver != null ? EffectiveReceiver.slot1 : inputB;
-
-    private bool EvaluateGate()
-    {
-        switch (gate)
-        {
-            case GateType.NOT:
-                return !InA.IsOn();
-
-            case GateType.OR:
-                return InA.IsOn() || InB.IsOn();
-
-            case GateType.EQUALS:
-                var a = InA.Species();
-                var b = InB.Species();
-                return a != null && b != null && CreatureFamily.Same(a.creatureID, b.creatureID);
-
-            default: // AND
-                return InA.IsOn() && InB.IsOn();
-        }
-    }
-
     // 문 HUD: name=조건1 / status=연산 / target=조건2 로 좌→우로 읽힘
-    //   Local:      이방 / 우세   / H
-    //   LevelCount: H   / 우세방  / 3↑
-    //   AND/OR:     H   / AND     / A
-    //   EQUALS:     방1 / 일치    / 방2
-    //   NOT:        H   / 아님    / (빈칸)
+    //   RoomState:  open / at      / A
+    //   LevelCount: A    / rooms ≥ / 3
+    //   LevelChoice:levelN / is    / A
 
     // name 칸 (조건1)
     public string Operand1Label()
@@ -306,8 +260,6 @@ public class Door : MonoBehaviour
         {
             case ConditionMode.LevelCount:
                 return requiredState.ToString();
-            case ConditionMode.SignalGate:
-                return gate == GateType.EQUALS ? InputRoom(InA) : InputSpecies(InA);
             case ConditionMode.LevelChoice:
                 return "level" + choiceLevelIndex;
             default: // RoomState (사용자 요청: 방이름 대신 "open" → "open / at / A"로 읽힘)
@@ -322,14 +274,6 @@ public class Door : MonoBehaviour
         switch (conditionMode)
         {
             case ConditionMode.LevelCount: return "rooms ≥";   // "rooms ≥"
-            case ConditionMode.SignalGate:
-                switch (gate)
-                {
-                    case GateType.NOT:    return "Not";
-                    case GateType.OR:     return "OR";
-                    case GateType.EQUALS: return "equals";
-                    default:              return "AND";
-                }
             case ConditionMode.LevelChoice: return "is";   // "levelN is 상태"
             default: return "at";   // RoomState (사용자 요청: "open / at / A" 형식, 방이름 안 씀)
         }
@@ -343,29 +287,11 @@ public class Door : MonoBehaviour
         {
             case ConditionMode.LevelCount:
                 return levelCountN.ToString();
-            case ConditionMode.SignalGate:
-                if (gate == GateType.NOT) return "";
-                return gate == GateType.EQUALS ? InputRoom(InB) : InputSpecies(InB);
             case ConditionMode.LevelChoice:
                 return RecordedLevelState().ToString();   // 기록된 선택 "A"/"L"/"None"
             default: // RoomState
                 return requiredState.ToString();   // "L" 또는 "A"
         }
-    }
-
-    private string InputSpecies(SignalInput inp)
-    {
-        if (inp == null) return "-";
-        if (inp.source == SignalInput.Source.Door) return inp.door != null ? inp.door.name : "문";
-        return inp.target != null ? inp.target.creatureName : "?";
-    }
-
-    private string InputRoom(SignalInput inp)
-    {
-        if (inp == null) return "-";
-        if (inp.room != null) return inp.room.roomID;
-        if (inp.compareRoom != null) return inp.compareRoom.roomID;
-        return "?";
     }
 
     // 레벨 전체에서 이 상태(L/A)로 활성화된 방의 개수

@@ -69,7 +69,7 @@ public class Interaction : MonoBehaviour
 
     // L: 수동 입자 — 아무 상호작용 없음(AA가 잡아 A로 바꿀 수 있게 도망도 안 침). 문으로 흐르기만.
 
-    // LL: 생산기 — L 입자를 뱉음(촉수 생산). 잡는 것 없음. AA로부터 도망.
+    // LL: 생산기 — L 입자를 뱉음(촉수 생산). 잡는 것 없음. AA로부터 도망 + AA 같은 방이면 생산 정지(Lcreature).
     private static int GetActionForLL(CreatureID targetID, InteractionAction action)
     {
         if (targetID == AA && action == InteractionAction.Flee) return 100;   // AA로부터만 도망

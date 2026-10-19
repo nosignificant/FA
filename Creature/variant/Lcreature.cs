@@ -23,9 +23,11 @@ public class Lcreature : Creature
     public CreatureID currentSpawn = CreatureID.L;
 
     [Header("AA 회피")]
-    [Tooltip("같은 방에 AA가 있으면 다른 방으로 이동")]
+    [Tooltip("같은 방에 AA가 있으면 인접(AA 없는) 방으로 도망")]
     public bool fleeFromAA = true;
     public float fleeCheckInterval = 0.4f;
+    [Tooltip("같은 방에 AA가 있으면 생산도 멈춤")]
+    public bool stopProduceWhenAA = true;
 
     [Header("Runaway 시 회전 접기")]
     [Tooltip("produce: 저장된 초기 회전 유지 / runaway(도망): 회전 0 / 복귀: 저장값으로")]
@@ -76,6 +78,9 @@ public class Lcreature : Creature
         Quaternion target = runaway ? Quaternion.identity : stored;   // 도망=0, 아니면 저장값
         t.localRotation = Quaternion.Slerp(t.localRotation, target, Time.deltaTime * rotateSpeed);
     }
+
+    // 같은 방에 AA가 있는지 (있으면 도망 + 생산 정지)
+    private bool AAInRoom() => currentRoom != null && currentRoom.HasSpecies(CreatureID.AA);
 
     // 같은 방에 AA가 있으면 인접(AA 없는) 방으로 이동 목표를 잡음
     private IEnumerator FleeAALoop()
@@ -133,10 +138,11 @@ public class Lcreature : Creature
 
         while (!IsDead)
         {
-            // 조종 중 / 비활성 방 / 합성 중이 아니면 생산
+            // 조종 중 / 비활성 방 / 합성 중 / 같은 방에 AA 있으면 생산 안 함
             if (!IsControlled
                 && currentRoom != null && currentRoom.isActive
-                && intent != CreatureIntent.Synthesizing)
+                && intent != CreatureIntent.Synthesizing
+                && !(stopProduceWhenAA && AAInRoom()))
             {
                 SpawnAtRandomPoint();
             }

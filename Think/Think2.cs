@@ -52,6 +52,10 @@ public class Think2 : MonoBehaviour
     [Tooltip("점에 이만큼 가까워지면 새 wander 점")]
     public float wanderReachThreshold = 5f;
 
+    [Header("조종 대상 추적")]
+    [Tooltip("플레이어가 조종 중인 생물을 쫓을 때, 이 거리보다 가까이 다가가지 않음 (몰려서 시야 가리는 것 방지). 0이면 끔")]
+    public float possessStandoff = 3f;
+
 
     [Header("Debug")]
     public bool drawEqsPoints = true;
@@ -124,6 +128,11 @@ public class Think2 : MonoBehaviour
     // 휴면 상태면 제자리 정지. HBinder/SBinder가 이 필드를 설정(H는 자기·AA 정지, S는 자기 정지).
     [System.NonSerialized] public bool dormant = false;
     public virtual bool IsDormant() => dormant || RoomStateGated();
+    // 켜면 방이 비활성(isActive=false)이어도 Think 계속 — 플레이어 따라다니는 동반자(p53)용
+    protected virtual bool IgnoreRoomActiveGate => false;
+
+    // 지정하면 락온·chase 무관하게 이 Transform으로 상시 InteractionLink 선을 그림 (p53 안내용). 비우면 평소 규칙.
+    public virtual Transform LinkOverrideTarget => null;
 
     [Header("각성 팝업 (dormant→활성)")]
     [Tooltip("휴면에서 깨어나는 순간 생물 위치에서 방 상태 색 팝업을 쏨 (텍스트 없음, 벽 상태변화 팝업과 동일)")]
@@ -210,8 +219,8 @@ public class Think2 : MonoBehaviour
             return;
         }
         _frozen = false;
-        // 비활성 방은 상시 시뮬이 꺼져 있을 때만 완전 정지
-        if (self.currentRoom != null && !self.currentRoom.isActive && !SimInactive) return;
+        // 비활성 방은 상시 시뮬이 꺼져 있을 때만 완전 정지 (동반자(p53)는 IgnoreRoomActiveGate로 예외)
+        if (!IgnoreRoomActiveGate && self.currentRoom != null && !self.currentRoom.isActive && !SimInactive) return;
         //방 기준 아니고 주변 전체 기준
         detected = scanner.Results;
         var newIntent = DetermineIntent();

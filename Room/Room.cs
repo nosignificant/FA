@@ -42,26 +42,6 @@ public class Room : MonoBehaviour
     [Header("Doors")]
     public List<Door> doors = new();
 
-    public enum SignalRole { None, ReceiverRoom, TransmitterRoom }
-
-    [Header("signal")]
-    [Tooltip("이 방의 신호 역할. R방이면 R 오브젝트만, T방이면 T 오브젝트만 켬 (편집 시 RoomEditor에서 토글)")]
-    public SignalRole signalRole = SignalRole.None;
-
-    [Tooltip("이 방의 신호 수신기(R). 이 방의 SignalGate 문들이 자동으로 이걸 입력으로 씀. 비우면 문 각자 지정값 사용")]
-    public SignalReceiver signalReceiver;
-    [Tooltip("이 방의 신호 발신기(T)")]
-    public SignalTransmitter signalTransmitter;
-
-    // 역할에 맞춰 R/T 오브젝트를 켜고 끔 (R방 → R만, T방 → T만). 편집·런타임 공용.
-    public void ApplySignalRole()
-    {
-        bool isR = signalRole == SignalRole.ReceiverRoom;
-        bool isT = signalRole == SignalRole.TransmitterRoom;
-        if (signalReceiver != null) signalReceiver.gameObject.SetActive(isR);
-        if (signalTransmitter != null) signalTransmitter.gameObject.SetActive(isT);
-    }
-
     // ── 방 활성화 상태 (L/A) ──────────────────────────────────────
     public enum RoomActivation { None, L, A }
 
@@ -151,6 +131,21 @@ public class Room : MonoBehaviour
         OnCreatureCountChanged?.Invoke();   // 문 조건 재평가
     }
 
+    // 수신기 확정(클리어) 시 상태를 고정 — 이후 ComputeActivation 무시(입자 수 바뀌어도 안 되돌림)
+    [System.NonSerialized] public bool activationLatched;
+    public void ForceActivation(RoomActivation a)
+    {
+        activationLatched = true;
+        if (a != activation)
+        {
+            SetActivation(a);
+        }
+        else
+        {
+            RefreshWalls();   // 같은 상태여도 색은 한 번 갱신
+        }
+    }
+
     [Header("상태 변화 알림 팝업")]
     [Tooltip("방이 L/A로 바뀔 때 각 breakable 벽에서 방 중심으로 팝업을 띄워 알림")]
     public bool announceActivationPopup = true;
@@ -208,7 +203,7 @@ public class Room : MonoBehaviour
         var wait = new WaitForSeconds(activationCheckInterval);
         while (true)
         {
-            SetActivation(ComputeActivation());
+            if (!activationLatched) SetActivation(ComputeActivation());   // 확정되면 고정
             yield return wait;
         }
     }
@@ -290,6 +285,7 @@ public class Room : MonoBehaviour
             if (c.IsControlled) continue; // 조종 중인 생물은 플레이어를 따라 방을 넘나드므로 정지 제외
             if (c.isBound) continue;      // H에 묶인 생물은 HBinder가 정지 관리 (여기서 깨우지 않음)
             if (c.intent == CreatureIntent.ProducedBy) continue; // 생산 중(LL이 들고 있음)인 L은 Lcreature가 정지 관리
+            if (c.alwaysActive) continue; // 항상 따라다니는 동반자(p53)는 방 비활성에도 안 얼림
             var id = c.data.creatureID;
             if (id == CreatureID.Door || id == CreatureID.Player) continue;
             c.SetMovementEnabled(!frozen);

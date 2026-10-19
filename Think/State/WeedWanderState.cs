@@ -44,11 +44,23 @@ public class WeedWanderState : ThinkState
             newTarget.creature = target;                       // HUD·상호작용에서 타겟 생물 표시용
             hasPoint = false;                                  // 놓치면 새 wander 시작
             reachedTime = -1f;
+            if (think is WeedThink wtTracked) wtTracked.orbitCenterValid = false;   // 추적 시작 → 복귀 시 원중심 재앵커
             return;
         }
 
-        // 반경 밖/없음 → 일반 wander (배회)
+        // 반경 밖/없음 → wander
         newTarget.creature = null;
+
+        // 원궤도 모드: 매 tick 원 위의 점을 받아 돌기 (랜덤 배회 대신, 밀집 방지)
+        if (think is WeedThink wt && wt.orbitWander)
+        {
+            newTarget.point = wt.ComputeOrbitPoint();
+            hasPoint = true;
+            reachedTime = -1f;
+            return;
+        }
+
+        // 일반 wander (배회)
         if (!hasPoint)
         {
             newTarget.point = GetNewPoint(points);

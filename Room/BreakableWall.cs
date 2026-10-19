@@ -37,18 +37,6 @@ public class BreakableWall : MonoBehaviour
     public Color lColor = new Color(0.6f, 1f, 0.3f);
     public Color aColor = new Color(0.9f, 0.2f, 0.2f);
 
-    [Header("window (옆방 보기용, 통과 불가)")]
-    [Tooltip("켜면 창문 모드: 일반 벽 메쉬 끄고, 부술 수 없고(등록 안 함), 창문만 활성화")]
-    public bool isWindow = false;
-    [Tooltip("이미 씬에 둔 창문 오브젝트 (있으면 이걸 씀)")]
-    public GameObject window;
-    [Tooltip("창문 프리팹 후보들 (window가 비어있을 때 windowIndex로 골라 생성)")]
-    public GameObject[] windowPrefabs;
-    [Tooltip("windowPrefabs 중 사용할 인덱스")]
-    public int windowIndex = 0;
-    [Tooltip("생성한 창문을 이 오브젝트의 자식으로 넣음 (비우면 이 BreakableWall 밑)")]
-    public Transform windowParent;
-
     [Header("내구도")]
     [Min(1)] public int hitsToBreak = 3;
     [Tooltip("부서질 때 이 반경 안의 반대편(연결된 방) 벽도 같이 부숨")]
@@ -67,9 +55,8 @@ public class BreakableWall : MonoBehaviour
         UnityEditor.EditorApplication.delayCall += () =>
         {
             if (this == null) return;
-            bool win = isWindow;
-            if (breakableObject != null) breakableObject.SetActive(breakable && !win);
-            if (tintTarget != null) tintTarget.SetActive(breakable && !win);
+            if (breakableObject != null) breakableObject.SetActive(breakable);
+            if (tintTarget != null) tintTarget.SetActive(breakable);
         };
     }
 #endif
@@ -77,9 +64,9 @@ public class BreakableWall : MonoBehaviour
     private void Start()
     {
         if (roomA == null || roomB == null) AutoDetectRooms();
-        ApplyBreakableVisual();                 // on/off·window 표시 초기화
-        if (breakable && !isWindow) Register(); // 부술 수 있고 창문 아닌 것만 S 대상으로 등록
-        ApplyOpposite();                        // 반대편 벽 처리 (창문/breakable이면 앞이 뚫려 보이게)
+        ApplyBreakableVisual();                 // on/off 표시 초기화
+        if (breakable) Register();              // 부술 수 있는 것만 S 대상으로 등록
+        // 반대편 벽 메쉬 자동 숨김 제거 — 수동으로 관리
 
         // 방 상태 바뀔 때 색 갱신
         if (tintBreakable && roomA != null) roomA.OnActivationChanged += OnRoomActivation;
@@ -94,57 +81,25 @@ public class BreakableWall : MonoBehaviour
 
     private void OnRoomActivation(Room.RoomActivation _) => ApplyBreakableVisual();
 
-    // 반대편(연결된 방) 벽 처리:
-    //  - isWindow: 반대편도 창문 구멍(pane 없음)
-    //  - breakable: 반대편 벽 메쉬 숨김 → 앞이 없는 것처럼 보임 (안 부순 상태에선 콜라이더 유지)
-    private void ApplyOpposite()
-    {
-        if (!isWindow && !breakable) return;
-        var opp = FindOpposite();
-        if (opp == null) return;
-        if (isWindow) opp.BecomeWindowOpening();
-        else opp.ShowWallMesh(false);
-    }
-
-    // 반대편 벽: 창문 pane은 안 만들고 '구멍'만 (일반 벽 메쉬 끄기).
-    // pane은 한쪽에만 있어야 겹침/z-fight 없이 양쪽에서 보임. 부술 수 없고 콜라이더는 유지(통과 X).
-    public void BecomeWindowOpening()
-    {
-        if (isWindow) return;
-        isWindow = true;
-        Unregister();
-        if (window != null) window.SetActive(false);
-        if (breakableObject != null) breakableObject.SetActive(false);
-        if (normalWall != null)
-        {
-            var mr = normalWall.GetComponent<MeshRenderer>();
-            if (mr != null) mr.enabled = false;
-        }
-    }
-
     // 표시 전환:
-    //  - isWindow: 일반 벽 메쉬 끄고 window만 켬 (부술 수 없음)
     //  - breakable: breakableObject 켜고 일반 벽 메쉬 끔
     //  - 그 외(일반 벽): 일반 벽 메쉬만 켬
     // normalWall 안에 자식 메쉬가 있을 수 있어 오브젝트 통째로 끄지 않고 '자기 MeshRenderer'만 토글.
     private void ApplyBreakableVisual()
     {
-        bool win = isWindow;
-        if (win) EnsureWindowInstance();        // 프리팹 선택 방식이면 생성
-        if (window != null) window.SetActive(win);
         // 부서지면(Broken) breakableObject(조각)만 꺼둠 — tint 갱신 때 다시 켜지는 것 방지.
         // 부모(tintTarget)는 Broken이어도 유지해서 틀/틴트를 남긴다.
-        if (breakableObject != null) breakableObject.SetActive(breakable && !win && !Broken);
-        if (tintTarget != null) tintTarget.SetActive(breakable && !win);
+        if (breakableObject != null) breakableObject.SetActive(breakable && !Broken);
+        if (tintTarget != null) tintTarget.SetActive(breakable);
         if (normalWall != null)
         {
             var mr = normalWall.GetComponent<MeshRenderer>();
-            if (mr != null) mr.enabled = !(breakable || win);   // breakable이나 window면 일반 벽 메쉬 끔
+            if (mr != null) mr.enabled = !breakable;   // breakable이면 일반 벽 메쉬 끔
         }
 
         // 색 적용 대상: tintTarget 지정 시 그것, 없으면 breakableObject (부서져도 부모 틴트는 유지)
         GameObject colorRoot = tintTarget != null ? tintTarget : breakableObject;
-        if (tintBreakable && breakable && !win && colorRoot != null)
+        if (tintBreakable && breakable && colorRoot != null)
         {
             var state = roomA != null ? roomA.Activation : Room.RoomActivation.None;
             Color c = state == Room.RoomActivation.A ? aColor
@@ -152,19 +107,6 @@ public class BreakableWall : MonoBehaviour
             var rs = colorRoot.GetComponentsInChildren<Renderer>(true);
             ActivationColor.Apply(rs, c, breakableColorProperty);
         }
-    }
-
-    // window가 비어있고 프리팹 후보가 있으면 windowIndex로 골라 자식으로 하나 생성
-    private void EnsureWindowInstance()
-    {
-        if (window != null) return;
-        if (windowPrefabs == null || windowPrefabs.Length == 0) return;
-        int idx = Mathf.Clamp(windowIndex, 0, windowPrefabs.Length - 1);
-        var prefab = windowPrefabs[idx];
-        if (prefab == null) return;
-        Transform parent = windowParent != null ? windowParent : transform;
-        window = Instantiate(prefab, transform.position, transform.rotation, parent);
-        window.transform.localScale = Vector3.one * 0.05f;   // 창문 스케일
     }
 
     // roomA = 계층상 부모 방, roomB = 그 반대편(이 벽에 가장 가까운 다른 방).
@@ -223,12 +165,9 @@ public class BreakableWall : MonoBehaviour
         if (breakable == on) return;
         breakable = on;
         ApplyBreakableVisual();       // 표시 전환
-        if (on && !Broken && !isWindow) Register();
+        if (on && !Broken) Register();
         else Unregister();
-
-        // 반대편 벽: on이면 숨겨서 앞이 뚫려 보이게, off면 복구
-        var opp = FindOpposite();
-        if (opp != null && !isWindow) opp.ShowWallMesh(!on);
+        // 반대편 벽 메쉬 자동 숨김/복구 제거 — 수동으로 관리
     }
 
     // S가 닿을 때마다 호출

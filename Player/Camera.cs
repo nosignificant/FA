@@ -7,8 +7,6 @@ public class SC_CameraCollision : MonoBehaviour
     public float cameraSpeed = 15f; // 카메라가 제자리로 돌아가는 속도 (멀어질 때만)
     [Tooltip("카메라가 부딪힐 레이어 (벽·바닥 등). 플레이어·생물은 빼는 게 좋음")]
     public LayerMask collisionMask = ~0;
-    [Tooltip("이보다 가까이는 안 당겨짐 — 조종 시 몸체에 파묻혀 시야 가리는 것 방지")]
-    public float minDistance = 1.5f;
 
     Vector3 defaultPos;
     Vector3 directionNormalized;
@@ -41,9 +39,7 @@ public class SC_CameraCollision : MonoBehaviour
         if (Physics.SphereCast(referenceTransform.position, collisionOffset, dir.normalized,
                                out RaycastHit hit, defaultDistance, collisionMask, QueryTriggerInteraction.Ignore))
         {
-            // 최소 거리 이상은 안 당김 (몸체·근접 벽에 파묻혀 화면 가리는 것 방지)
-            float clampMin = Mathf.Min(minDistance, defaultDistance);
-            float actualDistance = Mathf.Max(clampMin, hit.distance - collisionOffset);
+            float actualDistance = Mathf.Max(0.1f, hit.distance - collisionOffset);   // 최소 거리 유지
             targetLocalPos = directionNormalized * actualDistance;
         }
 

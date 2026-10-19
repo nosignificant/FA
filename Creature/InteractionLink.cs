@@ -21,6 +21,15 @@ public class InteractionLink : MonoBehaviour
 
     void LateUpdate()
     {
+        // 안내(guide) 등 상시 링크: Think이 대상을 지정하면 락온·chase 무관하게 그쪽으로 선 (p53 안내)
+        if (think != null && think.LinkOverrideTarget != null)
+        {
+            lr.enabled = true;
+            lr.SetPosition(0, self.rootTransform.position);
+            lr.SetPosition(1, think.LinkOverrideTarget.position);
+            return;
+        }
+
         // 조종 중: 락온이 풀려도 어떤 생물을 조종하는지 보이게 self↔proxy 선을 항상 표시
         if (self.IsControlled && think != null && think.ProxyTarget != null)
         {

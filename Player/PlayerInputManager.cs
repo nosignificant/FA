@@ -47,10 +47,20 @@ public class PlayerInputManager : MonoBehaviour
         if (Mathf.Abs(wheel) > 0.0001f) codex.Scroll(wheel);
     }
 
-    // F: 빙의 토글
+    // F: 락온 대상이 수신기(R)면 '레벨 확정(클리어)', 아니면 빙의 토글
     private void HandlePossess()
     {
-        if (Input.GetKeyDown(possessKey) && Possess != null) Possess.TogglePossess();
+        if (!Input.GetKeyDown(possessKey)) return;
+
+        var p = Player.Instance;
+        Creature target = (p != null && p.pl != null) ? p.pl.targetCreature : null;
+        if (target is SignalReceiver rcv)
+        {
+            rcv.ConfirmClear();
+            return;
+        }
+
+        if (Possess != null) Possess.TogglePossess();
     }
 
     // Tab: 락온 시작 / 순환

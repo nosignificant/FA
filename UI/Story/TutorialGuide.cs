@@ -151,12 +151,7 @@ public class TutorialGuide : MonoBehaviour
         if (tmp != null) tmp.text = "";
         SetTutorialVisible(false);
 
-        // tut_1 방에서만 DoF focusDistance 40 (그 외 방에선 해제 → 평소값)
-        if (StatuesMenu.Instance != null)
-        {
-            if (room.roomID == "tut_1") StatuesMenu.Instance.SetBaseFocus(40f);
-            else StatuesMenu.Instance.ClearBaseFocus();
-        }
+        // 방별 DoF focus는 FocusController의 Room Focus Overrides 테이블에서 자동 처리.
 
         if (doneRooms.Contains(room.roomID))
         {
@@ -177,7 +172,6 @@ public class TutorialGuide : MonoBehaviour
     {
         switch (room.roomID)
         {
-            case "tut_0": StartCoroutine(Tut0Routine(room)); break;
             case "tut_1": co = StartCoroutine(Tut1Routine(room)); break;
             case "tut_2": co = StartCoroutine(Tut2Routine(room)); break;
 
@@ -188,10 +182,7 @@ public class TutorialGuide : MonoBehaviour
     // ── tutorial2 씬: roomID별 라우팅 (여기에 방 루틴 추가) ─────
     private void Dispatch_afterLvl1(Room room)
     {
-        switch (room.roomID)
-        {
-            case "tut_0": StartCoroutine(Tut0Routine(room)); break;
-        }
+
     }
 
     // 방이 L 상태가 되면 깜빡이며 조명 켜기 (튜토리얼 전용 하드코딩)
@@ -210,10 +201,15 @@ public class TutorialGuide : MonoBehaviour
     }
     IEnumerator Tut0Routine(Room room)
     {
-        doors[0].DoorCloseAndOpen(true);
         yield return null;
+
     }
     IEnumerator Tut1Routine(Room room)
+    {
+        yield return null;
+
+    }
+    IEnumerator Tut2Routine(Room room)
     {
 
         yield return LightWhenL(room);
@@ -259,7 +255,7 @@ public class TutorialGuide : MonoBehaviour
         doneRooms.Add(room.roomID);
     }
 
-    IEnumerator Tut2Routine(Room room)
+    IEnumerator Tut3Routine(Room room)
     {
         // H 활성화는 L/A 생물을 데리러 옆 방을 왕복해야 함 → 그 동안 방 전환 트리거 무시(대사 중복 방지)
         keepAcrossRooms = true;
@@ -324,7 +320,9 @@ public class TutorialGuide : MonoBehaviour
         if (keyboardImage == null) return;
         bool paused = Pause.Instance != null && Pause.Instance.IsOpen;
         var room = Player.Instance != null ? Player.Instance.currentRoom : null;
-        bool want = !paused && room != null && room.roomID == "tut_0";
+        // 씬이 tutorial0 이고 방이 tut_0 일 때만 표시 (그 외엔 비활성)
+        bool inTut0 = SceneManager.GetActiveScene().name == "tutorial0" && room != null && room.roomID == "tut_0";
+        bool want = !paused && inTut0;
         if (want != _kbWantShown)
         {
             _kbWantShown = want;

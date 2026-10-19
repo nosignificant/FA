@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using CreatureTypes;
 
 // 신호 수신기. 발신기 2개까지 받아 문(논리게이트)에 신호를 공급한다. Creature 하위(수신 생물 그 자체).
 // 슬롯 2개(slot0/slot1)의 compare·target·compareRoom은 설계 시(인스펙터) 고정,
@@ -31,8 +33,13 @@ public class SignalReceiver : Creature
     public bool autoCollectChildRenderers = true;
     [Tooltip("색을 바꿀 셰이더 프로퍼티 이름. 기본 _Color. 커스텀 셰이더면 다를 수 있음(_BaseColor, _Tint 등)")]
     public string colorProperty = "_Color";
-    public Color idleColor = Color.gray;
+    public Color idleColor = Color.black;      // 연결 안 됨 (검정)
     public Color connectedColor = Color.green;
+
+    [Header("연결 시 회전")]
+    [Tooltip("이 오브젝트 아래에서 Rotate를 찾음. 연결되면 isSelfRotate=true(회전) / 끊기면 false(정지)")]
+    public Transform rotateParent;
+    private Rotate _rot;
 
     // 각 슬롯에 물린 발신기와 연결 시각(FIFO 판정용)
     private SignalTransmitter tx0, tx1;
@@ -91,6 +98,9 @@ public class SignalReceiver : Creature
         if (autoCollectChildRenderers && (connectionRenderers == null || connectionRenderers.Length == 0))
             connectionRenderers = GetComponentsInChildren<Renderer>();
 
+        // 지정 오브젝트 아래에서 Rotate 찾기 (연결 상태로 회전 on/off)
+        if (rotateParent != null) _rot = rotateParent.GetComponentInChildren<Rotate>(true);
+
         RefreshVisual();
     }
 
@@ -111,9 +121,14 @@ public class SignalReceiver : Creature
 
     private void RefreshVisual()
     {
+        bool connected = ConnectedCount() > 0;
+
+        // 연결되면 회전, 끊기면 정지
+        if (_rot != null) _rot.isSelfRotate = connected;
+
         if (connectionRenderers == null) return;
 
-        Color c = ConnectedCount() > 0 ? connectedColor : idleColor;
+        Color c = connected ? connectedColor : idleColor;
         foreach (var r in connectionRenderers)
         {
             if (r == null) continue;
@@ -160,6 +175,72 @@ public class SignalReceiver : Creature
         RefreshVisual();
 
         Popup.Instance?.BurstMessage(this, "connected", Color.green);
+    }
+
+    // ── 레벨 클리어(확정) ────────────────────────────────────────────────
+    // 플레이어가 락온 + F → 이 수신기가 속한 방의 현재 상태(L/A)로 레벨 확정.
+    [System.NonSerialized] public bool IsConfirmed;
+    [System.NonSerialized] public Room.RoomActivation ConfirmedState;
+
+    public void ConfirmClear()
+    {
+        if (IsConfirmed) return;                       // 이미 확정됨
+
+        Room room = currentRoom;
+        Room.RoomActivation state = room != null ? room.Activation : Room.RoomActivation.None;
+        if (state == Room.RoomActivation.None)         // None은 확정 불가
+        {
+            Popup.Instance?.BurstMessage(this, "no state", Color.gray);
+            return;
+        }
+
+        IsConfirmed = true;
+        ConfirmedState = state;
+
+        // 1) 레벨 선택 기록 (L/A 중 무엇으로 클리어했는지). byLevelChoice 벽이 읽으므로 tint 갱신 전에.
+        ChoiceProgress.Record(state == Room.RoomActivation.A ? CreatureID.A : CreatureID.L);
+
+        // 2) 이 방의 L/A 입자를 전부 확정 상태 종으로 변경
+        ConvertRoomParticles(room, state);
+
+        // 3) 모든 방을 확정 상태로 고정(latch) — 방 상태 기반 tint도 함께 갱신
+        if (RoomManager.Instance != null)
+            foreach (var r in RoomManager.Instance.rooms.Values)
+                if (r != null) r.ForceActivation(state);
+
+        // 4) 레벨 전체 WallActivationTint를 확정 상태 색으로 (byLevelChoice 벽 포함)
+        foreach (var tint in FindObjectsOfType<WallActivationTint>())
+            if (tint != null) tint.Apply(state);
+
+        RefreshVisual();
+        Popup.Instance?.BurstMessage(this, "confirmed", connectedColor);
+    }
+
+    // 방 안의 L/A 입자를 targetState(L/A)에 해당하는 종으로 교체 (다른 종은 그대로)
+    private void ConvertRoomParticles(Room room, Room.RoomActivation targetState)
+    {
+        if (room == null) return;
+        CreatureID targetId = targetState == Room.RoomActivation.A ? CreatureID.A : CreatureID.L;
+        GameObject prefab = room.creatureDB != null ? room.creatureDB.GetPrefab(targetId) : null;
+        if (prefab == null) return;
+
+        var snapshot = new List<Creature>(room.creatureList);   // 순회 중 리스트 변경되므로 복사
+        foreach (var c in snapshot)
+        {
+            if (c == null || c.data == null) continue;
+            CreatureID id = c.data.creatureID;
+            if (id != CreatureID.L && id != CreatureID.A) continue;   // 입자만
+            if (id == targetId) continue;                              // 이미 같음
+
+            Vector3 pos = c.rootTransform != null ? c.rootTransform.position : c.transform.position;
+            room.UnregisterCreature(c);
+            Destroy(c.gameObject);
+
+            GameObject obj = Instantiate(prefab, pos, Quaternion.identity);
+            obj.transform.SetParent(CreatureRoot.Container, true);
+            Creature nc = obj.GetComponent<Creature>();
+            if (nc != null) room.RegisterCreature(nc);
+        }
     }
 
     // 발신기 쪽에서 끊음(tab-f) → 해당 슬롯 비움
