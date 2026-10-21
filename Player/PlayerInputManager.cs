@@ -54,7 +54,7 @@ public class PlayerInputManager : MonoBehaviour
 
         var p = Player.Instance;
         Creature target = (p != null && p.pl != null) ? p.pl.targetCreature : null;
-        if (target is SignalReceiver rcv)
+        if (target is SignCreature rcv)
         {
             rcv.ConfirmClear();
             return;

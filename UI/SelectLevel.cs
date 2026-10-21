@@ -87,6 +87,6 @@ public class SelectLevel : MonoBehaviour
         else SceneManager.LoadScene(scene);
     }
 
-    public void OnStartButton() => StartGame("tutorial_0");
+    public void OnStartButton() => StartGame("tutorial0");
     public void OnQuitButton() => Application.Quit();
 }

@@ -31,6 +31,9 @@ public class PlayerLockOn : MonoBehaviour
 
     public event Action<Creature> targetChanged;
 
+    // 설정 시 락온 후보 맨 앞으로 → 첫 Tab이 이걸 선택 (튜토리얼 등 강제 선택용). 비우면 일반 정렬.
+    [System.NonSerialized] public Creature priorityTarget;
+
     // 사이클링용
     public List<Creature> candidates = new();
     private int currentIndex = -1;
@@ -170,6 +173,10 @@ public class PlayerLockOn : MonoBehaviour
                 return angle + worldDist * lockDistanceWeight;
             })
             .ToList();
+
+        // 우선 타겟이 후보에 있으면 맨 앞으로 (첫 Tab이 이걸 선택)
+        if (priorityTarget != null && candidates.Remove(priorityTarget))
+            candidates.Insert(0, priorityTarget);
     }
 
     private void LateUpdate()

@@ -39,10 +39,10 @@ class WanderState : ThinkState
             hasTarget = true;
             lastRefreshTime = Time.time;
         }
-        // 옆방에 Chase 대상이 있을 때 이주
+        // 옆방에 Chase 대상(예: AA→옆방 LL)이 있으면 그 '대상이 있는 방'으로 이주
         var mig = think.migration;
-        if (mig != null && think.self.canMigrate
-            && mig.HasChaseTargetInAdjacentRoom() && mig.TickMigration())
+        if (mig != null) mig.LogWanderEntry(think.self.canMigrate);
+        if (mig != null && think.self.canMigrate && mig.TickChaseMigration())
         {
             newTarget.point = mig.migrateTargetPoint;
             return;

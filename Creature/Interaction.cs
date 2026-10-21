@@ -32,6 +32,7 @@ public class Interaction : MonoBehaviour
             case D: return GetActionForD(targetID, action);
             case Timid: return GetActionForTimid(targetID, action);
             case WalkingWeed: return GetActionForWalkingWeed(targetID, action);
+            case p53: return GetActionForp53(targetID, action);
             default: return int.MinValue;
         }
     }
@@ -46,6 +47,13 @@ public class Interaction : MonoBehaviour
     // S: 벽 파괴 전용 — 생물 상호작용 없음 (벽 타겟은 Sthink가 처리).
     private static int GetActionForS(CreatureID targetID, InteractionAction action)
     {
+        return int.MinValue;
+    }
+
+    // p53(동반자): 플레이어를 따라감(Chase). ※관계 기반 Think2일 때만 적용 — P53Think은 관계 무시하고 자체 추종.
+    private static int GetActionForp53(CreatureID targetID, InteractionAction action)
+    {
+        if (targetID == CreatureID.Player && action == InteractionAction.Chase) return 50;
         return int.MinValue;
     }
 

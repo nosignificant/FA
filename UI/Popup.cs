@@ -18,6 +18,12 @@ public class Popup : MonoBehaviour
     public float fixedLifeTime = 1.5f;
     public float storyLifeTime = 5f;
     public float speed = 2.5f;
+
+    [Header("스토리 대사 팝업(StoryLine) — p53 등")]
+    [Tooltip("대사 팝업 색")]
+    public Color storyColor = Color.white;
+    [Tooltip("대사 팝업이 솟아나오는 속도")]
+    public float storySpeed = 2.5f;
     [Tooltip("속도 랜덤 편차 (0.3이면 ±30%)")]
     [Range(0f, 1f)] public float speedJitter = 0.5f;
     [Tooltip("생성 위치를 중심에서 이만큼 랜덤하게 흩음")]
@@ -69,6 +75,9 @@ public class Popup : MonoBehaviour
 
     private void OnDestroy()
     {
+        // 파괴 즉시 static 참조 해제 → 씬 전환 후 Popup.Instance?.가 진짜 null이 되어 파괴된 객체 접근 방지
+        if (Instance == this) Instance = null;
+
         if (RoomManager.Instance == null) return;
 
         foreach (var r in RoomManager.Instance.rooms.Values)
@@ -93,6 +102,12 @@ public class Popup : MonoBehaviour
 
     // 외부에서 임의 문구 팝업 (예: 조종 시작 시 "controlled"). color 지정 가능
     public void BurstMessage(Creature target, string message, Color? color = null) => Burst(target, message, color);
+
+    // 대사 한 줄을 대상(예: p53) 머리 위에 하나만 띄움 (TutorialGuide.Say용). lifeTime 미지정이면 storyLifeTime.
+    // 색·속도는 인스펙터 storyColor/storySpeed 사용 (color/speedOverride로 호출 시 개별 덮어쓰기 가능)
+    public void StoryLine(Creature target, string message, float lifeTime = -1f, Color? color = null, float speedOverride = -1f)
+        => SpawnAt(target, new[] { message }, lifeTime < 0f ? storyLifeTime : lifeTime, 0f,
+                   color ?? storyColor, speedOverride > 0f ? speedOverride : storySpeed);
 
     // 위치에서 이펙트 터뜨림 (생물 아닌 대상용, 예: 부서지는 벽). message 비우면 내용 없이 이펙트만.
     public void BurstAt(Vector3 worldPos, string message = "", Color? color = null)
@@ -132,18 +147,19 @@ public class Popup : MonoBehaviour
 
     // 대상 위치에서 messages를 하나씩 순차로 터뜨림 (시작 위치는 지금 고정 — 생물이 죽어도 안전)
     // interval이 음수면 기본 spawnInterval 사용
-    private void SpawnAt(Creature target, string[] messages, float lifeTime, float interval = -1f, Color? color = null)
+    private void SpawnAt(Creature target, string[] messages, float lifeTime, float interval = -1f, Color? color = null, float speedOverride = -1f)
     {
         if (popupPrefab == null || target == null || messages == null || messages.Length == 0) return;
 
         Transform t = target.rootTransform != null ? target.rootTransform : target.transform;
         Vector3 center = t.position + offset;
 
-        StartCoroutine(SpawnRoutine(center, messages, lifeTime, interval < 0f ? spawnInterval : interval, color));
+        StartCoroutine(SpawnRoutine(center, messages, lifeTime, interval < 0f ? spawnInterval : interval, color, speedOverride));
     }
 
-    private IEnumerator SpawnRoutine(Vector3 center, string[] messages, float lifeTime, float interval, Color? color = null)
+    private IEnumerator SpawnRoutine(Vector3 center, string[] messages, float lifeTime, float interval, Color? color = null, float speedOverride = -1f)
     {
+        float baseSpeed = speedOverride > 0f ? speedOverride : speed;
         int count = messages.Length;
         for (int i = 0; i < count; i++)
         {
@@ -157,7 +173,7 @@ public class Popup : MonoBehaviour
             Vector3 dir = right * Mathf.Cos(angle) + up * Mathf.Sin(angle);
 
             Vector3 pos = center + dir * Random.Range(0f, spawnScatter);
-            float spd = speed * (1f + Random.Range(-speedJitter, speedJitter));
+            float spd = baseSpeed * (1f + Random.Range(-speedJitter, speedJitter));
 
             var ft = Instantiate(popupPrefab, pos, Quaternion.identity);
             ft.Launch(messages[i], dir, spd, lifeTime, color);

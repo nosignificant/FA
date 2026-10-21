@@ -76,13 +76,6 @@ public class CreaturePossess : MonoBehaviour
         Creature target = Player.Instance.pl.targetCreature;
         if (target == null) return;
 
-        // 연결된 발신기를 F로 조준하면 → 조종 안 하고 바로 연결 해제만
-        if (target is SignalTransmitter txDisc && txDisc.IsConnected)
-        {
-            txDisc.Disconnect();
-            return;
-        }
-
         // 조종 불가 생물이면 알림만 띄우고 중단
         if (target.data != null && !target.data.controllable)
         {
@@ -94,6 +87,13 @@ public class CreaturePossess : MonoBehaviour
         if (target.IsGrabbed)
         {
             ToastUI.Instance?.Show("다른 생물에게 잡힌 생물은 조종할 수 없습니다");
+            return;
+        }
+
+        // LL이 생산 중 들고 있는(부착된) 생물은 조종 불가
+        if (target.intent == CreatureIntent.ProducedBy)
+        {
+            ToastUI.Instance?.Show("생산 중인 생물은 조종할 수 없습니다");
             return;
         }
 
@@ -130,25 +130,15 @@ public class CreaturePossess : MonoBehaviour
         proxy = controlled.ProxyTarget;
         driveDir = Vector3.zero;
 
-        // 조종 시작 위치. 일반 생물은 플레이어 자리, 발신기는 자기 몸 위치로 리셋(#3)
-        if (proxy != null)
-        {
-            if (controlled.self is SignalTransmitter && controlled.self.rootTransform != null)
-                proxy.position = controlled.self.rootTransform.position;
-            else
-                proxy.position = transform.position;
-        }
+        // 조종 시작 위치: 플레이어 자리로 리셋
+        if (proxy != null) proxy.position = transform.position;
 
         controlledCreature = controlled.self;
-
-        // 발신기 다시 조종 시작 → 기존 연결 자동 해제(새로 연결하려고)(#1)
-        if (controlledCreature is SignalTransmitter txStart) txStart.Disconnect();
 
         CreatureControlSetting(controlledCreature, true);
         if (proxy != null) PlayerRideProxy(proxy, true);
         SetupProxyPhysics();
 
-        Popup.Instance?.BurstMessage(controlledCreature, "controlled", Color.red);   // 조종 시작 팝업(빨강)
 
         Debug.Log($"[Possess] {controlled.name} 조종");
     }
@@ -164,6 +154,11 @@ public class CreaturePossess : MonoBehaviour
     [Tooltip("방 밖에서 내릴 때 경계 안쪽으로 밀어넣을 여유 거리")]
     public float roomClampPadding = 2f;
 
+    [Tooltip("하차 지점에 바닥이 있는지 검사할 레이어 (다리·발판 등). 이 위면 방 밖이어도 그 자리에 하차")]
+    public LayerMask dismountGroundMask = ~0;
+    [Tooltip("하차 지점 바닥 검사 레이 길이")]
+    public float dismountGroundRayDist = 6f;
+
     // 발밑이 브리지(다리)인지: Bridge 컴포넌트 or 이름에 "bridge"/"다리" 포함
     private bool IsOnBridge(Vector3 pos)
     {
@@ -174,6 +169,13 @@ public class CreaturePossess : MonoBehaviour
             if (n.Contains("bridge") || hit.collider.name.Contains("다리")) return true;
         }
         return false;
+    }
+
+    // 하차 지점 바로 아래에 (dismountGroundMask) 바닥이 있나 — 있으면 떨어질 일 없으니 clamp 불필요
+    private bool HasGroundUnder(Vector3 pos)
+    {
+        return Physics.Raycast(pos + Vector3.up * 1.5f, Vector3.down,
+            dismountGroundRayDist, dismountGroundMask, QueryTriggerInteraction.Ignore);
     }
 
     // 하차 위치가 방(마지막으로 속한 방) 밖이면 경계 안쪽 최근접점으로 당김.
@@ -210,15 +212,14 @@ public class CreaturePossess : MonoBehaviour
         driveDir = Vector3.zero;
 
         // 하차 위치 계산 (proxy가 아직 부모인 상태에서 월드 좌표로 미리 잡음).
-        // 브리지(다리) 위면 방 경계로 당기지 않음 — 다리 밖으로 밀려나는 것 방지.
+        // 발밑에 바닥(다리·발판 등)이 있으면 방 밖이어도 그 자리에 하차 — 떨어지는 것 방지.
         Vector3? landingPos = proxy != null
-            ? (IsOnBridge(proxy.position) ? proxy.position : ClampToRoom(proxy.position))
+            ? ((IsOnBridge(proxy.position) || HasGroundUnder(proxy.position))
+                ? proxy.position : ClampToRoom(proxy.position))
             : (Vector3?)null;
 
-        // 발신기를 조종하다 해제하면, 연결돼 있던 발신을 끊는다 (tab-f로 발신 끊기)
-        if (controlledCreature is SignalTransmitter tx) tx.OnPossessReleased();
-        // H를 조종하다 AA에 락온한 채 놓으면(F) → 그 AA를 bind (T→R 연결처럼)
-        else if (controlledCreature != null
+        // H를 조종하다 AA에 락온한 채 놓으면(F) → 그 AA를 bind
+        if (controlledCreature != null
                  && controlledCreature.GetComponent<HBinder>() is HBinder hbnd
                  && Player.Instance != null && Player.Instance.pl != null
                  && Player.Instance.pl.targetCreature is Creature lockedAA

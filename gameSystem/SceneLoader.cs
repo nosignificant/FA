@@ -71,6 +71,14 @@ public class SceneLoader : MonoBehaviour
 
         float shown = 0f;
         var op = SceneManager.LoadSceneAsync(sceneName);
+        if (op == null)   // Build Settings에 없거나 이름 오타 → LoadSceneAsync가 null 반환
+        {
+            Debug.LogWarning($"[SceneLoader] '{sceneName}' 로드 실패 — Build Settings에 없거나 이름 오타. 로딩 취소.");
+            loading = false;
+            if (loadingPanel != null) loadingPanel.SetActive(false);
+            HideAllLabels();
+            yield break;
+        }
         op.allowSceneActivation = false;         // 바가 100% 찰 때까지 활성화 보류
 
         float startTime = Time.unscaledTime;

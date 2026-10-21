@@ -119,14 +119,8 @@ public class CreatureHUD : MonoBehaviour
         {
             if (statusText != null) statusText.text = "is following";
         }
-        // 발신기: intent 대신 현재 발신 중인 종(자기 방 우세종)
-        else if (targetCreature is SignalTransmitter tx)
-        {
-            var sig = tx.CurrentSignal;
-            if (statusText != null) statusText.text = sig != null ? $"send  {sig.creatureName}" : " send -";
-        }
-        // 수신기(R): 레벨 클리어 담당. 확정 전 "Clear level / as / {방 상태}", 확정 후 "level / is / {확정 상태}"
-        else if (targetCreature is SignalReceiver rcv)
+        // 신호 생물(R): 레벨 클리어 담당. 확정 전 "Clear level / as / {방 상태}", 확정 후 "level / is / {확정 상태}"
+        else if (targetCreature is SignCreature rcv)
         {
             if (statusText != null) statusText.text = rcv.IsConfirmed ? "is" : "as";
         }
@@ -166,8 +160,8 @@ public class CreatureHUD : MonoBehaviour
                 Door dn = targetCreature.GetComponent<Door>();
                 nameText.text = dn != null ? dn.Operand1Label() : "door";
             }
-            // 수신기(R): 확정 전 "Clear level", 확정 후 "level"
-            else if (targetCreature is SignalReceiver rcvN)
+            // 신호 생물(R): 확정 전 "Clear level", 확정 후 "level"
+            else if (targetCreature is SignCreature rcvN)
             {
                 nameText.text = rcvN.IsConfirmed ? "level" : "Clear level";
             }
@@ -180,14 +174,8 @@ public class CreatureHUD : MonoBehaviour
             {
                 targetText.text = "player";
             }
-            // 발신기: 어느 방으로 보내는지
-            else if (targetCreature is SignalTransmitter txr)
-            {
-                var toRoom = txr.ConnectedRoom;
-                targetText.text = toRoom != null ? $"{toRoom.roomID}" : "-";
-            }
-            // 수신기(R): 확정 전=방 현재 상태, 확정 후=확정된 상태 (None/L/A)
-            else if (targetCreature is SignalReceiver rcv2)
+            // 신호 생물(R): 확정 전=방 현재 상태, 확정 후=확정된 상태 (None/L/A)
+            else if (targetCreature is SignCreature rcv2)
             {
                 if (rcv2.IsConfirmed) targetText.text = $"{rcv2.ConfirmedState}";
                 else targetText.text = rcv2.currentRoom != null ? $"{rcv2.currentRoom.Activation}" : "-";

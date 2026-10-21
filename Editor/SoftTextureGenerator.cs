@@ -9,7 +9,14 @@ public static class SoftTextureGenerator
 {
     // 가로로 늘려 쓰는 선용: 세로 가장자리(위·아래)가 부드럽게 사라짐. 중앙은 꽉 참.
     [MenuItem("Tools/Soft Texture/Line Strip (가로 선용)")]
-    public static void CreateStrip()
+    public static void CreateStrip() => BuildStrip(Color.white, "SoftLineStrip");
+
+    // 검은색 버전 (RGB=0, 알파 falloff 동일). 밝은 배경 위 선용.
+    [MenuItem("Tools/Soft Texture/Line Strip Black (검은 선용)")]
+    public static void CreateStripBlack() => BuildStrip(Color.black, "SoftLineStripBlack");
+
+    // 알파 falloff는 동일하고 RGB만 rgb로 칠한 선 텍스처 생성
+    private static void BuildStrip(Color rgb, string name)
     {
         int w = 16, h = 128;
         var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
@@ -20,10 +27,10 @@ public static class SoftTextureGenerator
             float a = Mathf.Clamp01(1f - d);
             a = a * a * a;                        // 더 부드럽게(falloff 급하게 꺼짐)
             for (int x = 0; x < w; x++)
-                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                tex.SetPixel(x, y, new Color(rgb.r, rgb.g, rgb.b, a));
         }
         tex.Apply();
-        Save(tex, "SoftLineStrip");
+        Save(tex, name);
     }
 
     // 점/글로우용: 중앙 꽉 참 → 바깥으로 둥글게 사라짐(라디얼 falloff).

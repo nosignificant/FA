@@ -10,11 +10,11 @@ public static class LevelFlow
     public static readonly Dictionary<string, string> Next = new()
     {
         { "tutorial0", "level1" },
-        { "level1",    "level2" },
-        { "level2",    "level3" },
-        { "level3",    "level4" },
-        { "level4",    "level5" },
-        { "level5",    "ending" },
+        { "level1",    "level1_after" },
+        { "level2",    "level2_after" },
+        { "level3",    "level3_after" },
+        { "level4",    "level4_after" },
+        { "level5",    "level5_after" },
     };
 
     // A/L 선택에 따라 다른 씬으로 분기하고 싶을 때만 "씬:선택" 키로 추가 (분기 우선).

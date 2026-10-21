@@ -78,7 +78,7 @@ public class WeedThink : Think2
         weedWander = CreateWanderState();
     }
 
-    // 하위 클래스가 다른 wander 상태로 교체할 수 있게 (예: Tthink)
+    // 하위 클래스가 다른 wander 상태로 교체할 수 있게 (예: CCDIKThink)
     protected virtual WeedWanderState CreateWanderState()
     {
         return new WeedWanderState(this)
