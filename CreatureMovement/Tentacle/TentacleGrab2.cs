@@ -10,7 +10,7 @@ public class TentacleGrab2 : MonoBehaviour
     [System.Serializable]
     public struct TentacleSlot
     {
-        public Tentacle tentacle;
+        public TentacleBase tentacle;   // Tentacle(v1)·Tentacle2 둘 다 가능
         public Transform oldTarget;
         public bool isGrabbing;
         public bool isPending;
@@ -82,7 +82,7 @@ public class TentacleGrab2 : MonoBehaviour
             if (i == reservedForSpawn) continue;
             if (IsTargetedByOtherSlot(i, target)) continue;
 
-            tentacles[i].tentacle.target = target.rootTransform;
+            tentacles[i].tentacle.Target = target.rootTransform;
             StartCoroutine(GrabAfterDelay(i, target));
             break;
         }
@@ -113,10 +113,10 @@ public class TentacleGrab2 : MonoBehaviour
     {
         tentacles[i].isGrabbing = true;
         tentacles[i].grabbedCreature = c;
-        tentacles[i].tentacle.target = tentacles[i].oldTarget;
+        tentacles[i].tentacle.Target = tentacles[i].oldTarget;
 
         c.grabbedBy = self;
-        c.AttachedTo(tentacles[i].tentacle.foot);
+        c.AttachedTo(tentacles[i].tentacle.Foot);
     }
 
     public void ReleaseSlot(int i)
@@ -133,7 +133,7 @@ public class TentacleGrab2 : MonoBehaviour
 
     private void initTentacles()
     {
-        Tentacle[] found = GetComponentsInChildren<Tentacle>();
+        TentacleBase[] found = GetComponentsInChildren<TentacleBase>();
         tentacles = new TentacleSlot[found.Length];
         for (int i = 0; i < found.Length; i++)
         {
@@ -141,7 +141,7 @@ public class TentacleGrab2 : MonoBehaviour
             tentacles[i].isGrabbing = false;
             tentacles[i].isPending = false;
             tentacles[i].grabbedCreature = null;
-            tentacles[i].oldTarget = found[i].target;
+            tentacles[i].oldTarget = found[i].Target;
         }
     }
 

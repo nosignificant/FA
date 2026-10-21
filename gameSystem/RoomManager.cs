@@ -13,6 +13,8 @@ public class RoomManager : MonoBehaviour
     public bool simulateInactiveRooms = true;
     [Tooltip("비활성 방 연산 배율. 클수록 느리게(가볍게) 돎. 예: 4면 활성 방의 1/4 빈도로 판단")]
     [Min(1f)] public float inactiveTickScale = 4f;
+    [Tooltip("열린 문으로 연결되면 튜토리얼 방도 활성화. 끄면 튜토리얼 방은 플레이어가 직접 들어가야 활성(그 전엔 생물 정지)")]
+    public bool activateConnectedTutorialRooms = true;
 
     void Awake()
     {
@@ -64,7 +66,7 @@ public class RoomManager : MonoBehaviour
                 if (d == null || !d.isOpen) continue;
                 Room other = d.GetOtherRoom(room);
                 if (other == null || visited.Contains(other)) continue;
-                if (other.isTutorial) continue;   // 튜토리얼 방은 자동 활성화·통과 제외
+                if (other.isTutorial && !activateConnectedTutorialRooms) continue;   // 토글 꺼지면 튜토리얼 방은 통과 제외
 
                 other.SetActive(true);
                 visited.Add(other);

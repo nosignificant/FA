@@ -467,7 +467,6 @@ public class Room : MonoBehaviour
         {
             if (!decomposedCounts.ContainsKey(target.data)) decomposedCounts[target.data] = 0;
             decomposedCounts[target.data]++;
-            Debug.Log($"[Room {roomID}] decomposed {target.data.name}, count={decomposedCounts[target.data]}");
         }
         OnCreatureDecomposed?.Invoke(target, decomposerID);
     }

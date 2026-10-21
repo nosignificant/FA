@@ -220,12 +220,19 @@ public class Creature : MonoBehaviour
         if (a == null || b == null) return false;
         float reachSqr = passageReach * passageReach;
 
+        // LL의 QuadLegs는 목표의 Y 높이를 무시하고 XZ로만 이동한다.
+        // 방 소속 갱신 거리도 같은 평면 기준이어야 출입구 높이 차 때문에 통과가 막히지 않는다.
+        TargetControl tc = GetComponent<TargetControl>();
+        bool planarMovement = tc != null && tc.moveMode == TargetControl.MoveMode.QuadLeg;
+
         if (a.doors != null)
             foreach (var d in a.doors)
             {
                 if (d == null || !d.isOpen || d.GetOtherRoom(a) != b) continue;
                 Transform t = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
-                if ((t.position - pos).sqrMagnitude <= reachSqr) return true;
+                Vector3 delta = t.position - pos;
+                if (planarMovement) delta.y = 0f;
+                if (delta.sqrMagnitude <= reachSqr) return true;
             }
         // 부서진 벽: 내 방(a)의 부서진 벽이 pos 근처면 통과 허용.
         // 목적지 방(b)이 벽의 roomB와 맞는지는 안 따짐 — roomB 자동할당이 불안정해서,
@@ -234,7 +241,9 @@ public class Creature : MonoBehaviour
             foreach (var w in a.brokenPassages)
             {
                 if (w == null || !w.Broken) continue;
-                if ((w.Position - pos).sqrMagnitude <= reachSqr) return true;
+                Vector3 delta = w.Position - pos;
+                if (planarMovement) delta.y = 0f;
+                if (delta.sqrMagnitude <= reachSqr) return true;
             }
         return false;
     }

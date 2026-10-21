@@ -19,6 +19,7 @@ public sealed class TargetControl : MonoBehaviour
         Tentacle,      // 하위 Tentacle 전부 target으로 (weed 등)
         Leg,           // 하위 Leg 전부 target 직접 전달 (발 고정, 머리만 — 텐타클 여러 개처럼)
         CCDIK,         // 하위 CCDIK 전부 target으로
+        Snake,         // 하위 SnakeFollow의 head가 target으로 (몸통 뒤 꼬리가 따라옴)
     }
 
     [SerializeField] public Transform movementTarget;
@@ -88,7 +89,16 @@ public sealed class TargetControl : MonoBehaviour
             case MoveMode.Tentacle:     SetTentacleTarget(); break;
             case MoveMode.Leg:          SetLegsTarget(); break;
             case MoveMode.CCDIK:        SetCCDIKTarget(); break;
+            case MoveMode.Snake:        SetSnakeTarget(); break;
         }
+    }
+
+    // 하위 SnakeFollow 전부에게 target 전달 (head가 그쪽으로 헤엄침 → 꼬리 따라옴)
+    public void SetSnakeTarget()
+    {
+        SnakeFollow[] snakes = GetComponentsInChildren<SnakeFollow>();
+        foreach (var s in snakes)
+            if (s != null) s.target = movementTarget;
     }
 
     // 하위 Leg 전부에게 target 직접 전달 (발 고정 + 머리만 target으로 → 여러 텐타클처럼)
@@ -110,9 +120,9 @@ public sealed class TargetControl : MonoBehaviour
     // 하위 Tentacle 전부에게 같은 target 전달 (weed: proxy를 모든 촉수가 향하게)
     public void SetTentacleTarget()
     {
-        Tentacle[] tentacles = GetComponentsInChildren<Tentacle>();
+        TentacleBase[] tentacles = GetComponentsInChildren<TentacleBase>();
         foreach (var t in tentacles)
-            if (t != null) t.target = movementTarget;
+            if (t != null) t.Target = movementTarget;
     }
     public void GoToTarget()
     {

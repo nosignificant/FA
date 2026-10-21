@@ -71,32 +71,24 @@ class SynthesizeState : ThinkState
             else if (second == null) { second = grabbed; break; }
         }
 
-        for (int i = 0; i < tentacleGrab.tentacles.Length; i++)
-            Debug.Log($"[Synthesizer] slot[{i}] isGrabbing={tentacleGrab.tentacles[i].isGrabbing} grabbed={tentacleGrab.tentacles[i].grabbedCreature?.data?.creatureID}");
-        Debug.Log($"[Synthesizer] first={first?.data?.creatureID}, second={second?.data?.creatureID}");
-        if (first == null) { Debug.Log("[Synthesizer] first null → 중단"); tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
+        if (first == null) { tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
 
         CreatureID selfID = tCreature.data.creatureID;
         // L은 2마리 필수. AA는 1마리(타임아웃)도 진행 → ResolveAA가 h/s→A 처리
         if (selfID == CreatureID.LL && second == null)
-        { Debug.Log("[Synthesizer] LL인데 second null → 중단"); tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
+        { tCreature.isSynthesizing = false; tCreature.intent = CreatureIntent.Wander; yield break; }
 
         CreatureID idA = first.data.creatureID;
         CreatureID idB = second != null ? second.data.creatureID : CreatureID.Player;
 
         SynthesisResult result = tCreature.synthesis.Resolve(selfID, idA, idB);
 
-        Debug.Log($"[Synthesizer] {selfID}: {idA} + {idB} → valid={result.IsValid}, resultID={result.resultID}, count={result.count}");
-        if (!result.IsValid) Debug.LogWarning($"[Synthesizer] Resolve 실패 — {selfID}가 {idA}+{idB} 조합을 모름");
-
         if (result.IsValid)
         {
             CreatureDatabase db = tCreature.currentRoom != null ? tCreature.currentRoom.creatureDB : null;
             GameObject prefab = db != null ? db.GetPrefab(result.resultID) : null;
 
-            if (prefab == null)
-                Debug.LogWarning($"[Synthesizer] {result.resultID} prefab을 creatureDB에서 못 찾음");
-            else
+            if (prefab != null)
             {
                 for (int n = 0; n < result.count; n++)
                 {
@@ -120,7 +112,7 @@ class SynthesizeState : ThinkState
                 Object.Destroy(tentacleGrab.tentacles[i].grabbedCreature.gameObject);
             tentacleGrab.tentacles[i].isGrabbing = false;
             tentacleGrab.tentacles[i].grabbedCreature = null;
-            tentacleGrab.tentacles[i].tentacle.target = tentacleGrab.tentacles[i].oldTarget;
+            tentacleGrab.tentacles[i].tentacle.Target = tentacleGrab.tentacles[i].oldTarget;
         }
 
         nextSynthTime = Time.time + tCreature.synthesisCooldown;

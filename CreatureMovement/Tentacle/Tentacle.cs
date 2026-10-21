@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-public class Tentacle : MonoBehaviour
+public class Tentacle : TentacleBase
 {
     public LayerMask ground;
 
@@ -11,6 +11,10 @@ public class Tentacle : MonoBehaviour
     public Transform[] parts;
     public Transform tipTarget;
     public Transform target;
+
+    // TentacleBase 공통 인터페이스 (기존 필드 그대로 노출)
+    public override Transform Foot => foot;
+    public override Transform Target { get => target; set => target = value; }
 
     [Header("Settings")]
     private float offset;

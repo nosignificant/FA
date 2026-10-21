@@ -246,8 +246,9 @@ public class TutorialGuide : MonoBehaviour
     IEnumerator lv2_0(Room room)
     {
         keepAcrossRooms = true;
-
-        yield return SayLine("저의 내부에 벽을 수리하거나 잘못 생성된 벽을 파괴하는 생물이 있었는데, 아직도 작동을 하는지 모르겠군요.");
+        yield return SayLine("이야기를 조금 더 해드릴까요?");
+        yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술으로 인해 인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.", 8f);
+        yield return SayLine("새로운 정의에 따라 다양한 학문과 개념이 개편되었으나, 계속되는 인류 문명의 쇠퇴는 막을 수 없었습니다.", 8f);
         doneRooms.Add(room.roomID);
 
     }
@@ -265,10 +266,8 @@ public class TutorialGuide : MonoBehaviour
     {
         keepAcrossRooms = true;
 
-        yield return SayLine("이야기를 조금 더 해드릴까요?");
-        yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술으로 인해 인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.", 8f);
-        yield return SayLine("학문과 국가 그리고 인류는 생물으로 정의되고 거시생물학 또한 재정의되었습니다.", 8f);
-        yield return SayLine("새로운 정의에 따라 다양한 학문과 개념이 개편되었으나, 계속되는 인류 문명의 쇠퇴는 막을 수 없었습니다.", 8f);
+        yield return SayLine("저의 내부에 벽을 수리하거나 잘못 생성된 벽을 파괴하는 생물이 있었는데, 아직도 작동을 하는지 모르겠군요.");
+
 
         keepAcrossRooms = false;
 

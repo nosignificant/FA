@@ -38,6 +38,16 @@ public class RoomMigration : MonoBehaviour
     public bool debugLog = false;
     private float _dbgNext, _dbgWanderNext;
     private string DbgName => self != null && self.data != null ? self.data.creatureID.ToString() : "?";
+    // QuadLegs(LL)는 XZ 평면에서만 이동하므로 문까지의 거리에서도 높이 차를 빼야 한다.
+    private bool UsesPlanarMovement => self != null
+        && self.GetComponent<TargetControl>() != null
+        && self.GetComponent<TargetControl>().moveMode == TargetControl.MoveMode.QuadLeg;
+    private float MigrationDistance(Vector3 a, Vector3 b)
+    {
+        if (UsesPlanarMovement) { a.y = 0f; b.y = 0f; }
+        return Vector3.Distance(a, b);
+    }
+
     private void Dbg(string msg)
     {
         if (!debugLog) return;
@@ -69,6 +79,14 @@ public class RoomMigration : MonoBehaviour
         // bounds 기반 소속이 실제로 바뀌면 → 이주 완료 처리 + 쿨다운 시작
         if (self.currentRoom != lastKnownRoom)
         {
+            if (debugLog)
+            {
+                string from = lastKnownRoom != null ? lastKnownRoom.roomID : "null";
+                string to = self.currentRoom != null ? self.currentRoom.roomID : "null";
+                bool connected = lastKnownRoom != null && self.currentRoom != null && IsConnected(lastKnownRoom, self.currentRoom);
+                Debug.Log($"[Migrate:{DbgName}] 방 변경 {from} → {to} · 열린통로로연결={connected} · isMigrating={isMigrating}" +
+                          (connected ? "" : "  ⚠ 연결 안 된 방으로 넘어감(벽 통과)"), this);
+            }
             _prevRoom = lastKnownRoom;                          // 방금 떠나온 방 → 배회로는 다시 안 돌아감
             lastKnownRoom = self.currentRoom;
             lastMigrateTime = Time.time;
@@ -119,26 +137,52 @@ public class RoomMigration : MonoBehaviour
 
     public bool TickMigration()
     {
-        if (self.currentRoom == null || MigrateOnCooldown) return false;
+        if (self.currentRoom == null) { Dbg("[Tick] currentRoom=null"); return false; }
+        if (MigrateOnCooldown) { Dbg($"[Tick] 쿨다운 {migrateCooldown - (Time.time - lastMigrateTime):0.0}s"); return false; }
 
         // 배회 이동 중엔 방금 온 방으로 되돌아가지 않게
         if (!CalculatePassage(out Vector3 pt, out Room nextR, out float bestDist, avoidBacktrack: wanderDrifting))
+        {
+            isMigrating = false;   // 갈 통로 없음 → bounds 무시 해제(벽 통과 방지)
             return false;
+        }
 
         if (bestDist > migrateDoorReachDist)
         {
             // 아직 통로(문/틈)까지 멀면 그 자리로 향함
             migrateTargetPoint = pt;
             isMigrating = false;
+            Dbg($"[Tick] {nextR.roomID}로 접근 중 dist={bestDist:0.0} (아직 문 밖, isMigrating=false)");
         }
         else
         {
-            // 통로에 붙었으면 옆방 중심으로 관통 (소속 변경은 bounds 넘는 순간 Creature가 처리)
-            migrateTargetPoint = nextR.transform.position;
+            // 방 중심은 출입구와 어긋날 수 있어 벽에 걸린다. 통로를 기준으로
+            // 방 바깥 방향으로 밀어 출입구를 실제로 통과하게 한다.
+            Vector3 roomCenter = self.currentRoom.homeBound != null
+                ? self.currentRoom.homeBound.bounds.center : self.currentRoom.transform.position;
+            Vector3 through = pt - roomCenter; through.y = 0f;
+            if (through.sqrMagnitude < 0.0001f)
+                through = (nextR.transform.position - pt).normalized;
+            else through.Normalize();
+            migrateTargetPoint = pt + through * doorThroughPush;
             isMigrating = true;
+            Dbg($"[Tick] {nextR.roomID} 통로 관통 목표={migrateTargetPoint} (passage={pt}, isMigrating=true)");
         }
 
         return true;
+    }
+
+    // 두 방이 '열린 문' 또는 '부서진 벽'으로 실제 연결돼 있나 (로그/진단용)
+    private bool IsConnected(Room a, Room b)
+    {
+        if (a == null || b == null) return false;
+        if (a.doors != null)
+            foreach (var d in a.doors)
+                if (d != null && d.isOpen && d.GetOtherRoom(a) == b) return true;
+        if (a.brokenPassages != null)
+            foreach (var w in a.brokenPassages)
+                if (w != null && w.Broken && w.GetOtherRoom(a) == b) return true;
+        return false;
     }
 
     // 옆방(열린 문/부서진 벽 너머)에 쫓을 대상이 있으면, 그 '대상이 있는 방'으로 가는 통로로 이주.
@@ -166,7 +210,7 @@ public class RoomMigration : MonoBehaviour
                 if (o == null || avoid || !chase) continue;
                 candidates++;
                 Transform t = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
-                float dist = Vector3.Distance(myPos, t.position);
+                float dist = MigrationDistance(myPos, t.position);
                 if (dist < bestDist) { bestDist = dist; bestPoint = t.position; bestRoom = o; }
             }
 
@@ -177,13 +221,13 @@ public class RoomMigration : MonoBehaviour
                 Room o = w.GetOtherRoom(room);
                 if (o == null || ShouldAvoidRoom(o) || !HasChaseIn(o)) continue;
                 candidates++;
-                float dist = Vector3.Distance(myPos, w.Position);
+                float dist = MigrationDistance(myPos, w.Position);
                 if (dist < bestDist) { bestDist = dist; bestPoint = w.Position; bestRoom = o; }
             }
 
         if (bestRoom == null)
         {
-            Dbg($"방={room.roomID} 열린문={openDoors} 대상있는통로={candidates} → 이주대상 없음");
+            isMigrating = false;   // 갈 통로 없음 → bounds 무시 해제
             return false;
         }
 
@@ -265,11 +309,16 @@ public class RoomMigration : MonoBehaviour
         if (room.doors != null)
             foreach (var d in room.doors)
             {
-                if (d == null || !d.isOpen) continue;
+                if (d == null) continue;
+                if (!d.isOpen) { Dbg($"[Passage] 문 {d.name}: 닫힘"); continue; }
                 Room o = d.GetOtherRoom(room);
-                if (!PassOK(o, avoidBacktrack)) continue;
+                if (!PassOK(o, avoidBacktrack))
+                {
+                    Dbg($"[Passage] 문 {d.name}→{(o != null ? o.roomID : "null")}: 제외 (avoid={o != null && ShouldAvoidRoom(o)}, backtrack={avoidBacktrack && o == _prevRoom}, crowded={avoidBacktrack && IsCrowded(o)})");
+                    continue;
+                }
                 Transform t = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
-                float dist = Vector3.Distance(myPos, t.position);
+                float dist = MigrationDistance(myPos, t.position);
                 if (dist < bestDist) { bestDist = dist; point = t.position; other = o; }
             }
 
@@ -279,8 +328,12 @@ public class RoomMigration : MonoBehaviour
             {
                 if (w == null || !w.Broken) continue;
                 Room o = w.GetOtherRoom(room);
-                if (!PassOK(o, avoidBacktrack)) continue;
-                float dist = Vector3.Distance(myPos, w.Position);
+                if (!PassOK(o, avoidBacktrack))
+                {
+                    Dbg($"[Passage] 틈 {w.name}→{(o != null ? o.roomID : "null")}: 제외 (avoid={o != null && ShouldAvoidRoom(o)}, backtrack={avoidBacktrack && o == _prevRoom}, crowded={avoidBacktrack && IsCrowded(o)})");
+                    continue;
+                }
+                float dist = MigrationDistance(myPos, w.Position);
                 if (dist < bestDist) { bestDist = dist; point = w.Position; other = o; }
             }
 

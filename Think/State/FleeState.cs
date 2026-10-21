@@ -20,19 +20,20 @@ class FleeState : ThinkState
     {
         detected = think.scanner.Results;
 
-        // 도망 중 다른 방으로 탈출 시도
-        var mig = think.migration;
-        if (mig != null && think.self.canMigrate && mig.TickMigration())
-        {
-            //mig의 point로 proxy 이동시킴
-            newTarget.point = mig.migrateTargetPoint;
-            return;
-        }
-
         //현재 가장 도망쳐야하는 타겟 받아옴 
         Creature temp = BestFleeTarget(detected);
+        // 스캐너 갱신 사이에 잠긴 대상이 잠시 Results에서 빠져도 기존 대상을 유지.
+        if (temp == null && think.isLocked && think.IsValidTarget(newTarget.creature)
+            && !Think2.IsCreatureDormant(newTarget.creature)
+            && think.self.HasAction(newTarget.creature.data.creatureID, InteractionAction.Flee))
+        {
+            temp = newTarget.creature;
+        }
         if (temp == null)
         {
+            // Flee intent인데 대상이 사라진 상태를 남기지 않음.
+            newTarget.creature = null;
+            fleeTarget = null;
             think.LockState(false);
             return;
         }
@@ -59,6 +60,15 @@ class FleeState : ThinkState
 
         float d = Vector3.Distance(think.self.rootTransform.position, ft.rootTransform.position);
         needToFlee = d < runThreshold;
+
+        // 먼저 flee 대상을 확정한 뒤 탈출 목표를 덮어쓴다.
+        // 이주 중에도 HUD의 도망 대상(currentTarget.creature)은 유지되어야 한다.
+        var mig = think.migration;
+        if (mig != null && think.self.canMigrate && mig.TickMigration())
+        {
+            newTarget.point = mig.migrateTargetPoint;
+            return;
+        }
 
         newTarget.point = GetNewPoint(points);
     }

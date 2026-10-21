@@ -26,6 +26,8 @@ public class Lcreature : Creature
     [Tooltip("같은 방에 AA가 있으면 인접(AA 없는) 방으로 도망")]
     public bool fleeFromAA = true;
     public float fleeCheckInterval = 0.4f;
+    [Tooltip("도망 이동 진단 로그(0.5초 간격)")]
+    public bool debugFlee = false;
     [Tooltip("같은 방에 AA가 있으면 생산도 멈춤")]
     public bool stopProduceWhenAA = true;
 
@@ -82,55 +84,43 @@ public class Lcreature : Creature
     // 같은 방에 AA가 있는지 (있으면 도망 + 생산 정지)
     private bool AAInRoom() => currentRoom != null && currentRoom.HasSpecies(CreatureID.AA);
 
-    // 같은 방에 AA가 있으면 인접(AA 없는) 방으로 이동 목표를 잡음
+    // LL 자체 이동은 Think/FleeState가 담당한다. 별도 exit Transform을
+    // movementTarget에 넣으면 방 중앙/벽 쪽으로 향하거나 방 이동 후에도
+    // proxy 대신 낡은 목표를 따라가는 문제가 생긴다.
     private IEnumerator FleeAALoop()
     {
-        var tc = GetComponent<TargetControl>();
+        var think = GetComponent<Think2>();
         var wait = new WaitForSeconds(fleeCheckInterval);
+        bool wasFleeing = false;
         while (!IsDead)
         {
-            // 플레이어가 조종 중이면 도망 로직이 이동을 덮어쓰지 않음
-            if (!IsControlled && tc != null && currentRoom != null)
+            if (currentRoom != null)
             {
-                bool aaHere = currentRoom.HasSpecies(CreatureID.AA);
-                Transform t = aaHere ? PickExitTargetAwayFromAA() : null;
-                if (aaHere && t != null) tc.SetMovementTarget(t);
+                bool aaPresent = currentRoom.HasSpecies(CreatureID.AA);
+                bool fleeing = !IsControlled && intent == CreatureIntent.Flee;
+                if (debugFlee)
+                {
+                    Vector3 selfP = rootTransform != null ? rootTransform.position : transform.position;
+                    float moved = (selfP - _dbgLastPos).magnitude;
+                    _dbgLastPos = selfP;
+                    Vector3 proxyP = think != null && think.ProxyTarget != null ? think.ProxyTarget.position : Vector3.zero;
+                    float proxyMoved = (proxyP - _dbgLastProxy).magnitude;
+                    _dbgLastProxy = proxyP;
+                    var mt = GetComponent<TargetControl>()?.movementTarget;
+                    string mtName = mt != null ? mt.name : "null";
+                    Debug.Log($"[LLflee] intent={intent} room={currentRoom.roomID} AA={aaPresent} fleeing={fleeing} " +
+                              $"movementTarget={mtName} proxyTarget={(think != null ? think.ProxyTarget?.name : "null")} " +
+                              $"self이동={moved:0.00} proxy이동={proxyMoved:0.00} dist(self→target)={(mt != null ? Vector3.Distance(selfP, mt.position) : -1):0.0}", this);
+                }
+                if (wasFleeing != fleeing)
+                    Debug.Log($"[LLflee] {name}: fleeing {wasFleeing}→{fleeing}, room={currentRoom.roomID}, AA={aaPresent}", this);
+                wasFleeing = fleeing;
             }
             yield return wait;
         }
     }
 
-    // AA 없는 인접 방 우선, 없으면 아무 통로 너머 방으로.
-    // 통로 = 열린 문 + 뚫린 벽(brokenPassages). 닫힌 문·안 뚫린 벽은 못 감.
-    private Transform PickExitTargetAwayFromAA()
-    {
-        if (currentRoom == null) return null;
-
-        Room best = null, fallback = null;
-
-        if (currentRoom.doors != null)
-            foreach (var d in currentRoom.doors)
-            {
-                if (d == null || !d.isOpen) continue;   // 닫힌 문으로는 못 감
-                Room other = d.GetOtherRoom(currentRoom);
-                if (other == null) continue;
-                fallback = other;
-                if (!other.HasSpecies(CreatureID.AA)) { best = other; break; }
-            }
-
-        if (best == null && currentRoom.brokenPassages != null)
-            foreach (var w in currentRoom.brokenPassages)
-            {
-                if (w == null || !w.Broken) continue;   // 뚫린 벽만
-                Room other = w.GetOtherRoom(currentRoom);
-                if (other == null) continue;
-                fallback = other;
-                if (!other.HasSpecies(CreatureID.AA)) { best = other; break; }
-            }
-
-        Room target = best != null ? best : fallback;
-        return target != null ? target.transform : null;
-    }
+    private Vector3 _dbgLastPos, _dbgLastProxy;
 
     private IEnumerator Lbehaviour()
     {

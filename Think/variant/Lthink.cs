@@ -22,15 +22,15 @@ public class Lthink : TentacleThink
     {
         //스캐너 동작안하면 false
         if (detected == null) return false;
-        // 도망으로 lock되어있으면 도망
-        if (self.intent == CreatureIntent.Flee && isLocked) return true;
-
-        //스캐너 안에 생물 중에 flee가 있는지 확인
-        for (int i = 0; i < detected.Count; i++)
+        // 도망 대상으로 lock되어 있어도 대상이 유효하고 같은 방에 있을 때만 유지.
+        // 대상이 사라졌거나 방을 벗어났는데 lock만으로 Flee가 유지되는 것을 막음.
+        Creature lockedTarget = currentTarget.creature;
+        if (self.intent == CreatureIntent.Flee && isLocked && IsValidTarget(lockedTarget)
+            && lockedTarget.currentRoom == self.currentRoom
+            && !IsCreatureDormant(lockedTarget)
+            && self.HasAction(lockedTarget.data.creatureID, InteractionAction.Flee))
         {
-            var t = detected[i];
-            if (t == null || t.data == null) continue;
-            bool flee = self.HasAction(t.data.creatureID, InteractionAction.Flee);
+            return true;
         }
 
         for (int i = 0; i < detected.Count; i++)

@@ -67,7 +67,6 @@ public class Popup : MonoBehaviour
         {
             if (r != null)
             {
-                r.OnCreatureDecomposed += OnDecomposed;
                 r.OnCreatureSynthesized += OnSynthesized;
             }
         }
@@ -83,13 +82,11 @@ public class Popup : MonoBehaviour
         foreach (var r in RoomManager.Instance.rooms.Values)
         {
             if (r == null) continue;
-            r.OnCreatureDecomposed -= OnDecomposed;
             r.OnCreatureSynthesized -= OnSynthesized;
         }
     }
 
     // 문구는 '누가 했는지(by)'가 아니라 '무슨 이벤트인지'로 정함 (합성 주체가 L/AA/A 등 다양하므로)
-    private void OnDecomposed(Creature target, CreatureID by) => Burst(target, "decomposed");
     private void OnSynthesized(Creature target, CreatureID by) => Burst(target, "synthesized");
 
     // 고정 문구 1종을 burstCount개 뿌림
