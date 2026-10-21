@@ -81,6 +81,8 @@ public class Door : MonoBehaviour
     public bool isOpen = false;
     [Tooltip("항상 열린 통로. 조건·다른 문과 무관하게 계속 열려 있음 (isOpen 런타임 상태와 별개)")]
     public bool alwaysOpen = false;
+    [Tooltip("처음 열린 뒤 조건이 바뀌어도 계속 열린 상태 유지")]
+    public bool stayOpenAfterFirstOpen = false;
     private Vector3 originalRightPos;
     private Vector3 originalLeftPos;
     private Coroutine moveCo;
@@ -311,6 +313,10 @@ public class Door : MonoBehaviour
 
     public void DoorCloseAndOpen(bool open)
     {
+        // 이 옵션이 켜진 문은 처음 열리는 순간부터 조건 재평가로 닫히지 않게 한다.
+        if (open && stayOpenAfterFirstOpen)
+            alwaysOpen = true;
+
         bool changed = isOpen != open;
         isOpen = open;
         // 열리면 트리거로(플레이어 통과), 닫히면 솔리드로(막음). 콜라이더 자체는 항상 켜둠.
@@ -326,6 +332,20 @@ public class Door : MonoBehaviour
 
         // 열린 문 구성이 실제로 바뀌었으면 종별 카운트 갱신 알림
         if (changed && DoorManager.Existing != null) DoorManager.Existing.NotifyDoorChanged();
+    }
+
+    public void SetAlwaysOpen()
+    {
+        alwaysOpen = true;
+        stayOpenAfterFirstOpen = false;
+
+        if (!isOpen)
+            DoorCloseAndOpen(true);
+        else
+        {
+            if (playerBlockCollider != null) playerBlockCollider.isTrigger = true;
+            if (light != null) light.SetActive(false);
+        }
     }
 
     private IEnumerator MoveDoor(bool open)

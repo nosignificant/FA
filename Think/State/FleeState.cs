@@ -24,6 +24,7 @@ class FleeState : ThinkState
         Creature temp = BestFleeTarget(detected);
         // 스캐너 갱신 사이에 잠긴 대상이 잠시 Results에서 빠져도 기존 대상을 유지.
         if (temp == null && think.isLocked && think.IsValidTarget(newTarget.creature)
+            && think.IsFleeTargetInScope(newTarget.creature)
             && !Think2.IsCreatureDormant(newTarget.creature)
             && think.self.HasAction(newTarget.creature.data.creatureID, InteractionAction.Flee))
         {
@@ -33,6 +34,7 @@ class FleeState : ThinkState
         {
             // Flee intent인데 대상이 사라진 상태를 남기지 않음.
             newTarget.creature = null;
+            newTarget.point = GetSelfPos();
             fleeTarget = null;
             think.LockState(false);
             return;
@@ -86,6 +88,7 @@ class FleeState : ThinkState
         {
             var t = detected[i];
             if (!think.IsValidTarget(t)) continue;
+            if (!think.IsFleeTargetInScope(t)) continue;
             if (Think2.IsCreatureDormant(t)) continue;   // 휴면 대상으로부턴 안 도망
             if (!self.HasAction(t.data.creatureID, InteractionAction.Flee)) continue;
 
@@ -112,6 +115,7 @@ class FleeState : ThinkState
         {
             var t = detected[i];
             if (t == null || t.data == null) continue;
+            if (!think.IsFleeTargetInScope(t)) continue;
             if (Think2.IsCreatureDormant(t)) continue;   // 휴면 대상은 밀어내는 힘에서 제외
 
             Transform tf = t.rootTransform;

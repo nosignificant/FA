@@ -36,8 +36,12 @@ public class SBreaker : MonoBehaviour
         while (self != null && !self.IsDead)
         {
             var room = self.currentRoom;
-            if (!_activated && room != null && AwakeInRoom(room)) _activated = true;   // 한번 켜지면 영구 유지
-            bool awake = _activated;
+            if (!_activated && room != null && AwakeInRoom(room))
+            {
+                _activated = true;   // 한번 켜지면 영구 유지
+            }
+            // 최초 각성은 유지하되, 생물 데이터에 지정된 방 상태(A 등)가 아니면 다시 휴면한다.
+            bool awake = _activated && room != null && AwakeInRoom(room);
 
             if (!awake)
             {
@@ -52,7 +56,7 @@ public class SBreaker : MonoBehaviour
                 }
                 else if (w.DistanceFrom(SelfPos()) <= breakRange)
                 {
-                    SetMode(Mode.Frozen);      // 닿음 → 제자리서 타격
+                    SetMode(Mode.Breaking);    // 닿음 → 활성 상태로 제자리서 타격
                     if (Time.time >= nextHitTime)
                     {
                         w.Hit();
@@ -70,7 +74,7 @@ public class SBreaker : MonoBehaviour
         }
     }
 
-    private enum Mode { Frozen, GotoWall, Wander }
+    private enum Mode { Frozen, GotoWall, Breaking, Wander }
     private Mode _mode = (Mode)(-1);
     private bool _activated;   // 한번 각성하면 영구 유지
 
@@ -82,17 +86,27 @@ public class SBreaker : MonoBehaviour
         return true;
     }
 
-    // Frozen: dormant(제자리 정지) / GotoWall: manualControl(Think 손 뗌, 벽으로 직진) / Wander: Think가 EQS로 몲
+    // Frozen: dormant 정지 / GotoWall: 벽으로 직진 / Breaking: 활성 상태로 제자리 타격 / Wander: Think가 EQS로 몲
     private void SetMode(Mode m)
     {
-        if (m == _mode) { if (m == Mode.Frozen) FollowProxy(); return; }
+        if (m == _mode) return;
         _mode = m;
         if (think != null)
         {
             think.dormant       = (m == Mode.Frozen);
-            think.manualControl = (m == Mode.GotoWall);
+            think.manualControl = (m == Mode.GotoWall || m == Mode.Breaking);
         }
-        if (m == Mode.Frozen) FollowProxy();   // 얼린 proxy(=자기 위치)를 따라 → 정지
+
+        if (m == Mode.Breaking && think != null)
+        {
+            // Think는 잠시 양보하되 dormant로 만들지 않고, 현재 위치를 목표로 고정한다.
+            think.MoveProxy(SelfPos());
+            if (tc != null) tc.SetMovementTarget(think.ProxyTarget);
+        }
+        else if (m != Mode.GotoWall)
+        {
+            FollowProxy(); // Frozen은 정지, Wander는 EQS proxy 복귀
+        }
     }
 
     private void FollowProxy()

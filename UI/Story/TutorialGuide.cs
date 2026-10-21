@@ -21,11 +21,13 @@ public class TutorialGuide : MonoBehaviour
     [Header("튜토리얼 문")]
     public Door tut0Door;
     public Door lv1_S1E1Door;
+    public Door lv2_p0Door;
+
 
     [Header("p53")]
     [Tooltip("대사 팝업/락온 대상 p53 생물. 비우면 자동으로 P53Think를 찾음")]
     public Creature p53;
-    // 대사 팝업 색·속도는 Popup 컴포넌트(storyColor/storySpeed)에서 설정
+
     [Header("p53 안내 위치")]
     [Tooltip("tut0_2: R 쪽으로 p53가 안내할 위치")]
     public Transform tf_R;
@@ -66,6 +68,14 @@ public class TutorialGuide : MonoBehaviour
         if (slidePanel == null) slidePanel = tutorialUI.GetComponent<UISlidePanel>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.GetComponent<CanvasGroup>();
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.AddComponent<CanvasGroup>();
+
+        // Level 2 p_0 통로는 한 번 열린 뒤 방 상태가 바뀌어도 계속 열린다.
+        if (SceneManager.GetActiveScene().name == "level2" && lv2_p0Door != null)
+        {
+            lv2_p0Door.stayOpenAfterFirstOpen = true;
+            if (lv2_p0Door.isOpen)
+                lv2_p0Door.SetAlwaysOpen();
+        }
 
         // 방 진입(Update)으로 동작. 예외: 플레이어가 '처음으로' 단계를 올릴 때만 빙의 설명 1회.
         if (Player.Instance != null) Player.Instance.OnStageChanged += OnFirstStageAdvanced;
@@ -246,9 +256,8 @@ public class TutorialGuide : MonoBehaviour
     IEnumerator lv2_0(Room room)
     {
         keepAcrossRooms = true;
-        yield return SayLine("이야기를 조금 더 해드릴까요?");
-        yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술으로 인해 인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.", 8f);
-        yield return SayLine("새로운 정의에 따라 다양한 학문과 개념이 개편되었으나, 계속되는 인류 문명의 쇠퇴는 막을 수 없었습니다.", 8f);
+        yield return SayLine("벽을 파괴하거나 수복하는 생물이 있는데, 그게 발신기까지 도달하는 게 도움이 될지도 모릅니다.");
+        yield return SayLine($"{Pim.lockOnKey}으로 생물의 정보를 파악하며 나아가주시길 바랍니다.");
         doneRooms.Add(room.roomID);
 
     }
@@ -256,23 +265,25 @@ public class TutorialGuide : MonoBehaviour
     IEnumerator lv2_S1(Room room)
     {
         keepAcrossRooms = true;
-        yield return SayLine("아까와 마찬가지로 발신기를 찾으면, 이곳의 연결도 회복되겠습니다.");
-        yield return SayLine("맞은 편에 있군요.");
+        yield return SayLine("맞은 편에 발신기가 있군요.");
         keepAcrossRooms = false;
 
     }
-
     IEnumerator lv2_E1(Room room)
     {
         keepAcrossRooms = true;
-
-        yield return SayLine("저의 내부에 벽을 수리하거나 잘못 생성된 벽을 파괴하는 생물이 있었는데, 아직도 작동을 하는지 모르겠군요.");
-
-
+        yield return SayLine("S 생물");
         keepAcrossRooms = false;
 
     }
+    IEnumerator Lv2afterIntro()
+    {
+        keepAcrossRooms = true;
+        yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술으로 인해 인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.", 8f);
+        yield return SayLine("새로운 정의에 따라 다양한 학문과 개념이 개편되었으나, 계속되는 인류 문명의 쇠퇴는 막을 수 없었습니다.", 8f);
+        keepAcrossRooms = false;
 
+    }
     private IEnumerator PlaySceneIntro()
     {
         if (introStartDelay > 0f) yield return new WaitForSeconds(introStartDelay);
@@ -292,10 +303,7 @@ public class TutorialGuide : MonoBehaviour
     }
 
 
-    IEnumerator Lv2afterIntro()
-    {
-        yield return SayLine("학문과 국가 그리고 인류는 생물으로 정의되고 거시생물학 또한 재정의되었습니다.");
-    }
+
 
     IEnumerator Level3Intro()
     {

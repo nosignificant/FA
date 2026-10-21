@@ -203,14 +203,15 @@ public class BreakableWall : MonoBehaviour
         BreakOpposite();   // 반대편(연결된 방) 같은 위치 벽도 부숨
     }
 
-    // 같은 위치의 반대편 벽 하나를 찾아 같이 부숨 (Broken 가드로 재귀 정지)
+    // 같은 방 경계를 이루는 같은 방향의 반대편 벽만 같이 부숨 (Broken 가드로 재귀 정지)
     private void BreakOpposite()
     {
         var opp = FindOpposite();
         if (opp != null && !opp.Broken) opp.Break();
     }
 
-    // oppositeBreakRange 안의 가장 가까운 다른 BreakableWall (반대편 방 같은 위치 벽)
+    // 반대편 방과 연결되고 벽 방향도 같은 후보 중 가장 가까운 것만 선택한다.
+    // 단순 거리만 보면 모서리에서 직각으로 만난 다른 방의 벽까지 연쇄 파괴될 수 있다.
     private BreakableWall FindOpposite()
     {
         var hits = Physics.OverlapSphere(transform.position, oppositeBreakRange);
@@ -219,11 +220,23 @@ public class BreakableWall : MonoBehaviour
         foreach (var h in hits)
         {
             var bw = h.GetComponentInParent<BreakableWall>();
-            if (bw == null || bw == this) continue;
+            if (bw == null || bw == this || bw.Broken || !bw.breakable) continue;
+            if (!ConnectsSameRooms(bw)) continue;
+            if (Mathf.Abs(Vector3.Dot(transform.forward, bw.transform.forward)) < 0.9f) continue;
+
             float d = Vector3.Distance(transform.position, bw.transform.position);
             if (d < bd) { bd = d; best = bw; }
         }
         return best;
+    }
+
+    private bool ConnectsSameRooms(BreakableWall other)
+    {
+        if (roomA == null || roomB == null || other.roomA == null || other.roomB == null)
+            return false;
+
+        return (other.roomA == roomA && other.roomB == roomB)
+            || (other.roomA == roomB && other.roomB == roomA);
     }
 
     // 반대편이 호출: 벽 메쉬만 숨김/보임 (부술 수 있음·콜라이더는 유지)

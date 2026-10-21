@@ -284,6 +284,9 @@ public class Think2 : MonoBehaviour
         return true;
     }
 
+    // 종별로 flee 대상이 유효한 공간 범위를 제한할 수 있다.
+    public virtual bool IsFleeTargetInScope(Creature target) => true;
+
     //state//
     protected virtual ThinkState GetThinkState(CreatureIntent intent)
     {

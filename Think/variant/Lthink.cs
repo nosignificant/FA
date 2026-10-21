@@ -6,6 +6,12 @@ using System.Linq;
 
 public class Lthink : TentacleThink
 {
+    public override bool IsFleeTargetInScope(Creature target)
+    {
+        return target != null && self != null && self.currentRoom != null
+            && target.currentRoom == self.currentRoom;
+    }
+
     protected override CreatureIntent DetermineIntent()
     {
         if (DoesNeedToFlee()) return CreatureIntent.Flee;
@@ -26,7 +32,7 @@ public class Lthink : TentacleThink
         // 대상이 사라졌거나 방을 벗어났는데 lock만으로 Flee가 유지되는 것을 막음.
         Creature lockedTarget = currentTarget.creature;
         if (self.intent == CreatureIntent.Flee && isLocked && IsValidTarget(lockedTarget)
-            && lockedTarget.currentRoom == self.currentRoom
+            && IsFleeTargetInScope(lockedTarget)
             && !IsCreatureDormant(lockedTarget)
             && self.HasAction(lockedTarget.data.creatureID, InteractionAction.Flee))
         {
@@ -37,7 +43,7 @@ public class Lthink : TentacleThink
         {
             var t = detected[i];
             if (!IsValidTarget(t)) continue;
-            if (t.currentRoom != self.currentRoom) continue;   // 다른 방 생물엔 도망 안 감
+            if (!IsFleeTargetInScope(t)) continue;   // 다른 방 생물엔 도망 안 감
             if (self.HasAction(t.data.creatureID, InteractionAction.Flee)) return true;
         }
         return false;
