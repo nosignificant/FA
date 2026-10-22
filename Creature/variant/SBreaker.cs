@@ -41,7 +41,7 @@ public class SBreaker : MonoBehaviour
                 _activated = true;   // 한번 켜지면 영구 유지
             }
             // 최초 각성은 유지하되, 생물 데이터에 지정된 방 상태(A 등)가 아니면 다시 휴면한다.
-            bool awake = _activated && room != null && AwakeInRoom(room);
+            bool awake = IsCurrentlyAwake(room);
 
             if (!awake)
             {
@@ -86,16 +86,30 @@ public class SBreaker : MonoBehaviour
         return true;
     }
 
+    private bool IsCurrentlyAwake(Room room) => _activated && room != null && AwakeInRoom(room);
+
     // Frozen: dormant 정지 / GotoWall: 벽으로 직진 / Breaking: 활성 상태로 제자리 타격 / Wander: Think가 EQS로 몲
     private void SetMode(Mode m)
     {
-        if (m == _mode) return;
+        bool changed = m != _mode;
         _mode = m;
         if (think != null)
         {
             think.dormant       = (m == Mode.Frozen);
             think.manualControl = (m == Mode.GotoWall || m == Mode.Breaking);
         }
+
+        if (m == Mode.Frozen)
+        {
+            // 이전에 조준하던 벽 목표를 즉시 취소한다. Think의 다음 업데이트를 기다리면
+            // 휴면 전 목표를 잠깐 더 따라가거나 proxy가 낡은 위치에 남을 수 있다.
+            if (think != null) think.MoveProxy(SelfPos());
+            if (tc != null && think != null && tc.movementTarget != think.ProxyTarget)
+                tc.SetMovementTarget(think.ProxyTarget);
+            return;
+        }
+
+        if (!changed) return;
 
         if (m == Mode.Breaking && think != null)
         {
@@ -136,7 +150,9 @@ public class SBreaker : MonoBehaviour
     public string HudStatus()
     {
         var room = self.currentRoom;
-        if (!_activated && (room == null || !AwakeInRoom(room))) return "dormant";
+        // Loop와 동일한 게이트를 매번 확인한다. 한 번 각성했어도 방 상태가 바뀌면
+        // HUD에서 wander/벽 목표를 표시하지 않고 바로 dormant로 보인다.
+        if (!IsCurrentlyAwake(room)) return "dormant";
         BreakableWall w = NearestBreakableInRoom();
         if (w == null) return "wander";
         return w.DistanceFrom(SelfPos()) <= breakRange ? "breaking" : "goto";

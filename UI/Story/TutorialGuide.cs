@@ -23,6 +23,7 @@ public class TutorialGuide : MonoBehaviour
     public Door lv1_S1E1Door;
     public Door lv2_p0Door;
 
+    public Door lv1ClearDoor;
 
     [Header("p53")]
     [Tooltip("대사 팝업/락온 대상 p53 생물. 비우면 자동으로 P53Think를 찾음")]
@@ -197,9 +198,9 @@ public class TutorialGuide : MonoBehaviour
         FindObjectOfType<P53Think>()?.SetGuide(tf_R);
         while (Pl.targetCreature == null || Pl.targetCreature.data.creatureID != CreatureID.R) yield return null;
         FindObjectOfType<P53Think>()?.ClearGuide();
-        ShowPanelText($"해당 생물을 바라본 상태로 {Pim.possessKey}를 누르면 이곳의 신호를 전달할 수 있을 겁니다.");
+        ShowPanelText($"해당 생물을 바라본 상태로 {Pim.possessKey}를 누르면 이 방의 현재 상태를 레벨 전체에 전달할 수 있을 겁니다.");
 
-        // R이 F로 확정(신호 전달)될 때까지 대기
+        // 플레이어가 R에서 신호 전파를 한 번 실행할 때까지 대기
         while (!ReceiverConfirmedInRoom(room)) yield return null;
 
         yield return SayLine("감사합니다.");
@@ -243,8 +244,21 @@ public class TutorialGuide : MonoBehaviour
         doneRooms.Add(room.roomID);
 
     }
+    IEnumerator lv1_S1(Room room)
+    {
+        keepAcrossRooms = true;
 
-    IEnumerator Lv1afterIntro()
+        yield return SayLine("문이 열렸군요!");
+        yield return SayLine("L이나 A생물만 통과할 수 있는 통로로 이동했나 봅니다.");
+        if (!ReceiverConfirmedInRoom(room)) yield return SayLine("발신기를 작동시켜 주십시오.");
+
+        keepAcrossRooms = false;
+
+        doneRooms.Add(room.roomID);
+
+    }
+
+    IEnumerator Lv1AfterIntro()
     {
         yield return SayLine("방금 수복한 영역에서 잃어버린 메모리를 되찾았습니다.");
         yield return SayLine("저는 인류의 선을 증진시키기 위해 건설되어, 이를 연산하고 있었습니다...");
@@ -276,13 +290,37 @@ public class TutorialGuide : MonoBehaviour
         keepAcrossRooms = false;
 
     }
-    IEnumerator Lv2afterIntro()
+    IEnumerator Lv2AfterIntro()
     {
         keepAcrossRooms = true;
         yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술으로 인해 인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.", 8f);
         yield return SayLine("새로운 정의에 따라 다양한 학문과 개념이 개편되었으나, 계속되는 인류 문명의 쇠퇴는 막을 수 없었습니다.", 8f);
         keepAcrossRooms = false;
+    }
 
+    IEnumerator Level3Intro()
+    {
+        yield return SayLine("생물은 출생의 순간에 가장 큰 잠재력과 에너지를 갖고 이후는 해당 에너지의 소모만을 보이는 특징을 갖고 있었습니다.");
+        if (ChoiceProgress.AllChose(CreatureID.A, 2))
+        {
+            yield return SayLine("국가는 반드시 쇠퇴하며 언어도 마찬가지로 살아가다 죽었으며 인류도 탄생의 시기의 생명력은 다시 찾아볼 수 없게 되었습니다.");
+            yield return SayLine("생태계의 순환이라는 명목 하에 이를 반복하고 있지만 거시적인 관점에서는 선형적이었습니다.");
+        }
+        else
+        {
+            yield return SayLine("인류는 이 순환을 깨닫고 있었고 괴로워했으며 몸부림쳤고 탄생 초기의 생기를 되찾고 싶어했습니다.");
+            yield return SayLine("저는 타개책을 알아내겠다는 명목으로 그런 모습을 바라보기만 하며 그들에게 얼마남지 않은 자원을 착취했습니다.");
+        }
+    }
+
+    IEnumerator Lv3AfterIntro()
+    {
+        if (ChoiceProgress.AllChose(CreatureID.A, 2))
+        {
+            yield return SayLine("...");
+        }
+        else
+            yield return SayLine("저는 어떻게 했어야 했을까요?");
     }
     private IEnumerator PlaySceneIntro()
     {
@@ -293,8 +331,9 @@ public class TutorialGuide : MonoBehaviour
 
             case "level1_after":
                 yield return Lv1AfterIntro(); break;
-            case "level2_after": yield return Lv2afterIntro(); break;
-            case "level3_after": yield return Level3Intro(); break;
+            case "level2_after": yield return Lv2AfterIntro(); break;
+            case "level3": yield return Level3Intro(); break;
+            case "level3_after": yield return Lv3AfterIntro(); break;
             case "level4_after": yield return Level4Intro(); break;
             case "ending": yield return EndingIntro(); break;
         }
@@ -303,15 +342,6 @@ public class TutorialGuide : MonoBehaviour
     }
 
 
-
-
-    IEnumerator Level3Intro()
-    {
-        yield return SayLine("학문과 국가 그리고 인류는 생물으로 정의되고 거시생물학 또한 재정의되었습니다.");
-        yield return SayLine("이렇게 정의된 생물은 출생기와 쇠퇴기에 공유하는 특성이 있음이 두드러졌습니다.");
-    }
-
-    // 앞 3레벨 모두 A 선택이면 쇠퇴, 아니면 저항 대사
     IEnumerator Level4Intro()
     {
         yield return SayLine("생물은 출생의 순간에 가장 큰 잠재력과 에너지를 갖고 이후는 해당 에너지의 소모만을 보이는 특징을 갖고 있었습니다.");
@@ -323,15 +353,10 @@ public class TutorialGuide : MonoBehaviour
         else
         {
             yield return SayLine("인류는 이 순환을 깨닫고 있었고 괴로워했으며 몸부림쳤고 탄생 초기의 생기를 되찾고 싶어했습니다.");
-            yield return SayLine("인류는 시들고 말라 앙상해진, 한 손에 들어오는 애처로운 모습으로 호소했습니다.");
+            yield return SayLine("저는 타개책을 알아내겠다는 명목으로 그런 모습을 바라보기만 하며 그들에게 얼마남지 않은 자원을 착취했습니다.");
         }
     }
 
-    // level1_after 인트로 (내용은 채워 넣으세요)
-    IEnumerator Lv1AfterIntro()
-    {
-        yield break;
-    }
 
     // A문 개수(3/2/1/0)로 분기. 앞 4줄 공통.
     IEnumerator EndingIntro()
@@ -520,12 +545,12 @@ public class TutorialGuide : MonoBehaviour
         if (room != null) yield return room.FlickerLightOn();
     }
 
-    // 방 안 R(수신기)이 F로 확정(신호 전달)됐나
+    // 방 안 R에서 플레이어가 신호 전파를 실행했나
     private bool ReceiverConfirmedInRoom(Room room)
     {
         if (room == null || room.creatureList == null) return false;
         for (int i = 0; i < room.creatureList.Count; i++)
-            if (room.creatureList[i] is SignCreature r && r.IsConfirmed) return true;
+            if (room.creatureList[i] is SignCreature r && r.HasPlayerPublishedSignal) return true;
         return false;
     }
 

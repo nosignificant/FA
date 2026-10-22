@@ -46,10 +46,8 @@ public class PlayerLockOn : MonoBehaviour
     }
     public bool TryLock()
     {
-        //플레이어 있는 방에서만 락온
-        Room r = Player.Instance.currentRoom;
-        if (r == null) { Debug.Log("[LockOn] currentRoom null"); return false; }
-
+        // 방 정보가 아직 배정되지 않았더라도 주변 반경 검색으로 락온할 수 있다.
+        Room r = Player.Instance != null ? Player.Instance.currentRoom : null;
         BuildCandidateList(r);
         if (candidates.Count == 0) return false;
 
@@ -68,8 +66,8 @@ public class PlayerLockOn : MonoBehaviour
     {
         if (IsPinned) return false;   // ForceLock으로 고정된 동안엔 대상 변경 불가
 
-        Room r = Player.Instance.currentRoom;
-        if (r != null) BuildCandidateList(r);
+        Room r = Player.Instance != null ? Player.Instance.currentRoom : null;
+        BuildCandidateList(r);
 
         if (candidates.Count == 0) { Unlock(); return false; }
 
@@ -129,16 +127,16 @@ public class PlayerLockOn : MonoBehaviour
     private void BuildCandidateList(Room room)
     {
         candidates.Clear();
-        if (cam == null || room == null) return;
+        if (cam == null) return;
 
         Vector3 playerPos = transform.position;
         List<Creature> lockables = new();
 
         // 현재 방 + 문 생물
-        if (room.creatureList != null)
+        if (room != null && room.creatureList != null)
             lockables.AddRange(room.creatureList);
 
-        if (room.doors != null)
+        if (room != null && room.doors != null)
         {
             foreach (var door in room.doors)
             {
@@ -184,7 +182,7 @@ public class PlayerLockOn : MonoBehaviour
         if (Player.Instance != null && Player.Instance.isTracking && targetCreature != null)
             LookAtTarget();
 
-        if (targetCreature == null) Player.Instance.isTracking = false;
+        if (targetCreature == null && Player.Instance != null) Player.Instance.isTracking = false;
     }
 
     private void LookAtTarget()

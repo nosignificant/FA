@@ -22,6 +22,10 @@ public class BreakableWall : MonoBehaviour
     [Tooltip("breakable=on일 때 비활성화할 일반 벽 오브젝트")]
     public GameObject normalWall;
 
+    [Header("벽 생물 장착점")]
+    [Tooltip("켜면 파괴 후 breakableObject를 비활성화하지 않고 유지합니다. 원래 벽 렌더러/콜라이더만 끄므로 WallFormer를 자식으로 붙일 수 있습니다.")]
+    public bool keepBreakableObjectAsWallFormerMount = false;
+
     [Header("시작 상태")]
     [Tooltip("게임 시작부터 이미 부서진 상태로 둠 (통로로 열려있음)")]
     public bool startBroken = false;
@@ -46,6 +50,8 @@ public class BreakableWall : MonoBehaviour
     public Vector3 Position => transform.position;
 
     private int hits;
+    private Renderer[] originalBreakableRenderers = System.Array.Empty<Renderer>();
+    private Collider[] originalBreakableColliders = System.Array.Empty<Collider>();
 
 #if UNITY_EDITOR
     // 에디터에서 breakable 토글 시 즉시 표시 반영 (breakable 꺼지면 breakableObject active false)
@@ -74,6 +80,18 @@ public class BreakableWall : MonoBehaviour
         if (startBroken) Break();               // 시작부터 부서진 상태 (통로 열림)
     }
 
+    private void Awake()
+    {
+        CacheBreakableObjectParts();
+    }
+
+    private void CacheBreakableObjectParts()
+    {
+        if (breakableObject == null) return;
+        originalBreakableRenderers = breakableObject.GetComponentsInChildren<Renderer>(true);
+        originalBreakableColliders = breakableObject.GetComponentsInChildren<Collider>(true);
+    }
+
     private void OnDestroy()
     {
         if (roomA != null) roomA.OnActivationChanged -= OnRoomActivation;
@@ -89,7 +107,19 @@ public class BreakableWall : MonoBehaviour
     {
         // 부서지면(Broken) breakableObject(조각)만 꺼둠 — tint 갱신 때 다시 켜지는 것 방지.
         // 부모(tintTarget)는 Broken이어도 유지해서 틀/틴트를 남긴다.
-        if (breakableObject != null) breakableObject.SetActive(breakable && !Broken);
+        if (breakableObject != null)
+        {
+            bool retainAsMount = Broken && keepBreakableObjectAsWallFormerMount;
+            breakableObject.SetActive(breakable && (!Broken || retainAsMount));
+            if (retainAsMount)
+            {
+                // Hide only the original wall pieces; children added later (WallFormer) stay visible.
+                foreach (var renderer in originalBreakableRenderers)
+                    if (renderer != null) renderer.enabled = false;
+                foreach (var collider in originalBreakableColliders)
+                    if (collider != null) collider.enabled = false;
+            }
+        }
         if (tintTarget != null) tintTarget.SetActive(breakable);
         if (normalWall != null)
         {
@@ -194,7 +224,18 @@ public class BreakableWall : MonoBehaviour
         foreach (var col in GetComponentsInChildren<Collider>()) col.enabled = false;
 
         // 부술 수 있는 벽 비주얼 오브젝트 비활성화 → 그 자리가 뚫려 통로가 됨
-        if (breakableObject != null) breakableObject.SetActive(false);
+        if (breakableObject != null)
+        {
+            if (keepBreakableObjectAsWallFormerMount)
+            {
+                breakableObject.SetActive(true);
+                foreach (var renderer in originalBreakableRenderers)
+                    if (renderer != null) renderer.enabled = false;
+                foreach (var collider in originalBreakableColliders)
+                    if (collider != null) collider.enabled = false;
+            }
+            else breakableObject.SetActive(false);
+        }
 
         // 벽 메시 숨김
         if (wallMesh != null) wallMesh.SetActive(false);

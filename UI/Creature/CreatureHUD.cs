@@ -119,10 +119,10 @@ public class CreatureHUD : MonoBehaviour
         {
             if (statusText != null) statusText.text = "is following";
         }
-        // 신호 생물(R): 레벨 클리어 담당. 확정 전 "Clear level / as / {방 상태}", 확정 후 "level / is / {확정 상태}"
-        else if (targetCreature is SignCreature rcv)
+        // 신호 생물(R): 현재 방 상태를 전파하는 신호원
+        else if (targetCreature is SignCreature)
         {
-            if (statusText != null) statusText.text = rcv.IsConfirmed ? "is" : "as";
+            if (statusText != null) statusText.text = "broadcast";
         }
         // H (AA 묶기): bind / chase / wander / dormant
         else if (targetCreature.GetComponent<HBinder>() is HBinder hb)
@@ -160,10 +160,10 @@ public class CreatureHUD : MonoBehaviour
                 Door dn = targetCreature.GetComponent<Door>();
                 nameText.text = dn != null ? dn.Operand1Label() : "door";
             }
-            // 신호 생물(R): 확정 전 "Clear level", 확정 후 "level"
-            else if (targetCreature is SignCreature rcvN)
+            // 신호 생물(R)
+            else if (targetCreature is SignCreature)
             {
-                nameText.text = rcvN.IsConfirmed ? "level" : "Clear level";
+                nameText.text = "R";
             }
             else nameText.text = pl.targetCreature.data.creatureName;
         }
@@ -174,11 +174,10 @@ public class CreatureHUD : MonoBehaviour
             {
                 targetText.text = "player";
             }
-            // 신호 생물(R): 확정 전=방 현재 상태, 확정 후=확정된 상태 (None/L/A)
+            // 신호 생물(R): 현재 R이 있는 방의 상태
             else if (targetCreature is SignCreature rcv2)
             {
-                if (rcv2.IsConfirmed) targetText.text = $"{rcv2.ConfirmedState}";
-                else targetText.text = rcv2.currentRoom != null ? $"{rcv2.currentRoom.Activation}" : "-";
+                targetText.text = rcv2.CurrentSignalState.ToString();
             }
             // 문(SignalGate): 비교하는 방/종
             else if (targetCreature.data.creatureID == CreatureID.Door)

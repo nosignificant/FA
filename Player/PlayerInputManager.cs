@@ -47,7 +47,7 @@ public class PlayerInputManager : MonoBehaviour
         if (Mathf.Abs(wheel) > 0.0001f) codex.Scroll(wheel);
     }
 
-    // F: 락온 대상이 수신기(R)면 '레벨 확정(클리어)', 아니면 빙의 토글
+    // F: 락온 대상이 R이면 R이 있는 방의 현재 상태를 레벨 전체에 전파, 아니면 빙의 토글
     private void HandlePossess()
     {
         if (!Input.GetKeyDown(possessKey)) return;
@@ -56,7 +56,7 @@ public class PlayerInputManager : MonoBehaviour
         Creature target = (p != null && p.pl != null) ? p.pl.targetCreature : null;
         if (target is SignCreature rcv)
         {
-            rcv.ConfirmClear();
+            rcv.PublishRoomState();
             return;
         }
 

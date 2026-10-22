@@ -47,6 +47,12 @@ public class QuadLegs : MonoBehaviour
     [Tooltip("바닥 기울기에 몸통을 맞추는 정도 (0=항상 수평)")]
     [Range(0f, 1f)] public float tiltToGround = 0.5f;
 
+    [Header("접지 필터")]
+    [Tooltip("발이 딛을 수 있는 최대 지면 경사. 수직 벽은 지면에서 제외")]
+    [Range(0f, 89f)] public float maxGroundSlope = 45f;
+    [Tooltip("현재 발 높이 기준 허용하는 최대 턱 높이")]
+    [Min(0f)] public float maxStepUpHeight = 0.75f;
+
     public LayerMask ground;
 
     // 내부
@@ -55,6 +61,7 @@ public class QuadLegs : MonoBehaviour
     private bool[] isStepping;
     private Vector3[] plantedPos; // 딛고 있는 발의 월드 위치 (몸 움직여도 고정)
     private Rigidbody rb;
+    private float groundReferenceY;
 
     void Start()
     {
@@ -67,6 +74,7 @@ public class QuadLegs : MonoBehaviour
         isStepping = new bool[n];
         plantedPos = new Vector3[n];
 
+        float initialGroundY = 0f;
         for (int i = 0; i < n; i++)
         {
             Vector3 offset = tipTargets[i].position - body.position;
@@ -76,7 +84,10 @@ public class QuadLegs : MonoBehaviour
                 new Vector2(offset.x, offset.z),
                 new Vector2(body.forward.x, body.forward.z));
             plantedPos[i] = tipTargets[i].position;   // 초기 착지 위치
+            initialGroundY += tipTargets[i].position.y;
         }
+
+        groundReferenceY = n > 0 ? initialGroundY / n : body.position.y - bodyHeight;
     }
 
     void Update()
@@ -127,7 +138,7 @@ public class QuadLegs : MonoBehaviour
     private Vector3 StancePos(int i)
     {
         Vector3 p = body.position + HomeDir(i) * legRadius[i];
-        return FootUtil.SetTargetNearest(p, ground);
+        return TryFindWalkableGround(p, out Vector3 floorPoint) ? floorPoint : tipTargets[i].position;
     }
 
     // 착지 목표를 홈 방향 부채꼴(각도·반경) 안으로 제한 → 다리 안 꼬임
@@ -142,7 +153,36 @@ public class QuadLegs : MonoBehaviour
 
         Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * home;
         Vector3 p = body.position + dir * radius;
-        return FootUtil.SetTargetNearest(p, ground);
+        return TryFindWalkableGround(p, out Vector3 floorPoint) ? floorPoint : tipTargets[i].position;
+    }
+
+    // Ground 레이어 안에서도 수직 벽은 발판으로 취급하지 않는다.
+    // 아래 방향 레이캐스트와 표면 노멀을 검사하고, 현재 지면보다 지나치게 높은 면은 제외한다.
+    private bool TryFindWalkableGround(Vector3 target, out Vector3 floorPoint)
+    {
+        float rayStartY = Mathf.Max(target.y, body.position.y) + 1000f;
+        Vector3 origin = new Vector3(target.x, rayStartY, target.z);
+        RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 2000f, ground, QueryTriggerInteraction.Ignore);
+
+        float minUpDot = Mathf.Cos(maxGroundSlope * Mathf.Deg2Rad);
+        float highestY = float.NegativeInfinity;
+        floorPoint = target;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (Vector3.Dot(hit.normal, Vector3.up) < minUpDot) continue;
+            if (hit.point.y > groundReferenceY + maxStepUpHeight) continue;
+
+            // 여러 바닥이 겹치면 기준 높이 이하의 가장 높은 걸을 수 있는 면을 선택한다.
+            if (hit.point.y > highestY)
+            {
+                highestY = hit.point.y;
+                floorPoint = hit.point;
+            }
+        }
+
+        return !float.IsNegativeInfinity(highestY);
     }
 
     private void TryStepLegs(Vector3 moveDir)
@@ -160,7 +200,8 @@ public class QuadLegs : MonoBehaviour
             if (isStepping[i]) continue;
 
             Vector3 stance = StancePos(i);
-            float drift = Horizontal(tipTargets[i].position - stance);
+            // Y도 비교해야 스폰 직후 공중에 뜬 발이 수직으로 바닥까지 내려온다.
+            float drift = Vector3.Distance(tipTargets[i].position, stance);
             if (drift <= bestDrift) continue;
             if (NeighborStepping(i)) continue;   // 인접 다리가 들고 있으면 이 발은 대기 (지지 유지)
 
@@ -204,6 +245,7 @@ public class QuadLegs : MonoBehaviour
         }
         tipTargets[i].position = target;
         plantedPos[i] = target;      // 착지 위치 저장 → 이후 고정
+        groundReferenceY = Mathf.Lerp(groundReferenceY, target.y, 0.25f);
         isStepping[i] = false;
     }
 
@@ -211,16 +253,25 @@ public class QuadLegs : MonoBehaviour
     {
         if (tipTargets.Length == 0) return;
 
-        // 발 평균 위치 + 노멀
+        // 공중으로 드는 중인 발은 몸 높이 계산에서 제외해 발 스윙이 몸통을 들어올리지 않게 한다.
         Vector3 avg = Vector3.zero;
         Vector3 up = Vector3.zero;
+        int supportCount = 0;
         for (int i = 0; i < tipTargets.Length; i++)
         {
+            if (isStepping[i]) continue;
             avg += tipTargets[i].position;
+            supportCount++;
             if (Physics.Raycast(tipTargets[i].position + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 5f, ground))
                 up += hit.normal;
         }
-        avg /= tipTargets.Length;
+        if (supportCount == 0)
+        {
+            // 예외적으로 지지 발이 없으면 현재 발 위치로 유지한다.
+            for (int i = 0; i < tipTargets.Length; i++) avg += tipTargets[i].position;
+            supportCount = tipTargets.Length;
+        }
+        avg /= supportCount;
         if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
         up.Normalize();
 

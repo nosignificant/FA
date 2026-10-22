@@ -3,13 +3,13 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using CreatureTypes;
 
-// 트리거 영역에 플레이어가 들어오면 LevelFlow가 정한 다음 씬으로 전환.
-// 다음 씬은 LevelFlow(현재 씬 + 선택)로 결정. 엔딩 분기 선택은 발신기/수신기가 ChoiceProgress에 기록하고,
-// 포탈은 그 기록된 선택으로 분기·클리어 표시만 한다.
+// 플레이어가 포탈에 들어오는 순간 R이 있는 방의 현재 상태를 기록하고 다음 씬으로 전환.
 [RequireComponent(typeof(Collider))]
 public class LevelPortal : MonoBehaviour
 {
     [Header("옵션")]
+    [Tooltip("비우면 씬의 R을 자동 검색")]
+    public SignCreature signalSource;
     [Tooltip("Additive면 현재 씬 위에 겹쳐 로드, 아니면 교체")]
     public bool additive = false;
     [Tooltip("기록된 선택(ChoiceProgress)이 없을 때 쓸 기본 선택 — LevelFlow 분기·클리어 표시용")]
@@ -22,6 +22,8 @@ public class LevelPortal : MonoBehaviour
     public bool restoreTimeScale = true;
 
     private bool triggered = false;
+    private CreatureID pendingChoice;
+    private bool capturedFromR;
 
     private void Reset()
     {
@@ -34,6 +36,8 @@ public class LevelPortal : MonoBehaviour
     {
         if (triggered) return;
         if (other.GetComponentInParent<Player>() == null) return;   // 플레이어만
+
+        if (!TryCaptureChoice(out pendingChoice)) return;
         triggered = true;
 
         if (delay > 0f) StartCoroutine(LoadAfterDelay());
@@ -46,16 +50,36 @@ public class LevelPortal : MonoBehaviour
         Load();
     }
 
-    // 분기에 쓸 선택: 발신기/수신기가 기록한 마지막 ChoiceProgress, 없으면 choiceId
-    private CreatureID EffectiveChoice()
+    // 포탈 진입 순간의 R 상태를 캡처. 전환 지연 중 R 상태가 바뀌어도 선택은 바뀌지 않는다.
+    private bool TryCaptureChoice(out CreatureID choice)
     {
+        // Every return path must provide a value, including the "no signal state" path.
+        choice = choiceId;
+        SignCreature source = signalSource != null ? signalSource : FindObjectOfType<SignCreature>();
+        if (source != null)
+        {
+            capturedFromR = true;
+            Room.RoomActivation state = source.CurrentSignalState;
+            if (state != Room.RoomActivation.L && state != Room.RoomActivation.A)
+            {
+                Popup.Instance?.BurstMessage(source, "no state", Color.gray);
+                return false;
+            }
+
+            choice = SignCreature.ChoiceForState(state);
+            return true;
+        }
+
+        // R이 없는 기존 씬은 기록된 선택 또는 인스펙터 기본값을 유지.
+        capturedFromR = false;
         var all = ChoiceProgress.All();
-        return all.Count > 0 ? all[all.Count - 1] : choiceId;
+        choice = all.Count > 0 ? all[all.Count - 1] : choiceId;
+        return true;
     }
 
     private void Load()
     {
-        CreatureID choice = EffectiveChoice();
+        CreatureID choice = pendingChoice;
         string scene = LevelFlow.GetNext(SceneManager.GetActiveScene().name, choice);
 
         if (string.IsNullOrEmpty(scene))
@@ -65,6 +89,9 @@ public class LevelPortal : MonoBehaviour
         }
 
         if (restoreTimeScale) Time.timeScale = 1f;
+
+        // R 상태로 이번 레벨 선택을 확정하는 시점은 포탈 진입.
+        if (capturedFromR) ChoiceProgress.Record(choice);
 
         // 로딩바가 있으면 SceneLoader로 (additive는 로더 미지원 → 직접 로드)
         if (!additive && SceneLoader.Instance != null)

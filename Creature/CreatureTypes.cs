@@ -38,6 +38,7 @@ namespace CreatureTypes
         LL = 14,   // L을 생산하며 돌아다니는 생산기
         Timid = 15, // 겁쟁이: 모든 생물을 피해 도망
         p53 = 16,  // NPC 동반자: 플레이어만 따라다님 (상호작용 없음)
+        WallFormer = 18, // 부서진 벽 틈에 들어가 벽 형태를 이루는 Kabsch 군집
 
         Door = 97,
         WalkingWeed = 98, // 상호작용 없음

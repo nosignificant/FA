@@ -55,6 +55,10 @@ public sealed class TargetControl : MonoBehaviour
             quadLegs = GetComponentInChildren<QuadLegs>();
             if (quadLegs != null) quadBaseSpeed = quadLegs.moveSpeed;
         }
+
+        // Inspector에 지정된 초기 target도 모든 LegHead에 전달한다.
+        if (moveMode == MoveMode.LegHead && movementTarget != null)
+            SetLegHead();
     }
 
     void Update()
@@ -167,7 +171,9 @@ public sealed class TargetControl : MonoBehaviour
 
     public void SetLegHead()
     {
-        LegHead lh = GetComponentInChildren<LegHead>();
-        lh.target = movementTarget;
+        // 비활성 자식도 포함해 내부의 모든 LegHead에 같은 target을 전달한다.
+        LegHead[] heads = GetComponentsInChildren<LegHead>(true);
+        foreach (var head in heads)
+            if (head != null) head.target = movementTarget;
     }
 }
