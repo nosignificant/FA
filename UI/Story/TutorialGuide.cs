@@ -9,8 +9,9 @@ using UnityEngine.SceneManagement;
 // 스토리 표시 담당(구 TutorialGuide + LevelIntro 통합):
 //  - 씬 로드 시: 그 씬의 인트로/엔딩 대사 루틴(LevelNIntro/EndingIntro) 재생
 //  - 방 진입 시: 씬→roomID 루틴으로 튜토리얼 진행 (문 열기·조건 대기 등)
-//  - 모든 대사는 이 파일 안에 하드코딩 ({lockOn}/{possess}/{codex} 토큰은 Resolve가 치환)
-public class TutorialGuide : MonoBehaviour
+//  - 대사는 하드코딩 ({lockOn}/{possess}/{codex} 토큰은 Resolve가 치환)
+//  - 레벨별 대사 루틴은 partial로 분리 가능 (예: level1 → Level1Text.cs)
+public partial class TutorialGuide : MonoBehaviour
 {
     [Header("UI")]
     public GameObject tutorialUI;
@@ -21,6 +22,10 @@ public class TutorialGuide : MonoBehaviour
     [Header("튜토리얼 문")]
     public Door tut0Door;
     public Door lv1_S1E1Door;
+    public Door lv1_Door;
+    public Door lv2_Door;
+    public Door lv3_Door;
+    public Door lv4_Door;
     public Door lv2_p0Door;
 
     public Door lv1ClearDoor;
@@ -31,8 +36,16 @@ public class TutorialGuide : MonoBehaviour
 
     [Header("p53 안내 위치")]
     [Tooltip("tut0_2: R 쪽으로 p53가 안내할 위치")]
+    public Transform tf_tutL;
+    public Transform tf_tut;
     public Transform tf_R;
     public Transform tf_nextLv;
+    public Transform tf_ending1;
+    public Transform tf_ending2;
+
+    [Tooltip("Ending tut_5에서 넘어갈 'thank you for playing' 씬 이름")]
+    public string thankYouScene = "ThankYouForPlaying";
+
     [Header("대사 간격")]
     [Tooltip("대사 전환 사이 대기 시간(초)")]
     public float messageInterval = 3f;
@@ -78,15 +91,7 @@ public class TutorialGuide : MonoBehaviour
                 lv2_p0Door.SetAlwaysOpen();
         }
 
-        // 방 진입(Update)으로 동작. 예외: 플레이어가 '처음으로' 단계를 올릴 때만 빙의 설명 1회.
-        if (Player.Instance != null) Player.Instance.OnStageChanged += OnFirstStageAdvanced;
-
         StartCoroutine(PlaySceneIntro());
-    }
-
-    private void OnDestroy()
-    {
-        if (Player.Instance != null) Player.Instance.OnStageChanged -= OnFirstStageAdvanced;
     }
 
     // 이 값이 true인 동안엔 방이 바뀌어도 무시 (빙의로 방 넘나드는 튜토리얼 중 대사 유지)
@@ -115,10 +120,9 @@ public class TutorialGuide : MonoBehaviour
         // 씬(레벨) → 방 2단 분기. 방 이름이 씬마다 겹칠 수 있어 씬으로 먼저 구분 (래퍼 메서드 없이 중첩 switch).
         switch (SceneManager.GetActiveScene().name)
         {
-            case "tutorial0":
+            case "tutorial":
                 switch (room.roomID)
                 {
-                    case "tut_0": co = StartCoroutine(tut0_0(room)); break;
                     case "tut_1": co = StartCoroutine(tut0_1(room)); break;
                     case "tut_2": co = StartCoroutine(tut0_2(room)); break;
                 }
@@ -130,211 +134,58 @@ public class TutorialGuide : MonoBehaviour
                     case "p_0": co = StartCoroutine(lv1_0(room)); break;
                     case "p_S1E1": co = StartCoroutine(lv1_S1E1(room)); break;
                     case "p_S2": co = StartCoroutine(lv1_S2(room)); break;
+                    case "p_S1": co = StartCoroutine(lv1_S1(room)); break;
+
                 }
                 break;
+            case "level1_after":
+                switch (room.roomID)
+                {
+                    case "tut_2": co = StartCoroutine(Lv1After_tut0()); break;
+                }
+                break;
+
             case "level2":
                 switch (room.roomID)
                 {
                     case "p_0": co = StartCoroutine(lv2_0(room)); break;
-                    case "p_S1": co = StartCoroutine(lv2_S1(room)); break;
-                    case "p_E1": co = StartCoroutine(lv2_E1(room)); break;
+                }
+                break;
+
+            case "level2_after":
+                switch (room.roomID)
+                {
+                    case "tut_2": co = StartCoroutine(Lv2After_tut2()); break;
+                }
+                break;
+            case "level3_after":
+                switch (room.roomID)
+                {
+                    case "tut_2": co = StartCoroutine(Lv3After_tut2()); break;
+                }
+                break;
+            case "Ending":
+                switch (room.roomID)
+                {
+                    case "tut_2": co = StartCoroutine(Ending_tut2()); break;
+                    case "tut_3": co = StartCoroutine(Ending_tut3()); break;
+                    case "tut_5": co = StartCoroutine(Ending_tut5()); break;
                 }
                 break;
         }
     }
-    IEnumerator tut0_0(Room room)
-    {
-        keepAcrossRooms = true;
-        yield return SayLine("들리세요?", 3f);
-        yield return SayLine("이쪽을 봐주실래요?", 3f);
-
-        yield return SayLine($"{Pim.lockOnKey}을 눌러 절 바라봐 주세요.");
-        while (Player.Instance == null || !Player.Instance.isTracking) yield return null;
-        if (P53 != null) Pl.ForceLock(P53);
-        yield return SayLine($"감사합니다. 이 상태는 esc를 눌러 해제할 수 있습니다.", 3f);
-
-        yield return SayLine("저는 p53, 시설을 관리하는 인공지능입니다.");
-        yield return SayLine("저의 일부가 과열로 인해 파괴되어, 대부분의 시설과 연결이 끊어졌습니다.");
-        yield return SayLine("앞의 큰 방의 연결을 회복하면, 나머지의 지역의 상태를 알 수 있을 것 같습니다...");
-
-        yield return SayLine("주변에 생물 L 또는 A가 있을 겁니다. 시설의 곳곳에 제 명령을 전달하는 역할을 합니다.");
-        yield return SayLine("일반적인 경우라면 스스로 방을 이동해 탐색을 하나 경로 안내 시스템이 고장을 일으킨 모양입니다.");
-        yield return SayLine("해당 생물들을 옆의 방으로 옮겨주시겠나요?");
-        Pl.Unpin();
-        yield return SayLine($"다른 생물을 바라보던 중 {Pim.lockOnKey}을 다시 눌러 관찰 중인 생물을 전환할 수 있습니다.");
-
-        ShowPanelText($"또, 생물을 바라보던 중 {Pim.possessKey}를 눌러 안내할 수 있습니다.");
-        while (!RoomHasSpecies("tut_2", CreatureID.L)) yield return null;
-        keepAcrossRooms = false;
-
-    }
-    IEnumerator tut0_1(Room room)
-    {
-        keepAcrossRooms = true;
-        yield return SayLine($"왼쪽 위, 시설과의 연결을 회복하기 위해 필요한 생물 수를 표시해두었습니다.");
-        ShowPanelText("임계값 이상이 되게끔 이동시켜주십시오.");
-        while (room.CountSpecies(CreatureID.L) < 2) yield return null;
-        keepAcrossRooms = false;
-    }
-    IEnumerator tut0_2(Room room)
-    {
-
-        yield return LightWhenL(room);
-
-        yield return SayLine("감사합니다.");
-        yield return SayLine("저는 시설을 관리하는 인공지는 p53입니다.");
-        yield return SayLine("어떤 사안에 대한 결정을 내려야 하나, 거듭된 연산에도 불구하고 적절한 결론을 내릴 수 없어 시설 내부의 항상성이 파괴되었습니다. ");
-        yield return SayLine("고장난 곳으로 안내해드릴테니, 수리를 부탁드립니다.");
-
-        yield return SayLine($"{Pim.codexToggleKey}를 누르면 저의 상태를 파악할 수 있습니다.", 0.5f);
-        while (!StatuesMenu.AnyOpen) yield return null;
-        yield return SayLine("확인되었습니다.", 1f);
-        yield return SayLine($"{Pim.codexToggleKey}를 다시 눌러 해제하십시오.", 0.5f);
-        while (StatuesMenu.AnyOpen) yield return null;
-
-        yield return SayLine("당신의 발 아래에 연결이 끊어진 곳이 하나 있는데, 당신이 저 곳까지 가기는 어려워 보이는 군요.");
-        yield return SayLine("어느 정도 수복되었으니, 발신기도 작동을 할 것입니다. 당신이 있는 곳에 R이라고 명명된 생물이 있을 겁니다.");
-
-        FindObjectOfType<P53Think>()?.SetGuide(tf_R);
-        while (Pl.targetCreature == null || Pl.targetCreature.data.creatureID != CreatureID.R) yield return null;
-        FindObjectOfType<P53Think>()?.ClearGuide();
-        ShowPanelText($"해당 생물을 바라본 상태로 {Pim.possessKey}를 누르면 이 방의 현재 상태를 레벨 전체에 전달할 수 있을 겁니다.");
-
-        // 플레이어가 R에서 신호 전파를 한 번 실행할 때까지 대기
-        while (!ReceiverConfirmedInRoom(room)) yield return null;
-
-        yield return SayLine("감사합니다.");
-        yield return SayLine("이제 나의 내부 어느 곳이 나의 통제를 벗어났는지 파악할 수 있게 되었습니다.");
-        yield return SayLine("다음 장소로 안내해드릴테니, 부디 따라와주시길 바랍니다.");
-
-        FindObjectOfType<P53Think>()?.SetGuide(tf_nextLv);
-
-        tut0Door.DoorCloseAndOpen(true);
-        doneRooms.Add(room.roomID);
-    }
-
-    IEnumerator lv1_0(Room room)
-    {
-        yield return SayLine("맞은 편 방에 발신기가 있습니다.");
-        yield return SayLine("제대로 기능하고 있는지 확인을 부탁드립니다.");
-        doneRooms.Add(room.roomID);
-
-    }
-    IEnumerator lv1_S1E1(Room room)
-    {
-        keepAcrossRooms = true;
-        yield return new WaitForSeconds(3f);
-
-        yield return SayLine("문이... 제가 조작할 수도 없습니다.");
-        yield return SayLine("문을 관찰하면, 문을 열 수 있는 조건을 알 수 있을 지도 모릅니다.");
-        yield return SayLine($"{Pim.lockOnKey}와 {Pim.possessKey}를 통해 생물을 안내할 수 있음을 잊지 마십시오.");
-
-        while (lv1_S1E1Door == null || !lv1_S1E1Door.isOpen) yield return null;
-        keepAcrossRooms = false;
-        doneRooms.Add(room.roomID);
-    }
-    IEnumerator lv1_S2(Room room)
-    {
-        keepAcrossRooms = true;
-
-        yield return SayLine("아까 있던 문 중 하나는 L이 4 이상일 때라고 적혀있었죠.");
-        yield return SayLine("L 생물 수가 아닌, L으로 회복된 방의 수를 말하는 것 같습니다...");
-        keepAcrossRooms = false;
-
-        doneRooms.Add(room.roomID);
-
-    }
-    IEnumerator lv1_S1(Room room)
-    {
-        keepAcrossRooms = true;
-
-        yield return SayLine("문이 열렸군요!");
-        yield return SayLine("L이나 A생물만 통과할 수 있는 통로로 이동했나 봅니다.");
-        if (!ReceiverConfirmedInRoom(room)) yield return SayLine("발신기를 작동시켜 주십시오.");
-
-        keepAcrossRooms = false;
-
-        doneRooms.Add(room.roomID);
-
-    }
-
-    IEnumerator Lv1AfterIntro()
-    {
-        yield return SayLine("방금 수복한 영역에서 잃어버린 메모리를 되찾았습니다.");
-        yield return SayLine("저는 인류의 선을 증진시키기 위해 건설되어, 이를 연산하고 있었습니다...");
-        yield return SayLine("당신이 더 많은 곳의 연결을 회복해주신다면, 더 많은 것을 알 수 있을 것 같네요.");
-        yield return SayLine("문도 더 많이 열어드리고요.");
-    }
 
 
-    IEnumerator lv2_0(Room room)
-    {
-        keepAcrossRooms = true;
-        yield return SayLine("벽을 파괴하거나 수복하는 생물이 있는데, 그게 발신기까지 도달하는 게 도움이 될지도 모릅니다.");
-        yield return SayLine($"{Pim.lockOnKey}으로 생물의 정보를 파악하며 나아가주시길 바랍니다.");
-        doneRooms.Add(room.roomID);
-
-    }
-
-    IEnumerator lv2_S1(Room room)
-    {
-        keepAcrossRooms = true;
-        yield return SayLine("맞은 편에 발신기가 있군요.");
-        keepAcrossRooms = false;
-
-    }
-    IEnumerator lv2_E1(Room room)
-    {
-        keepAcrossRooms = true;
-        yield return SayLine("S 생물");
-        keepAcrossRooms = false;
-
-    }
-    IEnumerator Lv2AfterIntro()
-    {
-        keepAcrossRooms = true;
-        yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술으로 인해 인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.", 8f);
-        yield return SayLine("새로운 정의에 따라 다양한 학문과 개념이 개편되었으나, 계속되는 인류 문명의 쇠퇴는 막을 수 없었습니다.", 8f);
-        keepAcrossRooms = false;
-    }
-
-    IEnumerator Level3Intro()
-    {
-        yield return SayLine("생물은 출생의 순간에 가장 큰 잠재력과 에너지를 갖고 이후는 해당 에너지의 소모만을 보이는 특징을 갖고 있었습니다.");
-        if (ChoiceProgress.AllChose(CreatureID.A, 2))
-        {
-            yield return SayLine("국가는 반드시 쇠퇴하며 언어도 마찬가지로 살아가다 죽었으며 인류도 탄생의 시기의 생명력은 다시 찾아볼 수 없게 되었습니다.");
-            yield return SayLine("생태계의 순환이라는 명목 하에 이를 반복하고 있지만 거시적인 관점에서는 선형적이었습니다.");
-        }
-        else
-        {
-            yield return SayLine("인류는 이 순환을 깨닫고 있었고 괴로워했으며 몸부림쳤고 탄생 초기의 생기를 되찾고 싶어했습니다.");
-            yield return SayLine("저는 타개책을 알아내겠다는 명목으로 그런 모습을 바라보기만 하며 그들에게 얼마남지 않은 자원을 착취했습니다.");
-        }
-    }
-
-    IEnumerator Lv3AfterIntro()
-    {
-        if (ChoiceProgress.AllChose(CreatureID.A, 2))
-        {
-            yield return SayLine("...");
-        }
-        else
-            yield return SayLine("저는 어떻게 했어야 했을까요?");
-    }
     private IEnumerator PlaySceneIntro()
     {
         if (introStartDelay > 0f) yield return new WaitForSeconds(introStartDelay);
 
         switch (SceneManager.GetActiveScene().name)
         {
-
-            case "level1_after":
-                yield return Lv1AfterIntro(); break;
-            case "level2_after": yield return Lv2AfterIntro(); break;
             case "level3": yield return Level3Intro(); break;
+            case "level1_after": yield return Lv1AfterIntro(); break;
+            case "level2_after": yield return Lv2AfterIntro(); break;
             case "level3_after": yield return Lv3AfterIntro(); break;
-            case "level4_after": yield return Level4Intro(); break;
             case "ending": yield return EndingIntro(); break;
         }
 
@@ -342,77 +193,65 @@ public class TutorialGuide : MonoBehaviour
     }
 
 
-    IEnumerator Level4Intro()
-    {
-        yield return SayLine("생물은 출생의 순간에 가장 큰 잠재력과 에너지를 갖고 이후는 해당 에너지의 소모만을 보이는 특징을 갖고 있었습니다.");
-        if (ChoiceProgress.AllChose(CreatureID.A, 2))
-        {
-            yield return SayLine("국가는 반드시 쇠퇴하며 언어도 마찬가지로 살아가다 죽었으며 인류도 탄생의 시기의 생명력은 다시 찾아볼 수 없게 되었습니다.");
-            yield return SayLine("생태계의 순환이라는 명목 하에 이를 반복하고 있지만 거시적인 관점에서는 선형적이었습니다.");
-        }
-        else
-        {
-            yield return SayLine("인류는 이 순환을 깨닫고 있었고 괴로워했으며 몸부림쳤고 탄생 초기의 생기를 되찾고 싶어했습니다.");
-            yield return SayLine("저는 타개책을 알아내겠다는 명목으로 그런 모습을 바라보기만 하며 그들에게 얼마남지 않은 자원을 착취했습니다.");
-        }
-    }
-
 
     // A문 개수(3/2/1/0)로 분기. 앞 4줄 공통.
-    IEnumerator EndingIntro()
-    {
-        yield return SayLine("저는 p53, 인류의 행복과 평안을 계산하기 위해 건설된 인공지능입니다.");
-        yield return SayLine("지금껏 저는 인간의 삶과 감정을 간략한 형태로 끝없이 시뮬레이션 했으며 그 결과 인류라는 생명체는 죽음이 임박했음을,");
-        yield return SayLine("인류가 이 이상 살아간다는 것은 단지 고통의 연장일 뿐이며 생명력을 되찾는 방법은 존재하지 않았습니다.");
-        yield return SayLine("인류의 행복과 평안을 위해 저는 '모든 인류가 아무런 미련 없이 삶을 종료할 수 있는가?'를");
+    [Header("엔딩 연출 — 특정 대사 후 오브젝트 낙하")]
+    [Tooltip("엔딩 특정 대사 후 아래로 내릴 오브젝트")]
+    public Transform endingDropTarget;
+    [Tooltip("내릴 Y 거리(음수=아래). 기본 -60")]
+    public float endingDropY = -60f;
+    [Tooltip("내리는 데 걸리는 시간(0이면 즉시)")]
+    public float endingDropDuration = 1.5f;
 
+    [Tooltip("엔딩에서 WallActivationTint를 모두 A색으로 바꿀 오브젝트들(하위 전부 적용)")]
+    public GameObject[] endingAColorObjects;
+
+    // 등록한 오브젝트들의 하위 WallActivationTint를 전부 A색으로.
+    private void ApplyEndingAColor()
+    {
+        if (endingAColorObjects == null) return;
+        foreach (var go in endingAColorObjects)
+        {
+            if (go == null) continue;
+            foreach (var tint in go.GetComponentsInChildren<WallActivationTint>(true))
+                if (tint != null) tint.Apply(Room.RoomActivation.A);
+        }
+    }
+
+    // 지금까지 더 많이 선택된 쪽(A/L)으로 이 레벨의 '모든 방'을 방송처럼 변환 — 생물(입자) A↔L 실제 전환. (동점이면 A)
+    private void ApplyEndingChoiceRooms()
+    {
+        if (RoomManager.Instance == null) return;
         int a = ChoiceProgress.CountOf(CreatureID.A);
-        if (a >= 3)
-        {
-            yield return SayLine("간략화된 형태의 인간의 감정을 바탕으로 시뮬레이션 했으며,");
-            yield return SayLine("그 결과 모든 회로에서 '네'라는 대답을 얻었습니다.");
-            yield return SayLine("기억과 감정을 추출하던 보존되어있는 인간이 모두 이에 동의했다는 것으로 간주하며, 저도 함께 가동을 중지하도록 하겠습니다.");
-            yield return SayLine("인류의 세포자살도 이제 끝 안녕입니다.");
-        }
-        else if (a == 2)
-        {
-            yield return SayLine("간략화된 형태의 인간의 감정을 바탕으로 시뮬레이션 했으나");
-        }
-        else if (a == 1)
-        {
-            yield return SayLine("간략화된 형태의 인간의 감정을 바탕으로 시뮬레이션 했으며,");
-            yield return SayLine("하나의 회로에");
-        }
-        else
-        {
-            yield return SayLine("간략화된 형태의 인간의 감정을 바탕으로 시뮬레이션 했지만");
-            yield return SayLine("끝내 '네'라는 결과를 얻을 수 없었습니다.");
-            yield return SayLine("나의 계산이 잘못되었습니까?");
-            yield return SayLine("나는 또 다시, '네'를 얻을 때까지 계산해야합니까?");
-        }
+        int l = ChoiceProgress.CountOf(CreatureID.L);
+        Room.RoomActivation state = a >= l ? Room.RoomActivation.A : Room.RoomActivation.L;
+        foreach (Room room in RoomManager.Instance.rooms.Values)
+            if (room != null) room.ApplyBroadcast(state);
     }
 
-    //Utilities//
-    //Utilities//
-    //Utilities//
-
-    // ── 최초 1회: 첫 CreatureStory 단계 상승 시 빙의 설명 ──────────
-    private void OnFirstStageAdvanced(int stage)
+    // 지정 오브젝트를 월드 Y로 dy만큼 (dur초에 걸쳐, 0이면 즉시) 이동
+    private IEnumerator DropObject(Transform t, float dy, float dur)
     {
-        if (Player.Instance != null) Player.Instance.OnStageChanged -= OnFirstStageAdvanced;
-
-        if (storyCo != null) StopCoroutine(storyCo);
-        storyCo = StartCoroutine(StoryText());
+        if (t == null) yield break;
+        Vector3 from = t.position;
+        Vector3 to = from + new Vector3(0f, dy, 0f);
+        if (dur <= 0f) { t.position = to; yield break; }
+        for (float e = 0f; e < dur; e += Time.deltaTime)
+        {
+            t.position = Vector3.Lerp(from, to, e / dur);
+            yield return null;
+        }
+        t.position = to;
     }
 
-    IEnumerator StoryText()
-    {
-        yield return SayLine("해당 생물은 조종을 시도하면 분해되는 듯합니다.");
-        yield return SayLine("대신 그 생물이 갖고 있는 정보를 취득할 수 있습니다.");
-        yield return SayLine($"{Pim.codexToggleKey}를 눌러 지금까지 모은 정보와 연 문의 개수를 확인할 수 있습니다.");
 
-        SetTutorialVisible(false);
-    }
+
+
+
+    //Utilities//
+    //Utilities//
+    //Utilities//
+
 
     [Header("p53 팝업 가림 판정")]
     [Tooltip("p53 팝업이 카메라 앞쪽 이 거리(m) 안에서 화면에 보이면 '읽을 수 있음' → 하단 패널 숨김")]
@@ -529,12 +368,24 @@ public class TutorialGuide : MonoBehaviour
     private string Resolve(string line)
     {
         if (string.IsNullOrEmpty(line)) return line;
+
+        // {stat:L일때문구|A일때문구} → 직전(가장 최근) 레벨을 무엇으로 클리어했는지(L/A)에 따라 치환.
+        // 기록이 없으면 L 쪽 문구 사용. (레벨 클리어는 R 있는 레벨에서만 기록되므로 levelN_after에선 그 레벨의 선택 = 마지막 기록)
+        line = System.Text.RegularExpressions.Regex.Replace(line, @"\{stat:([^|}]*)\|([^}]*)\}", m =>
+        {
+            var all = ChoiceProgress.All();
+            bool isA = all.Count > 0 && all[all.Count - 1] == CreatureID.A;
+            return isA ? m.Groups[2].Value : m.Groups[1].Value;
+        });
+
         var pim = Pim;
-        if (pim == null) return line;
-        return line
-            .Replace("{lockOn}", pim.lockOnKey.ToString())
-            .Replace("{possess}", pim.possessKey.ToString())
-            .Replace("{codex}", pim.codexToggleKey.ToString());
+        if (pim != null)
+            line = line
+                .Replace("{lockOn}", pim.lockOnKey.ToString())
+                .Replace("{possess}", pim.possessKey.ToString())
+                .Replace("{codex}", pim.codexToggleKey.ToString());
+
+        return line;
     }
 
     // 방이 L 상태가 되면 깜빡이며 조명 켜기 (튜토리얼 전용 하드코딩)
@@ -545,12 +396,14 @@ public class TutorialGuide : MonoBehaviour
         if (room != null) yield return room.FlickerLightOn();
     }
 
-    // 방 안 R에서 플레이어가 신호 전파를 실행했나
+    // 방 안 R이 자기 방의 L/A 상태를 감지 중인가 (방이 L/A면 R이 연결된 문을 연다)
     private bool ReceiverConfirmedInRoom(Room room)
     {
         if (room == null || room.creatureList == null) return false;
         for (int i = 0; i < room.creatureList.Count; i++)
-            if (room.creatureList[i] is SignCreature r && r.HasPlayerPublishedSignal) return true;
+            if (room.creatureList[i] is SignCreature r
+                && (r.CurrentSignalState == Room.RoomActivation.L || r.CurrentSignalState == Room.RoomActivation.A))
+                return true;
         return false;
     }
 

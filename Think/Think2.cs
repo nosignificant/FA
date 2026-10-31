@@ -52,6 +52,14 @@ public class Think2 : MonoBehaviour
     [Tooltip("점에 이만큼 가까워지면 새 wander 점")]
     public float wanderReachThreshold = 5f;
 
+    [Header("벽 타기 배회 (climber)")]
+    [Tooltip("켜면 wander 후보에 주변 수직 벽면 위 지점도 추가 → LegHead가 그 벽을 탐(H 등)")]
+    public bool wanderClimbWalls = false;
+    [Tooltip("벽으로 인식할 레이어(비우면 모든 레이어). 수직면만 벽으로 취급")]
+    public LayerMask wanderClimbMask;
+    [Tooltip("벽면에서 올라갈 높이 범위(min~max 중 랜덤)")]
+    public Vector2 wanderClimbHeight = new Vector2(2f, 8f);
+
     [Header("조종 대상 추적")]
     [Tooltip("플레이어가 조종 중인 생물을 쫓을 때, 이 거리보다 가까이 다가가지 않음 (몰려서 시야 가리는 것 방지). 0이면 끔")]
     public float possessStandoff = 3f;
@@ -335,6 +343,24 @@ public class Think2 : MonoBehaviour
             //걷는 생물이면 y높이 제한 
             if (self.data != null && self.data.walkingCreature) { if (p.y > center.y + 15 || p.y < center.y - 15) continue; }
             points.Add(p);
+        }
+
+        // 벽 타는 생물: 주변 수직 벽면 위 지점도 후보에 추가 → wander로 그 벽을 탐(homeBound shrink 무시)
+        if (wanderClimbWalls)
+        {
+            LayerMask m = wanderClimbMask.value != 0 ? wanderClimbMask : ~0;
+            for (int k = 0; k < 8; k++)
+            {
+                float ang = (k / 8f) * Mathf.PI * 2f;
+                Vector3 dir = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang));
+                if (Physics.Raycast(center, dir, out RaycastHit wh, r, m, QueryTriggerInteraction.Ignore)
+                    && wh.normal.y < 0.5f)   // 수직 벽만
+                {
+                    Vector3 up = Vector3.ProjectOnPlane(Vector3.up, wh.normal).normalized;
+                    float h = Random.Range(wanderClimbHeight.x, wanderClimbHeight.y);
+                    points.Add(wh.point + up * h + wh.normal * 0.5f);   // 벽면 위쪽 + 살짝 띄움
+                }
+            }
         }
         return points;
     }

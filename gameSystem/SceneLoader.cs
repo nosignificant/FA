@@ -65,7 +65,10 @@ public class SceneLoader : MonoBehaviour
         Time.timeScale = 1f;                     // 일시정지/빙의로 0이던 경우 대비
 
         if (loadingPanel != null) loadingPanel.SetActive(true);
-        ApplyLevelLabels(sceneName);             // 로딩할 레벨 + 방금 클리어한 레벨(L/A) 토글
+        ApplyLevelLabels(sceneName);             // 'loading' 글자만 표시
+        HideHudWhileLoading();                   // 로딩 중 RoomStateBar·나침반 숨김
+        // 로딩 중 상태 패널도 같이 켬 (C로 여는 것과 동일). DoF 흐림은 FocusController가 자동 적용.
+        if (StatuesMenu.Instance != null && !StatuesMenu.AnyOpen) StatuesMenu.Instance.Toggle();
         SetBar(0f);
         yield return null;                       // 패널 한 프레임 렌더
 
@@ -116,39 +119,25 @@ public class SceneLoader : MonoBehaviour
     // LevelPortal이 통과 직전 호출 → 다음 로딩 화면을 "level N clear L/A"로 표시.
     public void RequestClear(CreatureID choice) { _pendingClear = true; _pendingChoice = choice; }
 
-    // LevelPortal이 clear를 요청했으면 "level N clear L/A", 아니면 "level N loading".
-    // GetActiveScene()은 LoadSceneAsync 활성화 전이라 아직 떠나는 씬 = 클리어한 레벨.
+    // 이제 'loading' 글자만 표시한다. level/숫자/clear/L/A 조각은 더 이상 쓰지 않음(인스펙터 참조는 유지).
     private void ApplyLevelLabels(string toScene)
     {
-        if (_pendingClear)
-        {
-            _pendingClear = false;
-            int fromLv = ParseLevel(SceneManager.GetActiveScene().name);
-            if (fromLv >= 1) { ShowClear(fromLv, _pendingChoice); return; }
-        }
+        _pendingClear = false;   // 소비만 하고 clear 표시는 안 함
         ShowLoading(ParseLevel(toScene));
     }
 
-    // "level N loading" 조립 (level<1이면 전부 숨김)
+    // 'loading' 글자만 켬 (나머지 조각은 전부 끔)
     public void ShowLoading(int level)
     {
         HideAllLabels();
-        if (level < 1) return;
-        SetActiveSafe(levelWord, true);
-        SetDigit(level);
         SetActiveSafe(loadingWord, true);
     }
 
-    // "level N clear L/A" 조립
+    // 더 이상 쓰지 않음 — 호출돼도 'loading'만 표시.
     public void ShowClear(int level, CreatureID choice)
     {
         HideAllLabels();
-        if (level < 1) return;
-        SetActiveSafe(levelWord, true);
-        SetDigit(level);
-        SetActiveSafe(clearWord, true);
-        SetActiveSafe(letterL, choice == CreatureID.L);
-        SetActiveSafe(letterA, choice == CreatureID.A);
+        SetActiveSafe(loadingWord, true);
     }
 
     public void HideAllLabels()
@@ -159,6 +148,14 @@ public class SceneLoader : MonoBehaviour
         SetActiveSafe(letterL, false);
         SetActiveSafe(letterA, false);
         if (levelDigits != null) foreach (var g in levelDigits) SetActiveSafe(g, false);
+    }
+
+    // 로딩 중에는 떠나는 씬의 RoomStateBar·나침반을 숨긴다(로딩 패널 뒤로 비치지 않게).
+    // 새 씬이 로드되면 그쪽 HUD는 새로 활성 상태라 따로 복구할 필요 없음.
+    private void HideHudWhileLoading()
+    {
+        foreach (var bar in FindObjectsOfType<RoomStateBar>()) if (bar != null) bar.gameObject.SetActive(false);
+        foreach (var c in FindObjectsOfType<CompassStrip>()) if (c != null) c.gameObject.SetActive(false);
     }
 
     // 숫자 조각 중 해당 레벨 것만 켜기 ([0]=1, [1]=2 ...)

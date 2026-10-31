@@ -50,23 +50,39 @@ public class SBreaker : MonoBehaviour
             else
             {
                 BreakableWall w = NearestBreakableInRoom();
-                if (w == null)
+                if (w != null)
                 {
-                    SetMode(Mode.Wander);      // 부술 벽 없음 → 배회(Think가 몰기)
-                }
-                else if (w.DistanceFrom(SelfPos()) <= breakRange)
-                {
-                    SetMode(Mode.Breaking);    // 닿음 → 활성 상태로 제자리서 타격
-                    if (Time.time >= nextHitTime)
+                    self.canMigrate = false;   // 자기 방 벽 작업 중엔 방에 묶임
+                    if (w.DistanceFrom(SelfPos()) <= breakRange)
                     {
-                        w.Hit();
-                        nextHitTime = Time.time + hitInterval;
+                        SetMode(Mode.Breaking);    // 닿음 → 활성 상태로 제자리서 타격
+                        if (Time.time >= nextHitTime)
+                        {
+                            w.Hit();
+                            nextHitTime = Time.time + hitInterval;
+                        }
+                    }
+                    else
+                    {
+                        SetMode(Mode.GotoWall);    // 벽으로 직진 (Think 손 떼고 벽만 조준)
+                        if (tc != null) tc.SetMovementTarget(w.transform);
                     }
                 }
                 else
                 {
-                    SetMode(Mode.GotoWall);    // 벽으로 직진 (Think 손 떼고 벽만 조준)
-                    if (tc != null) tc.SetMovementTarget(w.transform);
+                    // 자기 방엔 부술 벽 없음 → 옆방(연결된)에 AA가 있으면 그 방으로 이동
+                    Room aaRoom = AdjacentRoomWithAA();
+                    if (aaRoom != null)
+                    {
+                        self.canMigrate = true;    // AA 추적 동안엔 방 넘나들 수 있게
+                        SetMode(Mode.GotoWall);    // Think 손 떼고 옆방으로 직진
+                        if (tc != null) tc.SetMovementTarget(aaRoom.transform);
+                    }
+                    else
+                    {
+                        self.canMigrate = false;   // 방에 묶임
+                        SetMode(Mode.Wander);      // 배회(Think가 몰기)
+                    }
                 }
             }
 
@@ -126,6 +142,29 @@ public class SBreaker : MonoBehaviour
     private void FollowProxy()
     {
         if (tc != null && think != null) tc.SetMovementTarget(think.ProxyTarget);
+    }
+
+    // 연결된(열린 문/부서진 벽) 옆방 중 AA가 있는 방. 자기 방에 부술 벽 없을 때 그쪽으로 이동.
+    private Room AdjacentRoomWithAA()
+    {
+        var room = self.currentRoom;
+        if (room == null) return null;
+
+        if (room.doors != null)
+            foreach (var d in room.doors)
+            {
+                if (d == null || !d.isOpen) continue;
+                Room o = d.GetOtherRoom(room);
+                if (o != null && o.HasSpecies(CreatureID.AA)) return o;
+            }
+        if (room.brokenPassages != null)
+            foreach (var bw in room.brokenPassages)
+            {
+                if (bw == null || !bw.Broken) continue;
+                Room o = bw.GetOtherRoom(room);
+                if (o != null && o.HasSpecies(CreatureID.AA)) return o;
+            }
+        return null;
     }
 
     private BreakableWall NearestBreakableInRoom()

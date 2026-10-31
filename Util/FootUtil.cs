@@ -8,17 +8,48 @@ public static class FootUtil
         !(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z) ||
           float.IsInfinity(v.x) || float.IsInfinity(v.y) || float.IsInfinity(v.z));
 
-    // 땅을 찾으면 true + 히트 지점 반환, 못 찾으면 false (호출측이 발을 안 움직이게 처리)
+    // Ground 레이어에서 걸을 수 있는 표면을 찾아 반환한다.
+    // 위쪽의 너무 높은 표면은 건너뛰고 그 아래의 바닥을 찾는다.
     public static bool TryGround(Vector3 targetPos, LayerMask ground, out Vector3 result)
     {
-        Vector3 rayOrigin = new Vector3(targetPos.x, targetPos.y + 1000f, targetPos.z);
-        if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, 2000f, ground)
-            && hit.point.y <= targetPos.y + 2f)
+        if (!IsFinite(targetPos))
         {
-            result = hit.point;
-            return true;
+            result = targetPos;
+            return false;
         }
+
         result = targetPos;
+        Vector3 rayOrigin = new Vector3(targetPos.x, targetPos.y + 1000f, targetPos.z);
+        RaycastHit[] hits = Physics.RaycastAll(
+            rayOrigin,
+            Vector3.down,
+            2000f,
+            ground,
+            QueryTriggerInteraction.Ignore
+        );
+
+        bool foundGround = false;
+        float highestAllowedY = targetPos.y + 2f;
+        float highestGroundY = float.NegativeInfinity;
+
+        foreach (RaycastHit hit in hits)
+        {
+            // 수직 벽은 Ground 레이어여도 발판으로 취급하지 않는다.
+            if (hit.normal.y < 0.5f) continue;
+
+            // 현재 발보다 2m 넘게 높은 표면은 무시하고 그 아래 바닥을 계속 찾는다.
+            if (hit.point.y > highestAllowedY) continue;
+
+            if (hit.point.y > highestGroundY)
+            {
+                highestGroundY = hit.point.y;
+                result = hit.point;
+                foundGround = true;
+            }
+        }
+
+        if (foundGround) return true;
+
         return false;
     }
 

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using CreatureTypes;
 
 // p53(NPC 동반자): 생태계 AI 대신, 인스펙터로 지정한 타겟 위치로만 이동. (D와 같은 Think2/TargetControl 구조 재활용)
@@ -15,6 +16,12 @@ public class P53Think : Think2
     [Tooltip("타겟과 이 거리 이상 벌어지면(벽·단절로 못 감) 타겟 옆으로 순간이동. 0이면 끔")]
     public float warpDistance = 20f;
 
+    [Header("가이드 중 워프")]
+    [Tooltip("안내(guideTarget) 중, 이 시간(초) 동안 목표에 도달하지 못하면 목표 옆으로 순간이동. 0이면 끔")]
+    public float guideWarpTime = 3f;
+    [Tooltip("도달로 간주할 여유 거리(m). followDistance 링에서 이 값 이내면 '도착'")]
+    public float guideArriveSlack = 0.5f;
+
     // 실제 이동 목표: 안내 지점(guideTarget) 우선, 없으면 평소 추종 물체(followTarget)
     public Transform MoveTarget => guideTarget != null ? guideTarget : followTarget;
 
@@ -23,7 +30,9 @@ public class P53Think : Think2
     public void ClearGuide() => guideTarget = null;
 
     // 링크 선은 '안내 지점(guideTarget)'일 때만. followTarget(p53following) 추종 중엔 null → 선 숨김
-    public override Transform LinkOverrideTarget => guideTarget;
+    // Ending 씬에선 연결선 숨김(null). guideTarget은 유지해 p53 이동은 그대로.
+    public override Transform LinkOverrideTarget =>
+        SceneManager.GetActiveScene().name == "Ending" ? null : guideTarget;
 
     private FollowPlayerState followState;
 

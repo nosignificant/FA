@@ -25,17 +25,35 @@ public class Door : MonoBehaviour
     {
         RoomState,   // 양쪽 방 중 하나가 requiredState(L/A)로 활성화되면 열림
         LevelCount,  // 레벨 전체에서 requiredState로 활성화된 방이 levelCountN개 이상이면 열림
+        LevelTotal,  // 레벨 전체에서 L+A(활성화된 방 전체) 합이 levelCountN개 이상이면 열림
         LevelChoice, // 지정 레벨을 A/L 중 무엇으로 클리어했는지(ChoiceProgress) 표시 — 개폐 안 함(표시/tint 전용)
+        ReceiverState, // R(receiver)이 있는 방이 requiredState(L/A)가 되는 즉시 열림. R의 방 상태를 그대로 따라감(방송 없음)
     }
 
     [Header("Condition")]
     public ConditionMode conditionMode = ConditionMode.RoomState;
 
-    [Tooltip("RoomState/LevelCount 모드가 요구하는 방 활성화 상태 (L/A)")]
+    [Tooltip("RoomState/LevelCount/ReceiverState 모드가 요구하는 방 활성화 상태 (L/A)")]
     public Room.RoomActivation requiredState = Room.RoomActivation.A;
+
+    [Tooltip("ReceiverState 모드: 이 문이 따라가는 R(receiver). 이 R이 있는 방이 requiredState가 되면 열림. 비우면 씬에서 자동 탐색")]
+    public SignCreature receiver;
 
     [Tooltip("LevelCount 모드: requiredState로 활성화된 방이 레벨 안에 이 개수 이상이면 열림")]
     public int levelCountN = 3;
+
+    [Header("복합 조건 (useComposite 켜면 conditionMode 대신, 아래 켠 조건을 모두 AND)")]
+    [Tooltip("켜면 위 conditionMode 대신 아래 bool 조건들을 모두 만족해야 열림. 끄면 기존 enum 그대로")]
+    public bool useComposite = false;
+
+    [Tooltip("조건: 이 문의 방(roomA/roomB 중 하나)이 roomStateValue 상태여야 함")]
+    public bool needRoomState = false;
+    public Room.RoomActivation roomStateValue = Room.RoomActivation.A;
+
+    [Tooltip("조건: 레벨 전체에서 countState인 방이 levelCountN개 이상")]
+    public bool needLevelCount = false;
+    [Tooltip("needLevelCount가 세는 상태(기본 L). 아래 levelCountN과 함께 쓰임")]
+    public Room.RoomActivation countState = Room.RoomActivation.L;
 
     [Header("LevelChoice (레벨 클리어 선택 표시)")]
     [Tooltip("몇 번째 레벨의 기록을 볼지 (1=level1, 2=level2...). ChoiceProgress 기록 순서 기준")]
@@ -49,14 +67,19 @@ public class Door : MonoBehaviour
     public string customObject = "";  // target 칸 (조건2)
 
     [Header("Condition Graphics (선택)")]
-    [Tooltip("조건 종류별로 켤 그래픽. 비워두면 아무것도 안 함. 시작 시·조건 바뀔 때 해당하는 것만 켜짐.")]
-    public GameObject levelCountGraphic;
+    [Tooltip("LevelCount 전용: '조건(요구 개수 levelCountN)' 표시 부모들. 각 부모 자식을 앞에서부터 levelCountN개 켜고 나머지 끔(정적). 문 양면이면 2개. 비우면 안 씀.")]
+    public GameObject[] levelCountReqParents;
+    [Tooltip("LevelCount 전용: '현재 L/A인 방 개수' 표시 부모들. 각 부모 자식을 현재 카운트만큼 켜고 나머지 끔(실시간). 문 양면이면 2개. 비우면 안 씀.")]
+    public GameObject[] levelCountCurParents;
+
+    [Tooltip("ReceiverState('R is -') 조건일 때 켤 스프라이트/그래픽들. 문 양면이면 2개. 비우면 안 씀.")]
+    public GameObject[] receiverStateGraphics;
 
     [Header("RoomState 그래픽 (requiredState별 다른 스프라이트)")]
-    [Tooltip("RoomState 모드 + requiredState=L 일 때 켤 그래픽")]
-    public GameObject roomStateGraphicL;
-    [Tooltip("RoomState 모드 + requiredState=A 일 때 켤 그래픽")]
-    public GameObject roomStateGraphicA;
+    [Tooltip("requiredState=L 일 때 켤 그래픽들. 문 양면이면 2개.")]
+    public GameObject[] roomStateGraphicsL;
+    [Tooltip("requiredState=A 일 때 켤 그래픽들. 문 양면이면 2개.")]
+    public GameObject[] roomStateGraphicsA;
 
     [Header("RoomState 그래픽 색 틴트")]
     [Tooltip("켜면 L/A 그래픽을 각각 지정한 색으로 칠함")]
@@ -65,14 +88,6 @@ public class Door : MonoBehaviour
     public string roomStateColorProperty = "";
     public Color lColor = new Color(0.6f, 1f, 0.3f);   // L 그래픽(스프라이트) 색
     public Color aColor = new Color(0.9f, 0.2f, 0.2f); // A 그래픽(스프라이트) 색
-
-    [Header("문짝(3D, 양옆 오브젝트) 색 틴트 — 스프라이트와 별개")]
-    [Tooltip("켜면 left/right 문짝을 requiredState(L/A)에 맞는 색으로 칠함")]
-    public bool tintDoorPanels = false;
-    [Tooltip("셰이더 색 프로퍼티 override. 비우면 자동(_BaseColor/_Color)")]
-    public string doorPanelColorProperty = "";
-    public Color lDoorColor = new Color(0.6f, 1f, 0.3f);   // L일 때 문짝 색
-    public Color aDoorColor = new Color(0.9f, 0.2f, 0.2f); // A일 때 문짝 색
 
     [Tooltip("LevelCount 재평가 주기(초). 다른 방/문 변화에 반응해야 해서 주기적으로 확인")]
     public float checkInterval = 0.25f;
@@ -88,36 +103,68 @@ public class Door : MonoBehaviour
     private Coroutine moveCo;
 
     // 조건 종류(conditionMode)에 맞는 그래픽만 켜기. 슬롯 비면 무시.
-    // RoomState면 requiredState(L/A)에 맞는 스프라이트만 켜고 나머지는 끔.
+    // RoomState/ReceiverState/LevelCount면 requiredState(L/A)에 맞는 RoomState Graphic만 켜고 나머지는 끔.
     public void ApplyConditionGraphic()
     {
-        bool isRoomState = conditionMode == ConditionMode.RoomState;
-        bool isLevelChoice = conditionMode == ConditionMode.LevelChoice;
-        bool stateMode = isRoomState || isLevelChoice;   // L/A 스프라이트·색 쓰는 모드
-        if (levelCountGraphic != null) levelCountGraphic.SetActive(conditionMode == ConditionMode.LevelCount);
+        bool isLevelChoice = !useComposite && conditionMode == ConditionMode.LevelChoice;
+        bool isLevelCount  = !useComposite && conditionMode == ConditionMode.LevelCount;
+        // 단일 방 상태 스프라이트(L/A)를 쓰는가: 복합이면 needRoomState, 아니면 RoomState/ReceiverState 모드
+        bool roomStatePart = useComposite ? needRoomState
+            : (conditionMode == ConditionMode.RoomState || conditionMode == ConditionMode.ReceiverState);
+        bool stateMode = roomStatePart || isLevelChoice || isLevelCount;   // L/A 스프라이트·색 쓰는 모드
 
-        // 표시 상태: RoomState=requiredState / LevelChoice=기록된 선택
-        Room.RoomActivation dispState = isLevelChoice ? RecordedLevelState() : requiredState;
+        // ReceiverState('R is -') 전용 그래픽: 이 모드일 때만 켬
+        bool isReceiverState = !useComposite && conditionMode == ConditionMode.ReceiverState;
+        SetActiveAll(receiverStateGraphics, isReceiverState);
+
+        // 표시 상태: 복합=roomStateValue / RoomState·ReceiverState·LevelCount=requiredState / LevelChoice=기록된 선택
+        Room.RoomActivation dispState = isLevelChoice ? RecordedLevelState()
+            : useComposite ? roomStateValue : requiredState;
 
         bool wantL = stateMode && dispState == Room.RoomActivation.L;
         bool wantA = stateMode && dispState == Room.RoomActivation.A;
-        if (roomStateGraphicL != null) roomStateGraphicL.SetActive(wantL);
-        if (roomStateGraphicA != null) roomStateGraphicA.SetActive(wantA);
+        SetActiveAll(roomStateGraphicsL, wantL);
+        SetActiveAll(roomStateGraphicsA, wantA);
 
         // 켜진 그래픽(스프라이트)을 각 상태색으로 틴트
         if (tintRoomStateGraphic)
         {
-            if (wantL && roomStateGraphicL != null) TintGraphic(roomStateGraphicL, lColor, roomStateColorProperty);
-            if (wantA && roomStateGraphicA != null) TintGraphic(roomStateGraphicA, aColor, roomStateColorProperty);
+            if (wantL) TintAll(roomStateGraphicsL, lColor, roomStateColorProperty);
+            if (wantA) TintAll(roomStateGraphicsA, aColor, roomStateColorProperty);
+
+            // ReceiverState 전용 그래픽 / LevelCount 개수 자식도 같은 상태색(dispState)으로 틴트
+            if (stateMode && dispState != Room.RoomActivation.None)
+            {
+                Color stateCol = dispState == Room.RoomActivation.A ? aColor : lColor;
+                if (isReceiverState) TintAll(receiverStateGraphics, stateCol, roomStateColorProperty);
+                if (isLevelCount)
+                {
+                    TintAll(levelCountReqParents, stateCol, roomStateColorProperty);
+                    TintAll(levelCountCurParents, stateCol, roomStateColorProperty);
+                }
+            }
         }
 
-        // 문짝(3D) 색 — 스프라이트와 별개. dispState(L/A)에 맞는 색으로. 본체 Renderer만(자식 제외).
-        if (tintDoorPanels && stateMode && dispState != Room.RoomActivation.None)
-        {
-            Color dc = dispState == Room.RoomActivation.A ? aDoorColor : lDoorColor;
-            if (rightDoor != null) TintSelf(rightDoor.gameObject, dc, doorPanelColorProperty);
-            if (leftDoor  != null) TintSelf(leftDoor.gameObject,  dc, doorPanelColorProperty);
-        }
+        // 개수 게이지: 개수 조건 모드가 아니면(예: ReceiverState/RoomState) 둘 다 끔(0칸)
+        bool countMode = IsCountMode();
+        UpdateLevelCountParents(levelCountReqParents, countMode ? levelCountN : 0);
+        UpdateLevelCountParents(levelCountCurParents, countMode ? CurrentModeCount() : 0);
+    }
+
+    // 배열 전체 SetActive
+    private void SetActiveAll(GameObject[] arr, bool on)
+    {
+        if (arr == null) return;
+        for (int i = 0; i < arr.Length; i++)
+            if (arr[i] != null) arr[i].SetActive(on);
+    }
+
+    // 배열 전체를 같은 색으로 틴트 (각각 자식 포함)
+    private void TintAll(GameObject[] arr, Color col, string prop)
+    {
+        if (arr == null) return;
+        for (int i = 0; i < arr.Length; i++)
+            if (arr[i] != null) TintGraphic(arr[i], col, prop);
     }
 
     // 자식 포함 전부 칠하기 (스프라이트 그래픽용)
@@ -125,13 +172,6 @@ public class Door : MonoBehaviour
     {
         var rs = go.GetComponentsInChildren<Renderer>(true);
         ActivationColor.Apply(rs, col, prop);
-    }
-
-    // 이 오브젝트의 Renderer만 칠하기 (자식 제외)
-    private void TintSelf(GameObject go, Color col, string prop)
-    {
-        var r = go.GetComponent<Renderer>();
-        if (r != null) ActivationColor.Apply(new[] { r }, col, prop);
     }
 
     public Room GetOtherRoom(Room from)
@@ -186,8 +226,12 @@ public class Door : MonoBehaviour
         EvaluateConditions();
 
         // LevelCount는 roomA/roomB 이벤트만으로 부족(다른 방/문 변화에 반응해야 함) → 주기 확인.
+        // ReceiverState는 R의 '다른 방' 상태를 따라가므로 roomA/roomB 이벤트로 못 잡음 → 주기 확인.
         // RoomState는 양쪽 방의 OnCreatureCountChanged(활성화 변경 포함)로 충분.
-        if (conditionMode == ConditionMode.LevelCount)
+        if (conditionMode == ConditionMode.LevelCount
+            || conditionMode == ConditionMode.LevelTotal
+            || conditionMode == ConditionMode.ReceiverState
+            || (useComposite && needLevelCount))
             StartCoroutine(TickEvaluate());
     }
 
@@ -226,10 +270,27 @@ public class Door : MonoBehaviour
 
     private void EvaluateConditions()
     {
+        // '현재 L/A 방 개수' 게이지는 항상 갱신. 개수 조건 모드가 아니면 0칸(전부 끔).
+        UpdateLevelCountParents(levelCountCurParents, IsCountMode() ? CurrentModeCount() : 0);
+
         if (alwaysOpen) return;   // 항상 열린 통로는 조건과 무관하게 계속 열림
-        if (conditionMode == ConditionMode.LevelChoice) return;   // 표시/tint 전용 — 자동 개폐 안 함
         // 튜토리얼 방(어느 쪽이든)의 문은 조건 자동 개폐 안 함 (TutorialGuide가 수동 제어)
         if ((roomA != null && roomA.isTutorial) || (roomB != null && roomB.isTutorial)) return;
+
+        // 복합 조건: 켠 bool들을 모두 AND. 하나도 안 켜면 항상 열림(빈 AND = true).
+        if (useComposite)
+        {
+            bool ok = true;
+            if (needRoomState)
+                ok &= (roomA != null && roomA.Activation == roomStateValue)
+                   || (roomB != null && roomB.Activation == roomStateValue);
+            if (needLevelCount)
+                ok &= CountActiveRooms(countState) >= levelCountN;
+            if (ok != isOpen) DoorCloseAndOpen(ok);
+            return;
+        }
+
+        if (conditionMode == ConditionMode.LevelChoice) return;   // 표시/tint 전용 — 자동 개폐 안 함
 
         bool shouldOpen;
 
@@ -237,6 +298,15 @@ public class Door : MonoBehaviour
         {
             case ConditionMode.LevelCount:
                 shouldOpen = CountActiveRooms(requiredState) >= levelCountN;
+                break;
+
+            case ConditionMode.LevelTotal:
+                shouldOpen = CountActiveTotal() >= levelCountN;
+                break;
+
+            case ConditionMode.ReceiverState: // R이 있는 방이 requiredState(L/A)면 열림 — 방 상태를 그대로 따라감
+                shouldOpen = ResolveReceiver() != null
+                          && receiver.CurrentSignalState == requiredState;
                 break;
 
             default: // RoomState — 양쪽 방 중 하나가 requiredState로 활성화되면 열림
@@ -253,17 +323,32 @@ public class Door : MonoBehaviour
     //   RoomState:  open / at      / A
     //   LevelCount: A    / rooms ≥ / 3
     //   LevelChoice:levelN / is    / A
+    //   복합(useComposite): open / at / A and L≥7 (켠 조건들을 " and "로 연결)
+
+    // 복합 조건: 켠 bool들을 " and "로 이어 3번째 칸에 표시
+    private string CompositeTarget()
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (needRoomState) parts.Add(roomStateValue.ToString());
+        if (needLevelCount) parts.Add(countState + "≥" + levelCountN);
+        return parts.Count == 0 ? "-" : string.Join(" and ", parts);
+    }
 
     // name 칸 (조건1)
     public string Operand1Label()
     {
         if (useCustomLabel) return customName;
+        if (useComposite) return "open";
         switch (conditionMode)
         {
             case ConditionMode.LevelCount:
                 return requiredState.ToString();
+            case ConditionMode.LevelTotal:
+                return "total";   // "total / rooms ≥ / n"
             case ConditionMode.LevelChoice:
                 return "level" + choiceLevelIndex;
+            case ConditionMode.ReceiverState:
+                return "R";   // "R / is / A"
             default: // RoomState (사용자 요청: 방이름 대신 "open" → "open / at / A"로 읽힘)
                 return "open";
         }
@@ -273,10 +358,13 @@ public class Door : MonoBehaviour
     public string ConditionLabel()
     {
         if (useCustomLabel) return customVerb;
+        if (useComposite) return "at";
         switch (conditionMode)
         {
             case ConditionMode.LevelCount: return "rooms ≥";   // "rooms ≥"
+            case ConditionMode.LevelTotal: return "rooms ≥";   // "total rooms ≥ n"
             case ConditionMode.LevelChoice: return "is";   // "levelN is 상태"
+            case ConditionMode.ReceiverState: return "is";   // "R is 상태"
             default: return "at";   // RoomState (사용자 요청: "open / at / A" 형식, 방이름 안 씀)
         }
     }
@@ -285,14 +373,63 @@ public class Door : MonoBehaviour
     public string GateTargetLabel()
     {
         if (useCustomLabel) return customObject;
+        if (useComposite) return CompositeTarget();   // "A and L≥7"
         switch (conditionMode)
         {
             case ConditionMode.LevelCount:
+            case ConditionMode.LevelTotal:
                 return levelCountN.ToString();
             case ConditionMode.LevelChoice:
                 return RecordedLevelState().ToString();   // 기록된 선택 "A"/"L"/"None"
             default: // RoomState
                 return requiredState.ToString();   // "L" 또는 "A"
+        }
+    }
+
+    // ReceiverState: receiver 비어있으면 씬에서 R 하나 자동 할당. 없으면 null.
+    private SignCreature ResolveReceiver()
+    {
+        if (receiver == null) receiver = FindObjectOfType<SignCreature>();
+        return receiver;
+    }
+
+    // 개수 조건 모드인가 (LevelCount/LevelTotal 또는 복합 needLevelCount)
+    private bool IsCountMode() => useComposite ? needLevelCount
+        : (conditionMode == ConditionMode.LevelCount || conditionMode == ConditionMode.LevelTotal);
+    // 그 모드가 세는 상태 (복합=countState, 아니면 requiredState)
+    private Room.RoomActivation CountStateForMode() => useComposite ? countState : requiredState;
+
+    // 개수 조건 모드의 현재 카운트 (LevelTotal이면 L+A 합, 아니면 해당 상태 개수)
+    private int CurrentModeCount()
+    {
+        if (!useComposite && conditionMode == ConditionMode.LevelTotal) return CountActiveTotal();
+        return CountActiveRooms(CountStateForMode());
+    }
+
+    // 레벨 전체에서 L 또는 A로 활성화된 방의 총 개수
+    private int CountActiveTotal()
+    {
+        if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
+        int count = 0;
+        foreach (var r in RoomManager.Instance.rooms.Values)
+        {
+            if (r == null) continue;
+            if (r.Activation == Room.RoomActivation.L || r.Activation == Room.RoomActivation.A) count++;
+        }
+        return count;
+    }
+
+    // 여러 부모 각각에 대해, 자식을 앞에서부터 count개 켜고 나머지는 끔.
+    private void UpdateLevelCountParents(GameObject[] parents, int count)
+    {
+        if (parents == null) return;
+        for (int p = 0; p < parents.Length; p++)
+        {
+            var parent = parents[p];
+            if (parent == null) continue;
+            Transform t = parent.transform;
+            for (int i = 0; i < t.childCount; i++)
+                t.GetChild(i).gameObject.SetActive(i < count);
         }
     }
 

@@ -8,7 +8,7 @@ public class PlayerControl : MonoBehaviour
 {
     [Header("이동 설정")]
     public float moveSpeed = 10.0f;
-    public float jumpForce = 5.0f;
+    public float jumpForce = 6.5f;
     public LayerMask groundLayer;
 
     // [추가됨] 중력 배수 설정 (기본 1.0, 2.5 정도면 묵직하게 떨어짐)

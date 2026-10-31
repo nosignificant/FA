@@ -6,15 +6,24 @@ using CreatureTypes;
 // 매 씬의 LevelPortal targetScene을 일일이 바꿀 필요 없이 여기만 고치면 전체 흐름이 바뀜.
 public static class LevelFlow
 {
+    // select level로 단독 플레이 중인가 → 레벨 완료 시 다음 레벨 대신 타이틀로 복귀 + 선택 초기화
+    public static bool standalonePlay;
+    public const string TitleScene = "title";
+
     // ★ 실제 씬 이름/순서에 맞게 수정하세요 (현재 씬 → 다음 씬).
     public static readonly Dictionary<string, string> Next = new()
     {
-        { "tutorial0", "level1" },
-        { "level1",    "level1_after" },
-        { "level2",    "level2_after" },
-        { "level3",    "level3_after" },
-        { "level4",    "level4_after" },
-        { "level5",    "level5_after" },
+        { "tutorial", "level1" },
+        { "level1",       "level1_after" },
+        { "level1_after", "level2" },
+        { "level2",       "level2_after" },
+        { "level2_after", "level3" },
+        { "level3",       "level3_after" },
+        { "level3_after", "level4" },
+        { "level4",       "level4_after" },
+        { "level4_after", "level5" },
+        { "level5",       "level5_after" },
+        { "level5_after", "ending" },
     };
 
     // A/L 선택에 따라 다른 씬으로 분기하고 싶을 때만 "씬:선택" 키로 추가 (분기 우선).

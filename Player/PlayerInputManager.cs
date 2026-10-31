@@ -9,6 +9,10 @@ public class PlayerInputManager : MonoBehaviour
     [Header("Codex Keys")]
     public KeyCode codexToggleKey = KeyCode.C;
 
+    // 락온 키(Tab)가 눌린 마지막 프레임. 튜토리얼 등에서 락온 성공 여부와 무관하게 "키를 눌렀는가"만 감지할 때 사용.
+    // 소비 측은 대기 시작 시점의 값을 저장해두고, 이 값이 바뀌면 새 입력으로 판단한다(프레임 순서 무관).
+    [System.NonSerialized] public int lockOnPressedFrame = -1;
+
     private CreaturePossess possess;
 
     // possess 참조를 필요할 때 안전하게 얻음 (Awake 순서로 Player.Instance가 아직 없을 수 있어 지연 해석)
@@ -47,17 +51,21 @@ public class PlayerInputManager : MonoBehaviour
         if (Mathf.Abs(wheel) > 0.0001f) codex.Scroll(wheel);
     }
 
-    // F: 락온 대상이 R이면 R이 있는 방의 현재 상태를 레벨 전체에 전파, 아니면 빙의 토글
+    // F: 락온 대상이 스토리 코핀이면 스토리 획득, 아니면 빙의 토글.
+    // (R 신호 전파 기능은 제거됨 — R은 방 상태를 그대로 따라가며, 문이 직접 R의 방 상태를 읽음)
     private void HandlePossess()
     {
         if (!Input.GetKeyDown(possessKey)) return;
 
         var p = Player.Instance;
         Creature target = (p != null && p.pl != null) ? p.pl.targetCreature : null;
-        if (target is SignCreature rcv)
+        if (target != null)
         {
-            rcv.PublishRoomState();
-            return;
+            // Creature와 Coffin이 같은 오브젝트가 아닐 수도 있어 부모/자식까지 탐색
+            var coffin = target.GetComponent<Coffin>()
+                      ?? target.GetComponentInParent<Coffin>()
+                      ?? target.GetComponentInChildren<Coffin>();
+            if (coffin != null && coffin.TryTriggerStory()) return;   // 코핀 스토리 소비 → 빙의 안 함
         }
 
         if (Possess != null) Possess.TogglePossess();
@@ -67,6 +75,7 @@ public class PlayerInputManager : MonoBehaviour
     private void HandleLockOn()
     {
         if (!Input.GetKeyDown(lockOnKey)) return;
+        lockOnPressedFrame = Time.frameCount;
 
         var p = Player.Instance;
         if (p == null) return;

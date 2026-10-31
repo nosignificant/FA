@@ -21,9 +21,14 @@ public class FloatingText : MonoBehaviour
     [Tooltip("가로 최대 폭(캔버스 단위). 이보다 길면 줄바꿈, 짧으면 내용만큼. 세로는 제한 없음")]
     public float maxWidth = 40f;
 
+    [Header("거리 컬링")]
+    [Tooltip("플레이어와 이 거리보다 멀면 숨김(팝업 자체는 유지). 0이면 끔")]
+    public float hideBeyondDistance = 0f;
+
     private Vector3 velocity;
     private float t;
     private Camera cam;
+    private Canvas _canvas;
 
     // 폭 제어용: ContentSizeFitter를 가진 오브젝트(레이아웃 루트) 기준
     private RectTransform _layoutRt;
@@ -33,6 +38,7 @@ public class FloatingText : MonoBehaviour
     {
         if (label == null) label = GetComponentInChildren<TMP_Text>();
         cam = Camera.main;
+        _canvas = GetComponentInChildren<Canvas>(true);
 
         // 세로는 CSF(V:Preferred)가 자유롭게 늘리고, 가로만 코드로 [0,maxWidth] 제한
         var csf = GetComponentInChildren<ContentSizeFitter>(true);
@@ -73,6 +79,14 @@ public class FloatingText : MonoBehaviour
     private void Update()
     {
         t += Time.deltaTime;
+
+        // 거리 컬링: 플레이어와 너무 멀면 숨김(팝업은 유지, 캔버스만 끔)
+        if (hideBeyondDistance > 0f && _canvas != null && Player.Instance != null)
+        {
+            float d = Vector3.Distance(transform.position, Player.Instance.transform.position);
+            bool show = d <= hideBeyondDistance;
+            if (_canvas.enabled != show) _canvas.enabled = show;
+        }
 
         // 튀어나가며 감속
         transform.position += velocity * Time.deltaTime;

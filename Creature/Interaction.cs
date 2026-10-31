@@ -37,11 +37,10 @@ public class Interaction : MonoBehaviour
         }
     }
 
-    // H: 활성화되면 AA를 자동 추적 → 가까워지면 HBinder가 자동 bind. 붙잡는 순간 isBound로 정지.
+    // H: 부서진 breakable wall을 최우선으로 막음(WallFormer가 처리). 생물(AA 등) 추적 없음.
     private static int GetActionForH(CreatureID targetID, InteractionAction action)
     {
-        if (targetID == AA && action == InteractionAction.Chase) return 70;
-        return int.MinValue;
+        return int.MinValue;   // AA 자동 추적 제거 — H는 벽 봉인 전용
     }
 
     // S: 벽 파괴 전용 — 생물 상호작용 없음 (벽 타겟은 Sthink가 처리).

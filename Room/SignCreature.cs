@@ -1,15 +1,10 @@
 using UnityEngine;
 using CreatureTypes;
 
-// R은 자신이 있는 방의 현재 L/A 상태를 레벨 전체에 전파한다.
-// 플레이어가 락온 + F를 누를 때마다 현재 상태를 다시 읽어 전파하며,
-// 레벨 선택은 플레이어가 포탈에 들어가는 순간 R이 있는 방의 상태로 확정한다.
+// R은 자신이 있는 방의 현재 L/A 상태를 '그대로' 반영하는 수동 센서다.
+// 다른 방에 전파(방송)하지 않으며, 문이 직접 R의 방 상태(CurrentSignalState)를 읽어 여닫는다.
 public class SignCreature : Creature
 {
-    [Header("초기 신호")]
-    [Tooltip("씬 시작 시 R이 있는 방의 상태(L/A)를 다른 모든 방에 전파")]
-    public bool broadcastRoomStateOnStart = true;
-
     [Header("신호 표시")]
     [Tooltip("색을 바꿀 렌더러들. 비우면 자식 렌더러 전부 자동 수집")]
     public Renderer[] connectionRenderers;
@@ -32,9 +27,7 @@ public class SignCreature : Creature
     [Tooltip("이전 R 확정 연출용 필드. 신호 전파 시에는 숨기지 않음")]
     public GameObject hideOnActivate;
 
-    [System.NonSerialized] public bool HasPlayerPublishedSignal;
-
-    // 마지막으로 전파한 값을 캐시하지 않고 R의 현재 방에서 읽는다.
+    // 캐시하지 않고 R의 현재 방 상태를 그대로 읽는다.
     public Room.RoomActivation CurrentSignalState
     {
         get
@@ -43,6 +36,9 @@ public class SignCreature : Creature
             return sourceRoom != null ? sourceRoom.Activation : Room.RoomActivation.None;
         }
     }
+
+    // 시각 표시용 상태: 언제나 R이 있는 방의 현재 상태를 그대로 반영.
+    private Room.RoomActivation VisualState => CurrentSignalState;
 
     private Room.RoomActivation _lastVisualState = (Room.RoomActivation)(-1);
 
@@ -57,78 +53,15 @@ public class SignCreature : Creature
         RefreshVisual();
     }
 
-    private void Start()
-    {
-        if (broadcastRoomStateOnStart)
-            StartCoroutine(BroadcastRoomStateAtStart());
-    }
-
     private void Update()
     {
-        if (_lastVisualState != CurrentSignalState)
+        if (_lastVisualState != VisualState)
             RefreshVisual();
-    }
-
-    // Room.Start의 초기 등록과 활성화 계산이 끝난 뒤 R의 방 상태를 한 번 전파한다.
-    private System.Collections.IEnumerator BroadcastRoomStateAtStart()
-    {
-        float deadline = Time.time + 5f;
-        Room sourceRoom = null;
-        Room.RoomActivation state = Room.RoomActivation.None;
-
-        while (Time.time < deadline)
-        {
-            sourceRoom = GetSourceRoom();
-            state = sourceRoom != null ? sourceRoom.Activation : Room.RoomActivation.None;
-            if (RoomManager.Instance != null && state != Room.RoomActivation.None)
-                break;
-            yield return null;
-        }
-
-        if (RoomManager.Instance == null || sourceRoom == null || state == Room.RoomActivation.None)
-        {
-            Debug.LogWarning($"[SignCreature] {name}: 초기 신호를 보낼 L/A 상태의 방을 찾지 못했습니다.", this);
-            yield break;
-        }
-
-        BroadcastStateToOtherRooms(sourceRoom, state);
-    }
-
-    // F: R이 있는 방의 '현재' 상태를 읽어 다른 방에 재전파한다.
-    public bool PublishRoomState()
-    {
-        Room sourceRoom = GetSourceRoom();
-        Room.RoomActivation state = sourceRoom != null ? sourceRoom.Activation : Room.RoomActivation.None;
-        if (sourceRoom == null || (state != Room.RoomActivation.L && state != Room.RoomActivation.A))
-        {
-            Popup.Instance?.BurstMessage(this, "no state", Color.gray);
-            return false;
-        }
-
-        BroadcastStateToOtherRooms(sourceRoom, state);
-        HasPlayerPublishedSignal = true;
-        Popup.Instance?.BurstMessage(this, state == Room.RoomActivation.A ? "signal A" : "signal L",
-            state == Room.RoomActivation.A ? connectedColorA : connectedColor);
-        return true;
     }
 
     public static CreatureID ChoiceForState(Room.RoomActivation state)
     {
         return state == Room.RoomActivation.A ? CreatureID.A : CreatureID.L;
-    }
-
-    private void BroadcastStateToOtherRooms(Room sourceRoom, Room.RoomActivation state)
-    {
-        if (RoomManager.Instance != null)
-            foreach (Room room in RoomManager.Instance.rooms.Values)
-                if (room != null && room != sourceRoom)
-                    room.ForceActivation(state);
-
-        // tint components outside a Room hierarchy can still reflect the new level-wide state.
-        foreach (WallActivationTint tint in FindObjectsOfType<WallActivationTint>())
-            if (tint != null) tint.Apply(state);
-
-        RefreshVisual();
     }
 
     private Room FindRoomAtCurrentPosition()
@@ -154,7 +87,7 @@ public class SignCreature : Creature
 
     private void RefreshVisual()
     {
-        Room.RoomActivation state = CurrentSignalState;
+        Room.RoomActivation state = VisualState;
         _lastVisualState = state;
 
         if (_rots != null)

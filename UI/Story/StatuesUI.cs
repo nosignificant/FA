@@ -1,36 +1,86 @@
 using UnityEngine;
-using CreatureTypes;
 
-// "statues" 패널: 레벨별 클리어 선택(ChoiceProgress의 L/A)을 이미지로 보여준다.
-//  각 레벨 행의 "level N is"는 고정 이미지(패널에 그냥 배치),
-//  이 스크립트는 레벨별 L/A 이미지 중 '기록된 선택'만 켠다. (없으면 둘 다 끔)
+// "statues" 패널: 현재 L/A 방 개수를 자릿수 글리프로 표시한다.
+//  각 자리(10의 자리 / 1의 자리)마다 0~9 글리프 10개를 받아, 현재 숫자 하나만 켠다.
 public class StatuesUI : MonoBehaviour
 {
-    [Header("레벨별 선택 이미지 ( [0]=level1, [1]=level2 ... )")]
-    [Tooltip("그 레벨을 L로 클리어했을 때 켤 이미지")]
-    public GameObject[] levelChoiceL;
-    [Tooltip("그 레벨을 A로 클리어했을 때 켤 이미지")]
-    public GameObject[] levelChoiceA;
+    [Header("L / A total 자릿수 표시")]
+    [Tooltip("각 배열에 0~9 글리프 10개를 넣으세요. 순서 무관 — 글리프 '이름 끝의 숫자'로 매칭합니다 (예: \"num (1)\"→1, \"num 0\"→0).")]
+    public GameObject[] lOnes;   // L total 1의 자리
+    public GameObject[] lTens;   // L total 10의 자리
+    public GameObject[] aOnes;   // A total 1의 자리
+    public GameObject[] aTens;   // A total 10의 자리
+    [Tooltip("켜면 10 미만일 때 10의 자리에 0을 표시. 끄면 10의 자리를 비움(예: 5 → ' 5')")]
+    public bool showLeadingZero = false;
 
-    // StatuesMenu가 열 때 호출
-    public void Show() => Refresh();
+    private int _lastL = -1, _lastA = -1;
+
+    // StatuesMenu가 열 때 호출 — 강제 1회 갱신
+    public void Show()
+    {
+        _lastL = _lastA = -1;
+        Refresh();
+    }
+
+    // 패널이 열려 있는 동안 방 상태 변화를 실시간 반영
+    private void Update()
+    {
+        if (StatuesMenu.AnyOpen) Refresh();
+    }
 
     private void Refresh()
     {
-        var choices = ChoiceProgress.All();
-        int n = Mathf.Max(Len(levelChoiceL), Len(levelChoiceA));
-        for (int i = 0; i < n; i++)
+        int l = CountRooms(Room.RoomActivation.L);
+        int a = CountRooms(Room.RoomActivation.A);
+        if (l == _lastL && a == _lastA) return;   // 바뀔 때만 글리프 토글
+        _lastL = l; _lastA = a;
+
+        ShowNumber(lTens, lOnes, l);
+        ShowNumber(aTens, aOnes, a);
+    }
+
+    // count(0~99)를 10의 자리 / 1의 자리 글리프로 표시
+    private void ShowNumber(GameObject[] tens, GameObject[] ones, int count)
+    {
+        count = Mathf.Clamp(count, 0, 99);
+        int tensDigit = count / 10;
+        int onesDigit = count % 10;
+
+        SetDigit(ones, onesDigit);
+        // 10 미만이고 leading zero를 안 쓰면 10의 자리는 비움(-1 → 전부 끔)
+        SetDigit(tens, (count < 10 && !showLeadingZero) ? -1 : tensDigit);
+    }
+
+    // 이름 끝 숫자가 digit 인 글리프만 켠다. digit<0 이면 전부 끔.
+    private static void SetDigit(GameObject[] glyphs, int digit)
+    {
+        if (glyphs == null) return;
+        for (int i = 0; i < glyphs.Length; i++)
         {
-            bool isL = i < choices.Count && choices[i] == CreatureID.L;
-            bool isA = i < choices.Count && choices[i] == CreatureID.A;
-            SetAt(levelChoiceL, i, isL);
-            SetAt(levelChoiceA, i, isA);
+            if (glyphs[i] == null) continue;
+            bool on = digit >= 0 && GlyphValue(glyphs[i].name) == digit;
+            glyphs[i].SetActive(on);
         }
     }
 
-    private static int Len(GameObject[] a) => a != null ? a.Length : 0;
-    private static void SetAt(GameObject[] a, int i, bool on)
+    // 오브젝트 이름 끝의 정수를 뽑는다. "num (1)"→1, "num 0"→0, 없으면 -1.
+    private static int GlyphValue(string name)
     {
-        if (a != null && i >= 0 && i < a.Length && a[i] != null) a[i].SetActive(on);
+        int i = name.Length - 1;
+        while (i >= 0 && !char.IsDigit(name[i])) i--;   // 뒤쪽 숫자 끝 찾기
+        int end = i;
+        while (i >= 0 && char.IsDigit(name[i])) i--;     // 숫자 구간 시작 전까지
+        if (end < 0 || i >= end) return -1;
+        return int.TryParse(name.Substring(i + 1, end - i), out int v) ? v : -1;
+    }
+
+    // 현재 해당 상태(L/A)인 방 개수
+    private static int CountRooms(Room.RoomActivation state)
+    {
+        if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
+        int count = 0;
+        foreach (var r in RoomManager.Instance.rooms.Values)
+            if (r != null && r.Activation == state) count++;
+        return count;
     }
 }

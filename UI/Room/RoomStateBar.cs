@@ -83,8 +83,11 @@ public class RoomStateBar : MonoBehaviour
     {
         if (thresholdParent == null) return;
         int n = thresholdParent.childCount;
+        // 마커가 1부터 시작(첫 자식=1개 위치)이라 threshold-1 자식을 켠다.
+        // (만약 첫 자식이 '0개' 위치면 아래를 markerIndex = threshold 로 바꾸면 됨)
+        int markerIndex = threshold - 1;
         for (int i = 0; i < n; i++)
-            SetAlpha(thresholdParent.GetChild(i).gameObject, i == threshold ? 1f : 0f);
+            SetAlpha(thresholdParent.GetChild(i).gameObject, i == markerIndex ? 1f : 0f);
     }
 
     private static void SetActiveSafe(GameObject go, bool on)

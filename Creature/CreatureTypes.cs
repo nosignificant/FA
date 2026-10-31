@@ -12,6 +12,7 @@ namespace CreatureTypes
         Synthesizing = 6,
         Controlled = 7,
         ProducedBy = 10,   // LL이 생산 중 들고 있는 상태 (LL 자식으로 따라감, holdTime 동안)
+        Block = 11,        // H가 부서진 벽(breakable wall)을 막아 통로를 차단 중인 상태
     }
 
     public enum InteractionAction
@@ -38,7 +39,7 @@ namespace CreatureTypes
         LL = 14,   // L을 생산하며 돌아다니는 생산기
         Timid = 15, // 겁쟁이: 모든 생물을 피해 도망
         p53 = 16,  // NPC 동반자: 플레이어만 따라다님 (상호작용 없음)
-        WallFormer = 18, // 부서진 벽 틈에 들어가 벽 형태를 이루는 Kabsch 군집
+        WallFormer = 18, // 부서진 벽 틈 네 모서리에 발을 고정해 통로를 막는 생물
 
         Door = 97,
         WalkingWeed = 98, // 상호작용 없음

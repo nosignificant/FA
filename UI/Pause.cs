@@ -47,6 +47,10 @@ public class Pause : MonoBehaviour
         if (panelRoot != null) panelRoot.SetActive(true);
         if (canvasGroup != null) canvasGroup.alpha = 1f;
         SetBgAlpha(0.7f);
+
+        // 메뉴 버튼을 마우스로 누를 수 있게 커서 해제
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     public void Close()
@@ -55,6 +59,10 @@ public class Pause : MonoBehaviour
         SetBgAlpha(0f);
         if (panelRoot != null) panelRoot.SetActive(false);
         Time.timeScale = 1f;
+
+        // 게임 복귀 → 커서 다시 잠금
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     [Tooltip("배경 색 (알파는 코드가 페이드로 조절)")]

@@ -22,9 +22,13 @@ public class BreakableWall : MonoBehaviour
     [Tooltip("breakable=on일 때 비활성화할 일반 벽 오브젝트")]
     public GameObject normalWall;
 
-    [Header("벽 생물 장착점")]
-    [Tooltip("켜면 파괴 후 breakableObject를 비활성화하지 않고 유지합니다. 원래 벽 렌더러/콜라이더만 끄므로 WallFormer를 자식으로 붙일 수 있습니다.")]
-    public bool keepBreakableObjectAsWallFormerMount = false;
+    [Header("Wall former 통로 차단")]
+    [Tooltip("벽이 부서진 뒤 WallFormer가 자리 잡으면 켤 BoxCollider. 비우면 이 오브젝트의 BoxCollider를 사용합니다.")]
+    public BoxCollider wallFormerBlockerCollider;
+
+    [Header("Wall former 발 고정점")]
+    [Tooltip("벽 통로 네 모서리의 Transform을 지정합니다. 배열 순서대로 WallFormer의 Leg 0~3 발에 연결됩니다. breakableObject의 자식으로 두세요.")]
+    public Transform[] wallFormerCorners = new Transform[4];
 
     [Header("시작 상태")]
     [Tooltip("게임 시작부터 이미 부서진 상태로 둠 (통로로 열려있음)")]
@@ -47,7 +51,26 @@ public class BreakableWall : MonoBehaviour
     public float oppositeBreakRange = 5f;
 
     public bool Broken { get; private set; }
+    public bool IsPassageBlocked { get; private set; }
     public Vector3 Position => transform.position;
+
+    public bool TryGetWallFormerCorners(out Transform[] corners)
+    {
+        corners = wallFormerCorners;
+        if (corners == null || corners.Length != 4) return false;
+
+        for (int i = 0; i < corners.Length; i++)
+            if (corners[i] == null) return false;
+
+        return true;
+    }
+
+    public BoxCollider GetWallFormerBlockerCollider()
+    {
+        if (wallFormerBlockerCollider == null)
+            wallFormerBlockerCollider = GetComponent<BoxCollider>();
+        return wallFormerBlockerCollider;
+    }
 
     private int hits;
     private Renderer[] originalBreakableRenderers = System.Array.Empty<Renderer>();
@@ -109,7 +132,7 @@ public class BreakableWall : MonoBehaviour
         // 부모(tintTarget)는 Broken이어도 유지해서 틀/틴트를 남긴다.
         if (breakableObject != null)
         {
-            bool retainAsMount = Broken && keepBreakableObjectAsWallFormerMount;
+            bool retainAsMount = Broken;   // 항상 장착점으로 유지 (H가 재봉인 가능하게)
             breakableObject.SetActive(breakable && (!Broken || retainAsMount));
             if (retainAsMount)
             {
@@ -226,15 +249,13 @@ public class BreakableWall : MonoBehaviour
         // 부술 수 있는 벽 비주얼 오브젝트 비활성화 → 그 자리가 뚫려 통로가 됨
         if (breakableObject != null)
         {
-            if (keepBreakableObjectAsWallFormerMount)
-            {
-                breakableObject.SetActive(true);
-                foreach (var renderer in originalBreakableRenderers)
-                    if (renderer != null) renderer.enabled = false;
-                foreach (var collider in originalBreakableColliders)
-                    if (collider != null) collider.enabled = false;
-            }
-            else breakableObject.SetActive(false);
+            // 항상 장착점으로 유지: 오브젝트는 켠 채 원래 벽 렌더러/콜라이더만 끔
+            // → 안 보이고 통과 가능 + WallFormer(H)가 붙을 장착점 유지
+            breakableObject.SetActive(true);
+            foreach (var renderer in originalBreakableRenderers)
+                if (renderer != null) renderer.enabled = false;
+            foreach (var collider in originalBreakableColliders)
+                if (collider != null) collider.enabled = false;
         }
 
         // 벽 메시 숨김
@@ -302,5 +323,29 @@ public class BreakableWall : MonoBehaviour
         if (from == roomA) return roomB;
         if (from == roomB) return roomA;
         return null;
+    }
+
+    /// <summary>Controls whether room migration and room-membership checks treat this broken wall as a passage.</summary>
+    public void SetPassageBlocked(bool blocked)
+    {
+        IsPassageBlocked = Broken && blocked;
+        BoxCollider blocker = GetWallFormerBlockerCollider();
+        if (Broken && blocker != null) blocker.enabled = IsPassageBlocked;
+        SyncPassageRegistration();
+    }
+
+    private void SyncPassageRegistration()
+    {
+        if (roomA == null || roomB == null) AutoDetectRooms();
+        if (Broken && !IsPassageBlocked)
+        {
+            if (roomA != null) roomA.RegisterPassage(this);
+            if (roomB != null) roomB.RegisterPassage(this);
+        }
+        else
+        {
+            if (roomA != null) roomA.UnregisterPassage(this);
+            if (roomB != null) roomB.UnregisterPassage(this);
+        }
     }
 }

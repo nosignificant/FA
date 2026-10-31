@@ -146,6 +146,56 @@ public class Room : MonoBehaviour
         }
     }
 
+    // R 방송용: 반대 종을 방송 종으로 '뒤집고', 모자라면 activation 문턱까지 채운다. 고정(latch)은 안 함.
+    //  → 그 방이 방송 상태로 활성화되되, 이후 다시 반대 종이 과반이 되면 그 상태로 바뀐다.
+    public void ApplyBroadcast(RoomActivation state)
+    {
+        CreatureID newId = state == RoomActivation.A ? CreatureID.A : CreatureID.L;
+        CreatureID oldId = state == RoomActivation.A ? CreatureID.L : CreatureID.A;
+        GameObject prefab = creatureDB != null ? creatureDB.GetPrefab(newId) : null;
+
+        int kept = 0;
+        // 1) 반대 종(oldId) → 방송 종(newId)으로 뒤집기 (위치 유지)
+        var snapshot = new List<Creature>(creatureList);
+        foreach (var c in snapshot)
+        {
+            if (c == null || c.data == null) continue;
+            CreatureID id = c.data.creatureID;
+            if (id == newId) { kept++; continue; }
+            if (id != oldId) continue;
+
+            Vector3 pos = c.rootTransform != null ? c.rootTransform.position : c.transform.position;
+            UnregisterCreature(c);
+            Destroy(c.gameObject);
+            if (prefab != null && SpawnBroadcastParticle(prefab, pos) != null) kept++;
+        }
+
+        // 2) activation 문턱(activationMinCount)까지 채우기 → 방송 상태로 활성화 보장
+        if (prefab != null && homeBound != null)
+        {
+            Bounds b = homeBound.bounds;
+            int guard = 0;
+            while (kept < activationMinCount && guard++ < 200)
+            {
+                Vector3 p = new Vector3(UnityEngine.Random.Range(b.min.x, b.max.x), b.center.y, UnityEngine.Random.Range(b.min.z, b.max.z));
+                if (SpawnBroadcastParticle(prefab, p) != null) kept++;
+                else break;
+            }
+        }
+
+        activationLatched = false;                 // 고정 안 함 — 이후 입자로 다시 바뀜
+        SetActivation(ComputeActivation());
+    }
+
+    private Creature SpawnBroadcastParticle(GameObject prefab, Vector3 pos)
+    {
+        GameObject obj = Instantiate(prefab, pos, Quaternion.identity);
+        obj.transform.SetParent(CreatureRoot.Container, true);
+        Creature nc = obj.GetComponent<Creature>();
+        if (nc != null) RegisterCreature(nc);
+        return nc;
+    }
+
     [Header("상태 변화 알림 팝업")]
     [Tooltip("방이 L/A로 바뀔 때 각 breakable 벽에서 방 중심으로 팝업을 띄워 알림")]
     public bool announceActivationPopup = true;

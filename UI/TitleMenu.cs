@@ -18,6 +18,11 @@ public class TitleMenu : MonoBehaviour
 
     private void Start()
     {
+        // 게임에서 돌아왔을 수 있어 커서/타임스케일 복구 (타이틀은 마우스로 조작)
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
         UpdateVisual();
     }
 

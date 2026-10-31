@@ -22,6 +22,13 @@ public class Leg : MonoBehaviour
     private bool isMoving = false;
     private Vector3 targetPos;
     private float maxBodyLength;
+    private bool footTargetLocked;
+    private int footTargetVersion;
+    private Vector3 lockedFootPosition;
+    public bool FootTargetLocked => footTargetLocked;
+    [Min(0f)]
+    [Tooltip("0이면 제한 없음. 양수면 발 착지점이 다리 상단(top)에서 이 수평 거리보다 멀어지지 않게 제한")]
+    public float maxFootReach = 5f;
 
     public bool isWeed;
     public float weedMaxLength = 5f;
@@ -50,6 +57,8 @@ public class Leg : MonoBehaviour
         line = GetComponent<LineRender>();
         lh = GetComponentInParent<LegHead>();
         brain = GetComponentInParent<Think2>();
+        if (ground.value == 0)
+            ground = lh != null && lh.ground.value != 0 ? lh.ground : LayerMask.GetMask("Ground");
 
         if (isWeed) StartCoroutine(WeedOffsetLoop());   // 오프셋 살랑거림
 
@@ -57,7 +66,8 @@ public class Leg : MonoBehaviour
         if (tipTarget != null)
         {
             Vector3 initPos = tipTarget.position;
-            if (!isWeed) initPos = FootUtil.SetTargetNearest(initPos, ground);   // weed는 접지 스냅 안 함(원래 위치 유지)
+            if (!isWeed && FootUtil.TryGround(initPos, ground, out Vector3 groundedInitPos))
+                initPos = groundedInitPos;   // 걷는 다리는 Ground 레이어의 걸을 수 있는 표면에만 접지
 
             targetPos = initPos;
             tipTarget.position = targetPos;
@@ -83,12 +93,23 @@ public class Leg : MonoBehaviour
     {
         if (target == null || foot == null || top == null || tipTarget == null) { return; }
         if (parts == null || parts.Length < 2) { Debug.Log("파츠가 없음"); return; }
+
+        if (footTargetLocked)
+        {
+            tipTarget.position = lockedFootPosition;
+            foot.position = lockedFootPosition;
+        }
+
         MoveFootandClampedTop();
 
         bodyFABRIK();
 
-        // 타겟이 발끝에서 stride 이상 멀어지면 발을 뗌
-        float distFootToTarget = Vector3.Distance(foot.position, target.position);
+        if (footTargetLocked) return;
+
+        // LegHead는 바닥보다 높으므로, 보폭 판단은 수평 거리만 사용한다.
+        Vector3 toTarget = target.position - foot.position;
+        toTarget.y = 0f;
+        float distFootToTarget = toTarget.magnitude;
         if (!isMoving && distFootToTarget > stride && !isWeed)
             StartCoroutine(MoveFoot());
 
@@ -136,13 +157,21 @@ public class Leg : MonoBehaviour
 
     IEnumerator MoveFoot()
     {
-        Vector3 dirToTarget = (target.position - foot.position).normalized;
-        Vector3 destPos = foot.position + (dirToTarget * stride);
-        destPos = foot.position + new Vector3(
-             dirToTarget.x * stride + Random.Range(-2f, 2f),
-             foot.position.y + 100f,
-             dirToTarget.z * stride + Random.Range(-2f, 2f)
-         );
+        int stepVersion = footTargetVersion;
+        Vector3 dirToTarget = target.position - foot.position;
+        dirToTarget.y = 0f;
+        if (dirToTarget.sqrMagnitude < 0.0001f)
+        {
+            isMoving = false;
+            yield break;
+        }
+        dirToTarget.Normalize();
+
+        Vector3 destPos = new Vector3(
+            foot.position.x + dirToTarget.x * stride + Random.Range(-2f, 2f),
+            foot.position.y,
+            foot.position.z + dirToTarget.z * stride + Random.Range(-2f, 2f)
+        );
 
         // 땅을 못 찾으면 발을 옮기지 않고 이전 위치 유지 (공중으로 튀는 것 방지)
         if (!FootUtil.TryGround(destPos, ground, out targetPos))
@@ -162,6 +191,26 @@ public class Leg : MonoBehaviour
             yield break;
         }
 
+        // 목표가 멀어도 발을 무한히 따라 보내지 않고, top 기준 최대 착지 반경 안으로 제한한다.
+        if (maxFootReach > 0f)
+        {
+            Vector3 horizontalOffset = targetPos - top.position;
+            horizontalOffset.y = 0f;
+            float maxReachSqr = maxFootReach * maxFootReach;
+
+            if (horizontalOffset.sqrMagnitude > maxReachSqr)
+            {
+                Vector3 limitedProbe = top.position + horizontalOffset.normalized * maxFootReach;
+                limitedProbe.y = targetPos.y;
+
+                if (!FootUtil.TryGround(limitedProbe, ground, out targetPos))
+                {
+                    isMoving = false;
+                    yield break;
+                }
+            }
+        }
+
         if (lh != null)
             if (!lh.CheckValidFootPos(targetPos, this)) { yield break; }
 
@@ -172,7 +221,28 @@ public class Leg : MonoBehaviour
         float stepTime = 0.2f;
         float stepHeight = 3f;
 
-        yield return StartCoroutine(FootUtil.lerpMove(tipTarget, targetPos, stepTime, stepHeight, targetNormal));
+        Vector3 stepStart = tipTarget.position;
+        float t = 0f;
+        while (t < 1f)
+        {
+            // An anchor can be assigned while stepping; stop before writing another airborne point.
+            if (stepVersion != footTargetVersion || footTargetLocked)
+            {
+                isMoving = false;
+                yield break;
+            }
+
+            t = Mathf.Min(1f, t + Time.deltaTime / Mathf.Max(0.001f, stepTime));
+            tipTarget.position = Vector3.Lerp(stepStart, targetPos, t)
+                               + targetNormal * (Mathf.Sin(t * Mathf.PI) * stepHeight);
+            yield return null;
+        }
+
+        if (stepVersion != footTargetVersion || footTargetLocked)
+        {
+            isMoving = false;
+            yield break;
+        }
 
         tipTarget.position = targetPos;
 
@@ -239,6 +309,27 @@ public class Leg : MonoBehaviour
             drawPoints[0] = target;
             isDrawArrayInitialized = true;
         }
+    }
+
+    public void SetFootAnchor(Vector3 worldPosition)
+    {
+        footTargetVersion++;
+        footTargetLocked = true;
+        lockedFootPosition = worldPosition;
+        isMoving = false;
+
+        if (tipTarget != null) tipTarget.position = worldPosition;
+        if (foot != null) foot.position = worldPosition;
+    }
+
+    public void SetFootTargetLock(bool locked)
+    {
+        footTargetVersion++;
+        footTargetLocked = locked;
+        if (!locked || tipTarget == null) return;
+
+        lockedFootPosition = tipTarget.position;
+        if (foot != null) foot.position = lockedFootPosition;
     }
 
     private void OnDrawGizmos()

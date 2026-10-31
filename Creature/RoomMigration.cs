@@ -190,7 +190,7 @@ public class RoomMigration : MonoBehaviour
     public bool TickChaseMigration()
     {
         if (self.currentRoom == null) { Dbg("currentRoom=null → 이주 불가"); return false; }
-        if (MigrateOnCooldown) { Dbg($"쿨다운 중 ({migrateCooldown - (Time.time - lastMigrateTime):0.0}s 남음)"); return false; }
+        // 추적 이주는 쿨다운·되돌아가기 제한 없이 즉시 따라감 (AA가 LL을 지연 없이 바로 쫓게)
 
         var room = self.currentRoom;
         Vector3 myPos = self.rootTransform.position;

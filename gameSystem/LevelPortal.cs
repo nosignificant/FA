@@ -3,13 +3,11 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using CreatureTypes;
 
-// 플레이어가 포탈에 들어오는 순간 R이 있는 방의 현재 상태를 기록하고 다음 씬으로 전환.
+// 플레이어가 포탈에 들어오는 순간 레벨의 L/A 방 개수로 판정(과반, 동점→A)하고 다음 씬으로 전환.
 [RequireComponent(typeof(Collider))]
 public class LevelPortal : MonoBehaviour
 {
     [Header("옵션")]
-    [Tooltip("비우면 씬의 R을 자동 검색")]
-    public SignCreature signalSource;
     [Tooltip("Additive면 현재 씬 위에 겹쳐 로드, 아니면 교체")]
     public bool additive = false;
     [Tooltip("기록된 선택(ChoiceProgress)이 없을 때 쓸 기본 선택 — LevelFlow 분기·클리어 표시용")]
@@ -23,7 +21,6 @@ public class LevelPortal : MonoBehaviour
 
     private bool triggered = false;
     private CreatureID pendingChoice;
-    private bool capturedFromR;
 
     private void Reset()
     {
@@ -36,9 +33,15 @@ public class LevelPortal : MonoBehaviour
     {
         if (triggered) return;
         if (other.GetComponentInParent<Player>() == null) return;   // 플레이어만
+        Debug.Log($"[LevelPortal] {name}: 플레이어 진입 → 선택 캡처 시도", this);
 
-        if (!TryCaptureChoice(out pendingChoice)) return;
+        if (!TryCaptureChoice(out pendingChoice))
+        {
+            Debug.Log($"[LevelPortal] {name}: 캡처 실패 → 전환 취소 (씬에 R이 있는데 그 방 상태가 L/A가 아님)", this);
+            return;
+        }
         triggered = true;
+        Debug.Log($"[LevelPortal] {name}: 전환 시작 choice={pendingChoice}", this);
 
         if (delay > 0f) StartCoroutine(LoadAfterDelay());
         else Load();
@@ -50,37 +53,42 @@ public class LevelPortal : MonoBehaviour
         Load();
     }
 
-    // 포탈 진입 순간의 R 상태를 캡처. 전환 지연 중 R 상태가 바뀌어도 선택은 바뀌지 않는다.
+    // 포탈 진입 순간 레벨의 L/A 방 개수로 판정한다. L 방이 더 많으면 L, 그 외(A가 많거나 동점·미정)는 A.
     private bool TryCaptureChoice(out CreatureID choice)
     {
-        // Every return path must provide a value, including the "no signal state" path.
-        choice = choiceId;
-        SignCreature source = signalSource != null ? signalSource : FindObjectOfType<SignCreature>();
-        if (source != null)
-        {
-            capturedFromR = true;
-            Room.RoomActivation state = source.CurrentSignalState;
-            if (state != Room.RoomActivation.L && state != Room.RoomActivation.A)
-            {
-                Popup.Instance?.BurstMessage(source, "no state", Color.gray);
-                return false;
-            }
-
-            choice = SignCreature.ChoiceForState(state);
-            return true;
-        }
-
-        // R이 없는 기존 씬은 기록된 선택 또는 인스펙터 기본값을 유지.
-        capturedFromR = false;
-        var all = ChoiceProgress.All();
-        choice = all.Count > 0 ? all[all.Count - 1] : choiceId;
+        int countL = CountRooms(Room.RoomActivation.L);
+        int countA = CountRooms(Room.RoomActivation.A);
+        choice = countL > countA ? CreatureID.L : CreatureID.A;   // 동점·미정 → A(기본값)
         return true;
+    }
+
+    // 레벨 전체에서 이 상태(L/A)로 활성화된 방의 개수
+    private int CountRooms(Room.RoomActivation state)
+    {
+        if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
+        int n = 0;
+        foreach (var r in RoomManager.Instance.rooms.Values)
+            if (r != null && r.Activation == state) n++;
+        return n;
     }
 
     private void Load()
     {
         CreatureID choice = pendingChoice;
+
+        // select level 단독 플레이: 다음 레벨 대신 타이틀로 복귀 + 이번 레벨 선택(A/L) 초기화
+        if (LevelFlow.standalonePlay)
+        {
+            if (restoreTimeScale) Time.timeScale = 1f;
+            LevelFlow.standalonePlay = false;
+            ChoiceProgress.Clear();
+            if (SceneLoader.Instance != null) SceneLoader.Instance.Load(LevelFlow.TitleScene);
+            else SceneManager.LoadScene(LevelFlow.TitleScene);
+            return;
+        }
+
         string scene = LevelFlow.GetNext(SceneManager.GetActiveScene().name, choice);
+        Debug.Log($"[LevelPortal] {name}: 현재씬='{SceneManager.GetActiveScene().name}' → 다음='{scene ?? "(null!)"}' choice={choice} standalone={LevelFlow.standalonePlay}", this);
 
         if (string.IsNullOrEmpty(scene))
         {
@@ -90,8 +98,8 @@ public class LevelPortal : MonoBehaviour
 
         if (restoreTimeScale) Time.timeScale = 1f;
 
-        // R 상태로 이번 레벨 선택을 확정하는 시점은 포탈 진입.
-        if (capturedFromR) ChoiceProgress.Record(choice);
+        // 이번 레벨의 판정(과반)을 확정하는 시점은 포탈 진입.
+        ChoiceProgress.Record(choice);
 
         // 로딩바가 있으면 SceneLoader로 (additive는 로더 미지원 → 직접 로드)
         if (!additive && SceneLoader.Instance != null)

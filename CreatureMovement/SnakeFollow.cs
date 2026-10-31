@@ -25,6 +25,12 @@ public class SnakeFollow : MonoBehaviour
     [Tooltip("헤엄 경로의 상하 휨(0이면 좌우만). lockY면 무시")]
     public float headSwayVertical = 0f;
 
+    [Header("벽 충돌 (transform 이동이라 물리로는 못 막아 레이로 막음)")]
+    [Tooltip("막을 벽 레이어. 비우면(0) 충돌 체크 안 함")]
+    public LayerMask wallMask;
+    [Tooltip("head 반경(벽에서 이만큼 띄워 멈춤)")]
+    public float headRadius = 0.5f;
+
     [Tooltip("마디 간 유지 거리")]
     public float spacing = 1f;
     [Tooltip("따라오는 부드러움(클수록 바짝, 0이면 즉시 스냅). 지연·관성 느낌")]
@@ -70,7 +76,13 @@ public class SnakeFollow : MonoBehaviour
             dir.Normalize();
         }
 
-        head.position += dir * headSpeed * Time.deltaTime;
+        // 벽 충돌: transform 이동이라 콜라이더가 안 막아줌 → 레이로 벽 앞에서 멈춤
+        float moveDist = headSpeed * Time.deltaTime;
+        if (wallMask.value != 0 && Physics.SphereCast(head.position, headRadius, dir, out RaycastHit wallHit,
+                moveDist + headRadius, wallMask, QueryTriggerInteraction.Ignore))
+            moveDist = Mathf.Max(0f, wallHit.distance - headRadius);
+
+        head.position += dir * moveDist;
         head.rotation = Quaternion.Slerp(head.rotation, Quaternion.LookRotation(dir), Time.deltaTime * headTurn);
     }
 
