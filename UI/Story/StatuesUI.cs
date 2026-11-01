@@ -79,7 +79,7 @@ public class StatuesUI : MonoBehaviour
     {
         if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
         int count = 0;
-        foreach (var r in RoomManager.Instance.rooms.Values)
+        foreach (var r in RoomManager.Instance.allRooms)
             if (r != null && r.Activation == state) count++;
         return count;
     }

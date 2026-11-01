@@ -25,7 +25,7 @@ public partial class TutorialGuide : MonoBehaviour
         yield return SayLine("저의 일부가 과열로 인해 파괴되어, 대부분의 시설과 연결이 끊어졌습니다.");
         yield return SayLine("앞의 큰 방의 연결을 회복하면, 나머지의 지역의 상태를 알 수 있을 것 같습니다...");
 
-        FindObjectOfType<P53Think>()?.SetGuide(tf_tutL);
+        MyP53Think()?.SetGuide(tf_tutL);
         yield return SayLine("주변에 생물 L 또는 A가 있을 겁니다. 시설 가동에 필요한 에너지를 생산합니다...");
         yield return SayLine("일반적인 경우라면 스스로 방을 이동해 탐색을 하나 경로 안내 시스템이 고장을 일으킨 모양입니다.");
         yield return SayLine("해당 생물들을 옆의 방으로 옮겨주시겠나요?");
@@ -35,11 +35,7 @@ public partial class TutorialGuide : MonoBehaviour
         StartCoroutine(ClearGuideWhenLockedL());
 
         ShowPanelText($"또, 생물을 바라보던 중 {Pim.possessKey}를 눌러 안내할 수 있습니다.");
-        while (!RoomHasSpecies("tut_2", CreatureID.L)) yield return null;
-        yield return SayLine($"왼쪽 위, 시설과의 연결을 회복하기 위해 필요한 생물 수를 표시해두었습니다.");
-        ShowPanelText("임계값 이상이 되게끔 이동시켜주십시오.");
-        // L이 임계(2) 이상 될 때까지 대기 (패널은 계속 떠 있음).
-        while (room.CountSpecies(CreatureID.L) < 2)
+        while (RoomSpeciesCount("tut_2", CreatureID.L) < 2)
             yield return null;
         keepAcrossRooms = false;
         doneRooms.Add(room.roomID);
@@ -52,7 +48,7 @@ public partial class TutorialGuide : MonoBehaviour
         while (Player.Instance == null || !Player.Instance.isTracking
                || Pl.targetCreature == null || Pl.targetCreature.data.creatureID != CreatureID.L)
             yield return null;
-        FindObjectOfType<P53Think>()?.ClearGuide();
+        MyP53Think()?.ClearGuide();
     }
 
     IEnumerator tut0_2(Room room)
@@ -60,7 +56,7 @@ public partial class TutorialGuide : MonoBehaviour
 
         yield return LightWhenL(room);
 
-        yield return SayLine("감사합니다만... 아직 수리가 더 필요할 것 같습니다.");
+        yield return SayLine("감사합니다... 하지만 아직 수리가 더 필요할 것 같습니다.");
 
         yield return SayLine($"{Pim.codexToggleKey}를 누르면 저의 상태를 파악할 수 있습니다.", 0.5f);
         while (!StatuesMenu.AnyOpen) yield return null;
@@ -74,7 +70,7 @@ public partial class TutorialGuide : MonoBehaviour
         yield return SayLine("저는 시설을 관리하는 인공지능 p53입니다.");
         yield return SayLine("다음 장소로 안내해드릴 테니, 부디 따라와주시길 바랍니다.");
 
-        FindObjectOfType<P53Think>()?.SetGuide(tf_nextLv);
+        MyP53Think()?.SetGuide(tf_nextLv);
 
         tut0Door.DoorCloseAndOpen(true);
         doneRooms.Add(room.roomID);

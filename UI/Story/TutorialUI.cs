@@ -23,7 +23,6 @@ public class TutorialUI : MonoBehaviour
 
     public static TutorialUI Instance { get; private set; }
 
-    private bool _sceneOk;
     private Coroutine _fadeCo;
     private bool _wantShown;
     private bool _dismissed;   // 튜토리얼 안내가 시작되면 영구적으로 숨김(다시 안 뜸)
@@ -33,7 +32,13 @@ public class TutorialUI : MonoBehaviour
 
     private void Start()
     {
-        _sceneOk = SceneManager.GetActiveScene().name == showScene;
+        // 시작 시 확실히 숨김 — 에디터에서 켜둔 이미지가 다른 area에서 남아 보이는 것 방지.
+        _wantShown = false;
+        if (keyboardImage != null)
+        {
+            Color c = keyboardImage.color; c.a = 0f; keyboardImage.color = c;
+            keyboardImage.gameObject.SetActive(false);
+        }
     }
 
     // TutorialGuide가 첫 안내(tut0_1) 시작 시 호출 → 어느 방에 있든 키보드 이미지 영구 숨김.
@@ -45,14 +50,18 @@ public class TutorialUI : MonoBehaviour
         Show(false);
     }
 
-    // showScene에서만: showRoom에 있고 일시정지 아님일 때만 표시. 상태 바뀔 때만 토글(페이드 재시작 방지).
+    // 이 TutorialUI가 속한 씬의 showRoom 방에 있고 일시정지 아님일 때만 표시.
+    // (additive 모델에선 active scene이 항상 tutorial이라 씬 이름으로 못 가림 → 방이 '내 씬'인지로 판정)
+    // 상태 바뀔 때만 토글(페이드 재시작 방지).
     private void Update()
     {
-        if (_dismissed || !_sceneOk || keyboardImage == null) return;
+        if (_dismissed || keyboardImage == null) return;
 
         bool paused = Pause.Instance != null && Pause.Instance.IsOpen;
         var room = Player.Instance != null ? Player.Instance.currentRoom : null;
-        bool want = !paused && room != null && room.roomID == showRoom;
+        bool want = !paused && room != null
+                    && room.roomID == showRoom
+                    && room.gameObject.scene == gameObject.scene;   // 플레이어가 '이 UI의 씬' 방에 있을 때만
         if (want != _wantShown)
         {
             _wantShown = want;

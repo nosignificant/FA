@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using CreatureTypes;
 
 // 생물이 분해되면 그 위치에서 텍스트 여러 개가 랜덤 방향으로 터져나가는 연출.
@@ -55,20 +56,38 @@ public class Popup : MonoBehaviour
 
     public static Popup Instance { get; private set; }
 
-    private void Awake() => Instance = this;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Instance = null;
+
+    private bool _owner;   // 홈(먼저 로드) 것만 주인 — 레벨 중복은 구독 안 함(팝업 겹침 방지)
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this) return;   // 중복(레벨 씬)은 양보
+        Instance = this;
+        _owner = true;
+    }
 
     private IEnumerator Start()
     {
+        if (!_owner) yield break;
         yield return null;
+        RefreshSubscriptions();
+        SceneManager.sceneLoaded += OnSceneLoaded;   // 나중에 additive로 올라온 레벨 방도 구독
+    }
 
-        if (RoomManager.Instance == null) yield break;
+    private void OnSceneLoaded(Scene s, LoadSceneMode m) => StartCoroutine(ResubNextFrame());
+    private IEnumerator ResubNextFrame() { yield return null; RefreshSubscriptions(); }
 
-        foreach (var r in RoomManager.Instance.rooms.Values)
+    // 현재 모든 방에 (중복 없이) 재구독. 새 방이 생겨도 이걸 다시 부르면 커버됨.
+    private void RefreshSubscriptions()
+    {
+        if (RoomManager.Instance == null) return;
+        foreach (var r in RoomManager.Instance.allRooms)
         {
-            if (r != null)
-            {
-                r.OnCreatureSynthesized += OnSynthesized;
-            }
+            if (r == null) continue;
+            r.OnCreatureSynthesized -= OnSynthesized;   // 중복 구독 방지
+            r.OnCreatureSynthesized += OnSynthesized;
         }
     }
 
@@ -77,9 +96,11 @@ public class Popup : MonoBehaviour
         // 파괴 즉시 static 참조 해제 → 씬 전환 후 Popup.Instance?.가 진짜 null이 되어 파괴된 객체 접근 방지
         if (Instance == this) Instance = null;
 
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+
         if (RoomManager.Instance == null) return;
 
-        foreach (var r in RoomManager.Instance.rooms.Values)
+        foreach (var r in RoomManager.Instance.allRooms)
         {
             if (r == null) continue;
             r.OnCreatureSynthesized -= OnSynthesized;

@@ -69,7 +69,7 @@ public partial class TutorialGuide : MonoBehaviour
 
         lv2_Door.DoorCloseAndOpen(true);
         yield return SayLine("이런 걸 알게 됐지만 제가 계산해내야 했던 것이 뭔지는 아직 모르겠네요...");
-        FindObjectOfType<P53Think>()?.SetGuide(lv2_Door.transform);
+        MyP53Think()?.SetGuide(lv2_Door.transform);
 
         keepAcrossRooms = false;
     }

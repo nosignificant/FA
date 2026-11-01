@@ -36,8 +36,18 @@ public class P53Think : Think2
 
     private FollowPlayerState followState;
 
+    // companion은 하나 — 홈(먼저 로드된 씬)의 p53이 주인. 레벨 씬이 additive로 올라오며 생기는
+    // 중복 p53은 자기소멸(플레이어 싱글턴 가드와 동일 패턴). 홈은 안 unload되니 p53이 플레이어 따라다님.
+    public static P53Think Instance;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Instance = null;
+
     protected override void Awake()
     {
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        Instance = this;
+
         base.Awake();
         if (self != null)
         {
@@ -45,6 +55,11 @@ public class P53Think : Think2
             self.alwaysActive = true;   // 방 비활성·연결 무관하게 항상 따라다님 (안 얼고, 통로 무관 방 소속 갱신)
         }
         followState = new FollowPlayerState(this) { followDistance = followDistance };
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     // 비활성 방에서도 계속 따라옴 / 휴면 안 됨

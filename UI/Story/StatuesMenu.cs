@@ -24,16 +24,31 @@ public class StatuesMenu : MonoBehaviour
 
     // DoF 초점 설정은 Player/FocusController로 이동 (StatuesMenu.AnyOpen을 읽어 처리).
 
+    // 홈(먼저 로드된 씬)의 상태창이 주인 — 중복(레벨 씬)은 양보해서 자기 패널만 닫아둔다.
+    private bool _duplicate;
+
+    // 도메인 리로드 끄는 fast play-mode 대비: 재생 시작 때 static 초기화
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Instance = null;
+
     private void Awake()
     {
+        // 이미 다른 StatuesMenu가 주인이면(홈 것) Instance를 뺏지 않고 중복으로 표시만.
+        if (Instance != null && Instance != this) { _duplicate = true; return; }
         Instance = this;
     }
 
     private void Start()
     {
+        // 중복이든 주인이든 패널은 닫힌 채로 시작. 중복은 아무도 Open 안 하니 그대로 닫혀 있음.
         SetActiveSafe(storyPanel, false);
         SetActiveSafe(statuesPanel, false);
         isOpen = false;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;   // 주인이 사라지면 자리 비움 (다음 씬이 주인 될 수 있게)
     }
 
     // ── PlayerInputManager가 호출하는 public 입력 API ────────

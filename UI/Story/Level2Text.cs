@@ -30,7 +30,7 @@ public partial class TutorialGuide : MonoBehaviour
         lv2_Door.DoorCloseAndOpen(false);
         yield return SayLine("의체 사용 빈도 증가, 전자 두뇌 복제 등의 기술으로 인해 인류는 계를 구성하는 물질들의 복잡도가 임계를 넘을 시 해당 시스템 계를 생물으로 정의했습니다.", 8f);
         yield return SayLine("새로운 정의에 따라 다양한 학문과 개념이 개편되었으나, 계속되는 인류 문명의 쇠퇴는 막을 수 없었습니다.", 8f);
-        FindObjectOfType<P53Think>()?.SetGuide(lv3_Door.transform);
+        MyP53Think()?.SetGuide(lv3_Door.transform);
         lv3_Door.DoorCloseAndOpen(true);
         keepAcrossRooms = false;
     }

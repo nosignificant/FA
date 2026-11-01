@@ -23,11 +23,27 @@ public class CreatureScanner : MonoBehaviour
     {
         if (self == null) self = GetComponent<Creature>();
     }
+    private bool _started;
+    private Coroutine _scanCo;
+
     private void Start()
     {
-        StartCoroutine(ScanRoutine());
+        _started = true;
+        RestartScan();
         debugCreatures = new List<Creature>(Results);
+    }
 
+    // area를 SetActive(false)로 껐다 켜면 코루틴이 죽는다. Start는 재실행 안 되므로
+    // OnEnable에서 ScanRoutine 재가동 (최초 활성화는 Start가 처리).
+    private void OnEnable()
+    {
+        if (_started) RestartScan();
+    }
+
+    private void RestartScan()
+    {
+        if (_scanCo != null) StopCoroutine(_scanCo);
+        _scanCo = StartCoroutine(ScanRoutine());
     }
 
     private IEnumerator ScanRoutine()

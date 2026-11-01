@@ -68,7 +68,7 @@ public class SignCreature : Creature
     {
         if (RoomManager.Instance == null) return null;
         Vector3 pos = rootTransform != null ? rootTransform.position : transform.position;
-        foreach (Room room in RoomManager.Instance.rooms.Values)
+        foreach (Room room in RoomManager.Instance.allRooms)
             if (room != null && room.homeBound != null && room.homeBound.bounds.Contains(pos))
                 return room;
         return null;

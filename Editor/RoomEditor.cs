@@ -177,7 +177,7 @@ public class RoomEditor : Editor
         Undo.SetCurrentGroupName("Spawn Creatures");
 
         // 생물은 공용 컨테이너에 스폰되므로 컨테이너 자식 수로 추적
-        Transform container = CreatureRoot.Container;
+        Transform container = CreatureRoot.ContainerFor(room);
         int before = container.childCount;
         room.SpawnInitialCreatures();
         int after = container.childCount;

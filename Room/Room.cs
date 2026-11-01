@@ -190,7 +190,7 @@ public class Room : MonoBehaviour
     private Creature SpawnBroadcastParticle(GameObject prefab, Vector3 pos)
     {
         GameObject obj = Instantiate(prefab, pos, Quaternion.identity);
-        obj.transform.SetParent(CreatureRoot.Container, true);
+        obj.transform.SetParent(CreatureRoot.ContainerFor(this), true);
         Creature nc = obj.GetComponent<Creature>();
         if (nc != null) RegisterCreature(nc);
         return nc;
@@ -528,6 +528,10 @@ public class Room : MonoBehaviour
     }
 
 
+    private bool _started;
+    private Coroutine _activationCo;
+    private Coroutine _dKeepCo;
+
     void Start()
     {
         if (roomLight != null) roomLight.SetActive(lightOn);   // 시작 시 조명 상태 적용
@@ -539,9 +543,34 @@ public class Room : MonoBehaviour
         RegisterCreaturesInBounds();
 
         EnsureOneD();
-        if (minDCount > 0) StartCoroutine(DKeepAliveLoop());
 
-        StartCoroutine(ActivationLoop());   // L/A 방 상태 갱신
+        _started = true;
+        StartLoops();   // L/A 방 상태 갱신 + D 유지 루프
+    }
+
+    // area를 SetActive(false)로 껐다 켜면(area 전환 복귀) 돌던 코루틴이 죽는다.
+    // Start는 다시 안 돌므로 OnEnable에서 멈춘 루프를 재가동. (최초 활성화는 Start가 처리)
+    void OnEnable()
+    {
+        if (_started) StartLoops();
+    }
+
+    private void StartLoops()
+    {
+        if (_activationCo != null) StopCoroutine(_activationCo);
+        _activationCo = StartCoroutine(ActivationLoop());
+
+        if (minDCount > 0)
+        {
+            if (_dKeepCo != null) StopCoroutine(_dKeepCo);
+            _dKeepCo = StartCoroutine(DKeepAliveLoop());
+        }
+    }
+
+    // 파괴될 때만 등록 해제 (비활성화 OnDisable에서는 안 함 — 꺼둔 방도 카운트에 남아야 함)
+    void OnDestroy()
+    {
+        if (RoomManager.Instance != null) RoomManager.Instance.Unregister(this);
     }
 
     // bounds 안에 있는 모든 생물을 이 방 소속으로 등록 (Door의 self 포함)
@@ -663,7 +692,7 @@ public class Room : MonoBehaviour
                 b.min.y + data.spawnYOffset,
                 UnityEngine.Random.Range(b.min.z, b.max.z));
 
-            GameObject obj = Instantiate(prefab, pos, Quaternion.identity, CreatureRoot.Container);
+            GameObject obj = Instantiate(prefab, pos, Quaternion.identity, CreatureRoot.ContainerFor(this));
             Creature dc = obj.GetComponent<Creature>();
             if (dc != null) RegisterCreature(dc);
         }
@@ -696,7 +725,7 @@ public class Room : MonoBehaviour
                     b.min.y + yOffset,
                     UnityEngine.Random.Range(b.min.z, b.max.z));
 
-                Transform container = CreatureRoot.Container;
+                Transform container = CreatureRoot.ContainerFor(this);
 #if UNITY_EDITOR
                 GameObject obj = !Application.isPlaying
                     ? (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, container)

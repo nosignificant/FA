@@ -411,7 +411,7 @@ public class Door : MonoBehaviour
     {
         if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
         int count = 0;
-        foreach (var r in RoomManager.Instance.rooms.Values)
+        foreach (var r in RoomManager.Instance.allRooms)
         {
             if (r == null) continue;
             if (r.Activation == Room.RoomActivation.L || r.Activation == Room.RoomActivation.A) count++;
@@ -439,7 +439,7 @@ public class Door : MonoBehaviour
         if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
 
         int count = 0;
-        foreach (var r in RoomManager.Instance.rooms.Values)
+        foreach (var r in RoomManager.Instance.allRooms)
         {
             if (r == null) continue;
             if (r.Activation == state) count++;

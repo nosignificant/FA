@@ -28,7 +28,19 @@ public class SBreaker : MonoBehaviour
         self.canMigrate = false;   // 도구 생물 — 방에 묶임
     }
 
-    private void Start() => StartCoroutine(Loop());
+    private bool _started;
+    private Coroutine _loopCo;
+
+    private void Start() { _started = true; RestartLoop(); }
+
+    // area를 SetActive(false)로 껐다 켜면 코루틴이 죽는다. Start는 재실행 안 되므로 OnEnable에서 재가동.
+    private void OnEnable() { if (_started) RestartLoop(); }
+
+    private void RestartLoop()
+    {
+        if (_loopCo != null) StopCoroutine(_loopCo);
+        _loopCo = StartCoroutine(Loop());
+    }
 
     private IEnumerator Loop()
     {

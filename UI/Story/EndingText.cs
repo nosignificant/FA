@@ -20,13 +20,11 @@ public partial class TutorialGuide : MonoBehaviour
 
         lv4_Door.DoorCloseAndOpen(false);
 
-        FindObjectOfType<P53Think>()?.SetGuide(tf_ending1);
+        MyP53Think()?.SetGuide(tf_ending1);
 
         yield return SayLine("감사합니다.");
         yield return SayLine("이제 나머지 부분 정도는 스스로의 힘으로 회복할 수 있을 것 같습니다.");
 
-        ApplyEndingChoiceRooms();
-        if (endingDropTarget != null) yield return DropObject(endingDropTarget, endingDropY, endingDropDuration);
         yield return SayLine("이쪽으로 오시겠어요?");
         keepAcrossRooms = false;
 
@@ -36,7 +34,7 @@ public partial class TutorialGuide : MonoBehaviour
 
     IEnumerator Ending_tut3()
     {
-        FindObjectOfType<P53Think>()?.SetGuide(tf_ending2);
+        MyP53Think()?.SetGuide(tf_ending2);
         keepAcrossRooms = true;
 
         yield return SayLine("저는 p53, 인류의 행복과 평안을 계산하기 위해 건설된 인공지능입니다.");
@@ -48,7 +46,6 @@ public partial class TutorialGuide : MonoBehaviour
             yield return SayLine("저는 간략화된 형태의 인간의 감정을 바탕으로 시뮬레이션 했으며,");
             yield return SayLine("이를 연산하던 구역 과반에서 '네'라는 대답을 얻었습니다.");
             yield return SayLine("아주 오래 고민하고 결정을 미뤄왔지만 당신이 도와주셨어요.");
-            ApplyEndingAColor();   // 등록한 오브젝트들의 WallActivationTint 모두 A색으로
 
             yield return SayLine("인류의 세포자살도 이제 끝 안녕입니다.");
         }

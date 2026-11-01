@@ -37,6 +37,9 @@ public static class ChoiceProgress
         return n;
     }
 
+    // a를 b보다 많이 골랐으면 true (동점/적으면 false). 고정 숫자(>1) 대신 누적 다수결 판정용.
+    public static bool MoreOf(CreatureID a, CreatureID b) => CountOf(a) > CountOf(b);
+
     // 기록된 선택이 minCount개 이상이고 전부 id면 true (예: 앞 3레벨 모두 A → AllChose(A, 3))
     public static bool AllChose(CreatureID id, int minCount)
     {

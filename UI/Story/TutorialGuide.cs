@@ -6,11 +6,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.SceneManagement;
 
-// 스토리 표시 담당(구 TutorialGuide + LevelIntro 통합):
-//  - 씬 로드 시: 그 씬의 인트로/엔딩 대사 루틴(LevelNIntro/EndingIntro) 재생
-//  - 방 진입 시: 씬→roomID 루틴으로 튜토리얼 진행 (문 열기·조건 대기 등)
-//  - 대사는 하드코딩 ({lockOn}/{possess}/{codex} 토큰은 Resolve가 치환)
-//  - 레벨별 대사 루틴은 partial로 분리 가능 (예: level1 → Level1Text.cs)
 public partial class TutorialGuide : MonoBehaviour
 {
     [Header("UI")]
@@ -69,9 +64,28 @@ public partial class TutorialGuide : MonoBehaviour
     private PlayerInputManager _pim;
     private PlayerLockOn _pl;
     private CreaturePossess _cp;
-    // 대사 팝업/락온 대상 p53 — 인스펙터 할당(p53) 우선, 없으면 P53Think 자동 탐색(캐싱)
+    // 대사 팝업/락온 대상 p53 — 인스펙터 할당(p53) 우선, 없으면 '이 가이드 씬'의 P53Think 자동 탐색(캐싱)
     private Creature _p53;
-    private Creature P53 => p53 != null ? p53 : (_p53 != null ? _p53 : (_p53 = FindObjectOfType<P53Think>()?.self));
+    private Creature P53 => p53 != null ? p53 : (_p53 != null ? _p53 : (_p53 = MyP53Think()?.self));
+
+    // p53 찾기: 싱글턴 가드로 공용 p53은 하나(홈 것)뿐 → Instance 우선.
+    //  (가드 없이 씬별로 둔 경우 대비: Instance 없으면 자기 씬 p53, 그래도 없으면 아무거나 폴백)
+    private P53Think _myP53;
+    private P53Think MyP53Think()
+    {
+        if (_myP53 != null) return _myP53;
+        if (P53Think.Instance != null) { _myP53 = P53Think.Instance; return _myP53; }
+
+        P53Think any = null;
+        foreach (var t in FindObjectsByType<P53Think>(FindObjectsSortMode.None))
+        {
+            if (t == null) continue;
+            any = t;
+            if (t.gameObject.scene == gameObject.scene) { _myP53 = t; return _myP53; }
+        }
+        _myP53 = any;
+        return _myP53;
+    }
     private PlayerInputManager Pim => _pim != null ? _pim : (_pim = Player.Instance?.GetComponent<PlayerInputManager>());
     private PlayerLockOn Pl => _pl != null ? _pl : (_pl = Player.Instance?.GetComponent<PlayerLockOn>());
     private CreaturePossess Cp => _cp != null ? _cp : (_cp = Player.Instance?.GetComponent<CreaturePossess>());
@@ -84,7 +98,7 @@ public partial class TutorialGuide : MonoBehaviour
         if (tutorialCanvasGroup == null) tutorialCanvasGroup = tutorialUI.AddComponent<CanvasGroup>();
 
         // Level 2 p_0 통로는 한 번 열린 뒤 방 상태가 바뀌어도 계속 열린다.
-        if (SceneManager.GetActiveScene().name == "level2" && lv2_p0Door != null)
+        if (gameObject.scene.name == "level2" && lv2_p0Door != null)
         {
             lv2_p0Door.stayOpenAfterFirstOpen = true;
             if (lv2_p0Door.isOpen)
@@ -99,11 +113,22 @@ public partial class TutorialGuide : MonoBehaviour
 
     void Update()
     {
-        if (keepAcrossRooms) return;
-
         if (Player.Instance == null) return;
         var room = Player.Instance.currentRoom;
         if (room == null) return;
+
+        // additive 모델: 플레이어가 '다른 씬'의 방에 있으면 이 가이드는 비번 — 자기 패널/코루틴을 정리하고 쉰다.
+        // (keepAcrossRooms도 무시: 그건 같은 씬 안 방 이동용이지, 다른 area로 떠난 경우가 아님)
+        if (room.gameObject.scene != gameObject.scene)
+        {
+            if (co != null) { StopCoroutine(co); co = null; }
+            keepAcrossRooms = false;
+            SetTutorialVisible(false);
+            lastRoom = "";   // 돌아오면 다시 트리거되도록 (완료된 방은 doneRooms로 걸러짐)
+            return;
+        }
+
+        if (keepAcrossRooms) return;
         if (room.roomID == lastRoom) return;
 
         lastRoom = room.roomID;
@@ -117,8 +142,8 @@ public partial class TutorialGuide : MonoBehaviour
             return;
         }
 
-        // 씬(레벨) → 방 2단 분기. 방 이름이 씬마다 겹칠 수 있어 씬으로 먼저 구분 (래퍼 메서드 없이 중첩 switch).
-        switch (SceneManager.GetActiveScene().name)
+        // 방 → 대사 분기. 이 가이드가 속한 씬(gameObject.scene) 기준 (active scene은 additive라 항상 tutorial).
+        switch (gameObject.scene.name)
         {
             case "tutorial":
                 switch (room.roomID)
@@ -180,7 +205,7 @@ public partial class TutorialGuide : MonoBehaviour
     {
         if (introStartDelay > 0f) yield return new WaitForSeconds(introStartDelay);
 
-        switch (SceneManager.GetActiveScene().name)
+        switch (gameObject.scene.name)
         {
             case "level3": yield return Level3Intro(); break;
             case "level1_after": yield return Lv1AfterIntro(); break;
@@ -191,60 +216,6 @@ public partial class TutorialGuide : MonoBehaviour
 
         if (introHideOnEnd) SetTutorialVisible(false);
     }
-
-
-
-    // A문 개수(3/2/1/0)로 분기. 앞 4줄 공통.
-    [Header("엔딩 연출 — 특정 대사 후 오브젝트 낙하")]
-    [Tooltip("엔딩 특정 대사 후 아래로 내릴 오브젝트")]
-    public Transform endingDropTarget;
-    [Tooltip("내릴 Y 거리(음수=아래). 기본 -60")]
-    public float endingDropY = -60f;
-    [Tooltip("내리는 데 걸리는 시간(0이면 즉시)")]
-    public float endingDropDuration = 1.5f;
-
-    [Tooltip("엔딩에서 WallActivationTint를 모두 A색으로 바꿀 오브젝트들(하위 전부 적용)")]
-    public GameObject[] endingAColorObjects;
-
-    // 등록한 오브젝트들의 하위 WallActivationTint를 전부 A색으로.
-    private void ApplyEndingAColor()
-    {
-        if (endingAColorObjects == null) return;
-        foreach (var go in endingAColorObjects)
-        {
-            if (go == null) continue;
-            foreach (var tint in go.GetComponentsInChildren<WallActivationTint>(true))
-                if (tint != null) tint.Apply(Room.RoomActivation.A);
-        }
-    }
-
-    // 지금까지 더 많이 선택된 쪽(A/L)으로 이 레벨의 '모든 방'을 방송처럼 변환 — 생물(입자) A↔L 실제 전환. (동점이면 A)
-    private void ApplyEndingChoiceRooms()
-    {
-        if (RoomManager.Instance == null) return;
-        int a = ChoiceProgress.CountOf(CreatureID.A);
-        int l = ChoiceProgress.CountOf(CreatureID.L);
-        Room.RoomActivation state = a >= l ? Room.RoomActivation.A : Room.RoomActivation.L;
-        foreach (Room room in RoomManager.Instance.rooms.Values)
-            if (room != null) room.ApplyBroadcast(state);
-    }
-
-    // 지정 오브젝트를 월드 Y로 dy만큼 (dur초에 걸쳐, 0이면 즉시) 이동
-    private IEnumerator DropObject(Transform t, float dy, float dur)
-    {
-        if (t == null) yield break;
-        Vector3 from = t.position;
-        Vector3 to = from + new Vector3(0f, dy, 0f);
-        if (dur <= 0f) { t.position = to; yield break; }
-        for (float e = 0f; e < dur; e += Time.deltaTime)
-        {
-            t.position = Vector3.Lerp(from, to, e / dur);
-            yield return null;
-        }
-        t.position = to;
-    }
-
-
 
 
 
@@ -270,7 +241,6 @@ public partial class TutorialGuide : MonoBehaviour
     {
         _wantVisible = visible;
         if (!visible) { _lineHasPopup = false; _linePersistent = false; }
-        ApplyPanelVisibility();
     }
 
     // 표시할 내용이 아직 유효한가 — 대사 줄은 수명 지나면 만료(대사 끝나면 패널 안 뜸). 지시문은 유지.
@@ -412,6 +382,13 @@ public partial class TutorialGuide : MonoBehaviour
     {
         if (RoomManager.Instance == null) return false;
         return RoomManager.Instance.rooms.TryGetValue(roomId, out var r) && r != null && r.HasSpecies(id);
+    }
+
+    // 지정 roomID 방의 해당 종 수 (없으면 0)
+    private int RoomSpeciesCount(string roomId, CreatureID id)
+    {
+        if (RoomManager.Instance == null) return 0;
+        return RoomManager.Instance.rooms.TryGetValue(roomId, out var r) && r != null ? r.CountSpecies(id) : 0;
     }
 
     private Think2 FindBrainInRoom(Room room, CreatureID id)

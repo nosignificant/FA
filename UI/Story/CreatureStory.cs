@@ -16,6 +16,7 @@ public class CreatureStory : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+        DontDestroyOnLoad(gameObject);   // 레벨 넘어가도 스토리 데이터 상주 (Systems 루트에 둘 것)
 
         // 이전 씬까지의 획득 목록 복원
         foreach (int s in StoryProgress.LoadCollected()) collected.Add(s);

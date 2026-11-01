@@ -7,11 +7,9 @@ public partial class TutorialGuide : MonoBehaviour
 {
     IEnumerator Level3Intro()
     {
-        yield return SayLine("방금 수복한 영역에서 {stat:L이|A가} 잃어버린 메모리를 가지고 돌아왔네요.");
-
         yield return SayLine("생물은 출생의 순간에 가장 큰 잠재력과 에너지를 갖고 이후는 해당 에너지의 소모만을 보이는 특징을 갖고 있었습니다.");
 
-        if (ChoiceProgress.CountOf(CreatureID.A) > 1)
+        if (ChoiceProgress.MoreOf(CreatureID.A, CreatureID.L))
         {
             yield return SayLine("국가는 반드시 쇠퇴하며 언어도 마찬가지로 살아가다 죽었으며 인류도 탄생의 시기의 생명력은 다시 찾아볼 수 없게 되었습니다.");
             yield return SayLine("생태계의 순환이라는 명목 하에 이를 반복하고 있지만 거시적인 관점에서는 선형적이었습니다.");
@@ -38,14 +36,18 @@ public partial class TutorialGuide : MonoBehaviour
         {
             yield return SayLine("...이후 총 인류의 수는 제 시설 내에 수용 가능할 정도까지 감소했고 그들은 저의 내부로 이주했습니다.");
             yield return SayLine("그들은 그럼에도 끝없이 싸웠고 그들의 명을 재촉했습니다.");
-            yield return SayLine("그들이 사라지게 되면 나의 존재 이유도 없어져 그 상황을 보고만 있을 수는 없었습니다...");
-
-
+            yield return SayLine("그들이 사라지게 되면 나의 존재 이유도 없어져 그 상황을 보고만 있을 수는 없었습니다.");
         }
         else
-            yield return SayLine("하지만... 아무리 고민해도 지금보다 나은 형태의 삶이 존재하지 않았습니다.");
-        yield return SayLine("저는 아무런 결론도 내릴 수 없었어요.");
-        FindObjectOfType<P53Think>()?.SetGuide(lv4_Door.transform);
+        {
+            yield return SayLine("저는 최선을 다해 저를 건설한 인류를 보호했습니다만 인구의 감소를 막을 수는 없었습니다...");
+            yield return SayLine("제가 결정해야 했던 것은...");
+            yield return SayLine("...얼마 남지 않은 자원으로, 그들을 어떻게 보호할 것인가였습니다.");
+        }
+        yield return SayLine("L과 A에너지를 총 합해서 20개 이상 모으면, 현재 생산되고 있는 에너지를 바탕으로 고민하고 있는 것에 대해 결정을 내리겠습니다.");
+        yield return SayLine($"준비가 되시거든, 저를 바라보고 {Pim.possessKey}를 눌러주십시오.");
+
+        MyP53Think()?.SetGuide(lv4_Door.transform);
         lv4_Door.DoorCloseAndOpen(true);
     }
 }

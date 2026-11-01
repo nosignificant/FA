@@ -56,10 +56,38 @@ public class Lcreature : Creature
         // 초기 회전 저장 (produce 상태에서 유지할 값)
         if (rotPartA != null) _rotA = rotPartA.localRotation;
         if (rotPartB != null) _rotB = rotPartB.localRotation;
-        if (rotPartA != null || rotPartB != null) StartCoroutine(RotFoldLoop());
 
-        if (fleeFromAA) StartCoroutine(FleeAALoop());
-        if (needToSpawn) StartCoroutine(Lbehaviour());
+        _started = true;
+        StartLoops();
+    }
+
+    private bool _started;
+    private Coroutine _rotCo, _fleeCo, _behaviourCo;
+
+    // area를 SetActive(false)로 껐다 켜면 코루틴이 죽는다. Start는 재실행 안 되므로
+    // OnEnable에서 상주 루프 재가동 (최초 활성화는 Start가 처리).
+    private void OnEnable()
+    {
+        if (_started) StartLoops();
+    }
+
+    private void StartLoops()
+    {
+        if (rotPartA != null || rotPartB != null)
+        {
+            if (_rotCo != null) StopCoroutine(_rotCo);
+            _rotCo = StartCoroutine(RotFoldLoop());
+        }
+        if (fleeFromAA)
+        {
+            if (_fleeCo != null) StopCoroutine(_fleeCo);
+            _fleeCo = StartCoroutine(FleeAALoop());
+        }
+        if (needToSpawn)
+        {
+            if (_behaviourCo != null) StopCoroutine(_behaviourCo);
+            _behaviourCo = StartCoroutine(Lbehaviour());
+        }
     }
 
     // runaway(도망) 중엔 회전 0, 그 외엔 저장된 초기 회전으로. (Creature.Update를 가리지 않게 코루틴)
@@ -215,7 +243,7 @@ public class Lcreature : Creature
 
         if (c == null || c.IsDead) yield break;
 
-        c.transform.SetParent(CreatureRoot.Container, true);   // 놓을 때 _Creatures 자식으로 (LL 안 따라감)
+        c.transform.SetParent(CreatureRoot.ContainerFor(this), true);   // 놓을 때 _Creatures 자식으로 (LL 안 따라감)
         c.intent = CreatureIntent.Wander;                      // 생산 종료 → 배회 (Think이 이어받음)
         c.SetMovementEnabled(true);                            // 자유롭게 흐름
     }

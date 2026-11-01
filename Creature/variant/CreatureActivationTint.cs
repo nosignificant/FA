@@ -70,11 +70,26 @@ public class CreatureActivationTint : MonoBehaviour
         think = GetComponent<Think2>();
     }
 
+    private bool _started;
+    private Coroutine _loopCo;
+
     private void Start()
     {
         if (swapTexture) CaptureOriginalTextures();   // 텍스처 제거 전에 원래 텍스처 저장
         if (!tintByRoomState) CaptureOriginalColors();   // 각성 시 복원할 프리팹 원래 색 저장
-        StartCoroutine(Loop());
+        _started = true;
+        RestartLoop();
+    }
+
+    // area 전환 복귀(SetActive true) 시 멈춘 색 갱신 Loop 재가동. 최초 활성화는 Start가 처리.
+    private void OnEnable() { if (_started) RestartLoop(); }
+
+    private void RestartLoop()
+    {
+        _lastKey = int.MinValue;   // 복귀 후 색 1회 강제 재적용 (얼어있는 동안 상태 바뀌었을 수 있음)
+        _lastTexState = -1;
+        if (_loopCo != null) StopCoroutine(_loopCo);
+        _loopCo = StartCoroutine(Loop());
     }
 
     // 프리팹 머티리얼의 원래 베이스 색을 렌더러별로 저장 (각성 시 복원용)

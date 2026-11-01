@@ -91,9 +91,26 @@ public class Think2 : MonoBehaviour
         oldState = wanderState;
     }
 
+    private bool _started;
+    private Coroutine _thinkCo;
+
     private void Start()
     {
-        StartCoroutine(ThinkLoop());
+        _started = true;
+        RestartThink();
+    }
+
+    // area를 SetActive(false)로 껐다 켜면 코루틴이 죽는다. Start는 재실행 안 되므로
+    // OnEnable에서 ThinkLoop 재가동 (최초 활성화는 Start가 처리).
+    protected virtual void OnEnable()
+    {
+        if (_started) RestartThink();
+    }
+
+    private void RestartThink()
+    {
+        if (_thinkCo != null) StopCoroutine(_thinkCo);
+        _thinkCo = StartCoroutine(ThinkLoop());
     }
 
     // 상시 시뮬 설정 (RoomManager 전역)
@@ -392,6 +409,10 @@ public class Think2 : MonoBehaviour
 
         var go = new GameObject($"{name}_EQS");
         go.hideFlags = HideFlags.DontSave;
+
+        // 이 생물 씬의 _Creatures(area 밑) 밑에 둬서 area와 함께 켜고/꺼지고 정리됨 (활성 씬 루트에 새지 않게).
+        // world 위치는 매 프레임 직접 지정하므로 worldPositionStays=true로 부모만 묶는다.
+        go.transform.SetParent(CreatureRoot.ContainerFor(this), true);
 
         proxyTarget = go.transform;
         proxyTarget.position = transform.position;

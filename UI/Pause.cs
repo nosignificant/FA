@@ -25,18 +25,28 @@ public class Pause : MonoBehaviour
 
     public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Instance = null;
+
     private void Awake()
     {
-        Instance = this;
         if (canvasGroup == null && panelRoot != null)
             canvasGroup = panelRoot.GetComponent<CanvasGroup>();
 
-        // 초기화는 Awake에서 (Start는 panelRoot 비활성 시 안 돌 수 있음)
+        // 패널 초기화는 중복이든 주인이든 해둠 (각 씬 패널 숨김). Start는 panelRoot 비활성 시 안 돌 수 있어 Awake에서.
         UpdateVisual();
         SetBgAlpha(0f);
         if (canvasGroup != null) canvasGroup.alpha = 0f;
-
         if (panelRoot != null) panelRoot.SetActive(false);
+
+        // Instance는 홈(먼저 로드) 것이 주인 — 중복(레벨)은 양보. ESC는 항상 홈 패널을 토글.
+        if (Instance != null && Instance != this) return;
+        Instance = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
 
