@@ -66,6 +66,13 @@ public class PlayerInputManager : MonoBehaviour
                       ?? target.GetComponentInParent<Coffin>()
                       ?? target.GetComponentInChildren<Coffin>();
             if (coffin != null && coffin.TryTriggerStory()) return;   // 코핀 스토리 소비 → 빙의 안 함
+
+            // 락온 대상이 p53이면: 조건 충족 시(총 L/A방 > 임계 & 튜토리얼 방) 엔딩 판정 소비 → 빙의 안 함
+            var p53 = target.GetComponent<P53Think>()
+                   ?? target.GetComponentInParent<P53Think>()
+                   ?? target.GetComponentInChildren<P53Think>();
+            if (p53 != null && P53EndingTrigger.Instance != null
+                && P53EndingTrigger.Instance.TryTriggerEnding()) return;
         }
 
         if (Possess != null) Possess.TogglePossess();
@@ -105,9 +112,11 @@ public class PlayerInputManager : MonoBehaviour
 
         if (!Input.GetKeyDown(KeyCode.Escape)) return;
 
-        // 우선순위: 메뉴 닫기 > 락온 해제 > 메뉴 열기
+        // 우선순위: Pause 닫기 > C패널 닫기 > 락온 해제 > Pause 열기
         if (menu != null && menu.IsOpen)
             menu.Close();
+        else if (StatuesMenu.AnyOpen)
+            StatuesMenu.Instance.Back();   // 열려 있는 C 상태창 닫기
         else if (Player.Instance != null && Player.Instance.isTracking)
             Player.Instance.Unlock();
         else if (menu != null)

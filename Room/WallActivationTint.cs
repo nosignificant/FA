@@ -15,11 +15,9 @@ public class WallActivationTint : MonoBehaviour
     public Color lColor = new Color(0.6f, 1f, 0.3f);   // 연두
     public Color aColor = new Color(0.9f, 0.2f, 0.2f); // 빨강
 
-    [Header("레벨 선택으로 틴트 (ChoiceProgress 기반)")]
-    [Tooltip("켜면 방 상태 대신 '지정 레벨의 클리어 선택(A/L)' 색으로 고정 (한 번 칠함, 방 상태 무시)")]
-    public bool byLevelChoice = false;
-    [Tooltip("몇 번째 레벨 기록을 볼지 (1=level1, 2=level2...). ChoiceProgress 기록 순서")]
-    public int choiceLevelIndex = 1;
+    [Header("레벨 과반 상태로 틴트")]
+    [Tooltip("켜면 이 방 상태 대신 '같은 레벨(씬)에서 과반을 이루는 상태(L/A)' 색을 씀. 과반이 바뀌면 자동 갱신. 동수/0이면 noneColor.")]
+    public bool byLevelMajority = false;
 
     [Header("순차 색 변경 (웨이브)")]
     [Tooltip("켜면 자식 스프라이트/렌더러를 한 번에 안 칠하고 하나씩 순차로 칠함")]
@@ -56,27 +54,67 @@ public class WallActivationTint : MonoBehaviour
         return _resolved;
     }
 
-    private void Start()
+    // 과반 틴트일 때 구독 중인 같은 씬 방들 (변하면 다시 칠함)
+    private Room[] _subscribed;
+
+    private void OnEnable()
     {
-        // 레벨 선택 기반이면 시작 시 기록된 상태로 한 번 칠함 (Room의 상태 변경 호출은 Apply에서 무시/덮어씀)
-        if (byLevelChoice) Apply(Room.RoomActivation.None);
+        // 과반 틴트: 같은 레벨 방들의 상태 변화를 구독해 과반이 바뀌면 자동 재도색.
+        // (area SetActive 토글로 꺼졌다 켜지면 OnDisable에서 끊긴 구독을 여기서 다시 연결)
+        if (byLevelMajority) StartCoroutine(BindMajority());
     }
 
-    // ChoiceProgress에서 지정 레벨의 선택(A/L)을 RoomActivation으로. 기록 없으면 None.
-    private Room.RoomActivation RecordedLevelState()
+    private void OnDisable()
     {
-        var all = ChoiceProgress.All();
-        int i = choiceLevelIndex - 1;
-        if (i < 0 || i >= all.Count) return Room.RoomActivation.None;
-        var c = all[i];
-        if (c == CreatureTypes.CreatureID.A) return Room.RoomActivation.A;
-        if (c == CreatureTypes.CreatureID.L) return Room.RoomActivation.L;
+        if (_subscribed == null) return;
+        foreach (var r in _subscribed)
+            if (r != null) r.OnActivationChanged -= OnLevelRoomChanged;
+        _subscribed = null;
+    }
+
+    // RoomManager 준비를 기다렸다가 같은 씬 방들을 구독하고 초기 1회 도색.
+    private IEnumerator BindMajority()
+    {
+        while (RoomManager.Instance == null || RoomManager.Instance.allRooms == null)
+            yield return null;
+        yield return null;   // 같은 씬 방들이 모두 등록될 시간을 한 프레임 줌
+
+        var list = new System.Collections.Generic.List<Room>();
+        foreach (var r in RoomManager.Instance.allRooms)
+            if (r != null && r.gameObject.scene == gameObject.scene)
+            {
+                r.OnActivationChanged -= OnLevelRoomChanged;   // 중복 구독 방지
+                r.OnActivationChanged += OnLevelRoomChanged;
+                list.Add(r);
+            }
+        _subscribed = list.ToArray();
+
+        Apply(Room.RoomActivation.None);   // 현재 과반으로 1회 칠함 (state는 Apply에서 무시됨)
+    }
+
+    private void OnLevelRoomChanged(Room.RoomActivation _) => Apply(Room.RoomActivation.None);
+
+    // 같은 레벨(씬)에서 과반을 이루는 상태. L>A면 L, A>L면 A, 동수/0이면 None.
+    private Room.RoomActivation LevelMajorityState()
+    {
+        if (RoomManager.Instance == null || RoomManager.Instance.allRooms == null)
+            return Room.RoomActivation.None;
+
+        int nL = 0, nA = 0;
+        foreach (var r in RoomManager.Instance.allRooms)
+        {
+            if (r == null || r.gameObject.scene != gameObject.scene) continue;
+            if (r.Activation == Room.RoomActivation.L) nL++;
+            else if (r.Activation == Room.RoomActivation.A) nA++;
+        }
+        if (nA > nL) return Room.RoomActivation.A;
+        if (nL > nA) return Room.RoomActivation.L;
         return Room.RoomActivation.None;
     }
 
     public void Apply(Room.RoomActivation state)
     {
-        if (byLevelChoice) state = RecordedLevelState();   // 방 상태 대신 레벨 기록 사용
+        if (byLevelMajority) state = LevelMajorityState();   // 이 방 상태 대신 레벨 과반 사용
         var rs = Resolve();
 
         // 순차(웨이브): 자식을 하나씩 딜레이 주며 칠함

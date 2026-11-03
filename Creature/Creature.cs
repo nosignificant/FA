@@ -193,9 +193,10 @@ public class Creature : MonoBehaviour
         if (!canMigrate && !IsControlled && !alwaysActive && currentRoom != null) return;
 
         // 다른 방 bounds에 들어왔으면 그 방으로 등록만 함 (되돌림 없음 — 9cd272a 이전 방식 복원)
-        foreach (var kvp in RoomManager.Instance.rooms)
+        // allRooms(인스턴스 기준, 충돌 없음)를 순회 — rooms 딕셔너리는 roomID 충돌 시
+        // 다른 레벨의 같은 이름 방으로 덮일 수 있어 실제 인접 방이 빠지므로 쓰면 안 됨.
+        foreach (var r in RoomManager.Instance.allRooms)
         {
-            Room r = kvp.Value;
             if (r == null || r == currentRoom || r.homeBound == null) continue;
             if (r.homeBound.bounds.Contains(pos))
             {
@@ -220,18 +221,16 @@ public class Creature : MonoBehaviour
         if (a == null || b == null) return false;
         float reachSqr = passageReach * passageReach;
 
-        // LL의 QuadLegs는 목표의 Y 높이를 무시하고 XZ로만 이동한다.
-        // 방 소속 갱신 거리도 같은 평면 기준이어야 출입구 높이 차 때문에 통과가 막히지 않는다.
-        TargetControl tc = GetComponent<TargetControl>();
-        bool planarMovement = tc != null && tc.moveMode == TargetControl.MoveMode.QuadLeg;
-
+        // 통로 근처 판정은 항상 평면(XZ) 기준. 통로 마커(문/벽)의 Y는 그 '중심 높이'일 뿐,
+        // 생물이 실제로 넘는 바닥 높이와 무관하므로 Y 차이로 통과가 막히면 안 된다.
+        // (특히 뚫린 벽의 Position은 벽 중심=공중 높이라, Y를 세면 바닥 생물이 영영 통과로 인정 안 됨)
         if (a.doors != null)
             foreach (var d in a.doors)
             {
                 if (d == null || !d.isOpen || d.GetOtherRoom(a) != b) continue;
                 Transform t = (d.self != null && d.self.rootTransform != null) ? d.self.rootTransform : d.transform;
                 Vector3 delta = t.position - pos;
-                if (planarMovement) delta.y = 0f;
+                delta.y = 0f;
                 if (delta.sqrMagnitude <= reachSqr) return true;
             }
         // 부서진 벽: 내 방(a)의 부서진 벽이 pos 근처면 통과 허용.
@@ -242,7 +241,7 @@ public class Creature : MonoBehaviour
             {
                 if (w == null || !w.Broken) continue;
                 Vector3 delta = w.Position - pos;
-                if (planarMovement) delta.y = 0f;
+                delta.y = 0f;
                 if (delta.sqrMagnitude <= reachSqr) return true;
             }
         return false;

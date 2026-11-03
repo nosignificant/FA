@@ -64,15 +64,14 @@ public partial class TutorialGuide : MonoBehaviour
         while (StatuesMenu.AnyOpen) yield return null;
 
         yield return SayLine("저는 알아내야 하는 것이 있었고... 많은 에너지를 요하는 연산이었습니다.");
-        yield return SayLine("그 이상에 대해서는... 메모리에 접근하기 어려워 말씀드리기 어려울 것 같습니다.");
-        yield return SayLine("저를 계속 도와주신다면 ");
+        yield return SayLine("그 이상에 대해서는... 오류가 난 시설들에 접근하기 어려워 말씀드리기 어려울 것 같습니다.");
+        yield return SayLine("저를 계속 도와주신다면, 더 많은 것을 알려드릴 수 있을 것 같아요!");
 
-        yield return SayLine("저는 시설을 관리하는 인공지능 p53입니다.");
+        yield return SayLine("아, 저는 시설을 관리하는 인공지능 p53입니다.");
         yield return SayLine("다음 장소로 안내해드릴 테니, 부디 따라와주시길 바랍니다.");
 
-        MyP53Think()?.SetGuide(tf_nextLv);
+        MyP53Think()?.SetGuide(lv1_Door.transform);
 
-        tut0Door.DoorCloseAndOpen(true);
         doneRooms.Add(room.roomID);
     }
 }

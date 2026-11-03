@@ -33,7 +33,6 @@ public class LegHead : MonoBehaviour
     public float climbStepHeight = 1.5f;
     [Tooltip("등반 진단 로그(0.3초)")]
     public bool debugClimb = false;
-    private float _dbgNext;
     private float _walkDbgNext;
     private bool _climbingFeet;
 
@@ -105,14 +104,6 @@ public class LegHead : MonoBehaviour
 
         bool hitWall = Physics.Raycast(transform.position, horiz.normalized, out RaycastHit wall, wallProbeDist, mask, QueryTriggerInteraction.Ignore);
         bool isVertical = hitWall && wall.normal.y < 0.5f;   // 바닥/경사면은 등반 아님
-
-        if (debugClimb && Time.time >= _dbgNext)
-        {
-            _dbgNext = Time.time + 0.3f;
-            Debug.Log($"[Climb:{name}] 앞벽={hitWall} 수직벽={isVertical} " +
-                      $"{(hitWall ? $"normal={wall.normal} dist={wall.distance:0.0}" : $"(레이 {wallProbeDist} 안에 벽 없음)")} " +
-                      $"bodyY={transform.position.y:0.0} targetY={target.position.y:0.0}", this);
-        }
 
         if (!isVertical) return false;
 

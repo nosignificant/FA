@@ -55,8 +55,8 @@ public class Coffin : MonoBehaviour
         Player.Instance?.TryAdvanceFromPossess(c);   // 단계 +1 + 현재 단계 대사 팝업 (advancesStory 필요)
         _storyUsed = true;
 
-        _consumed = true;                  // 이후 방 상태와 무관하게 비활성 모습
-        Apply(Room.RoomActivation.None);   // 활성화안됐을 때의 색/오브젝트로 전환
+        _consumed = true;        // 이후 방이 L/A여도 코핀은 계속 None 비주얼
+        ShowNoneVisual();        // deactivateOthers 설정과 무관하게 L/A 세트를 끄고 None 세트만 켬
         return true;
     }
 
@@ -111,6 +111,23 @@ public class Coffin : MonoBehaviour
     {
         if (set == null) return;
         if (!on && !deactivateOthers) return;
+        for (int i = 0; i < set.Length; i++)
+            if (set[i] != null) set[i].SetActive(on);
+    }
+
+    // 스토리 소비(F) 후 코핀을 None 비주얼로 강제 전환.
+    // deactivateOthers가 꺼져 있어도 L/A 세트는 반드시 끄고 None 세트만 켠다(기존 L/A가 남아 None처럼 안 보이는 문제 방지).
+    private void ShowNoneVisual()
+    {
+        _lastState = Room.RoomActivation.None;
+        ForceSet(lObjects, false);
+        ForceSet(aObjects, false);
+        ForceSet(noneObjects, true);
+    }
+
+    private static void ForceSet(GameObject[] set, bool on)
+    {
+        if (set == null) return;
         for (int i = 0; i < set.Length; i++)
             if (set[i] != null) set[i].SetActive(on);
     }

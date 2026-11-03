@@ -5,6 +5,8 @@ public partial class TutorialGuide : MonoBehaviour
 {
     IEnumerator lv1_0(Room room)
     {
+        MyP53Think()?.ClearGuide();
+
         yield return SayLine("아까 말씀드렸듯, 각 방에는 생물이 있고, 각 생물이 에너지를 생산해 제게 전달해주었습니다.");
         yield return SayLine("하지만 에너지를 과도하게 사용해버려서인지 대부분의 시설이 제대로 기능하고 있지 않군요...");
         doneRooms.Add(room.roomID);
@@ -29,7 +31,7 @@ public partial class TutorialGuide : MonoBehaviour
         keepAcrossRooms = true;
 
         yield return SayLine("아까 있던 문 중 하나는 L이 4 이상일 때라고 적혀있었죠.");
-        ShowPanelText("그 문을 열기 위해서는, L 에너지를 생산하는 방이 4곳 이상이어야 할 것 같습니다.");
+        ShowPanelText("그 문을 열기 위해서는, 현재 지역에서 L 에너지를 생산하는 방이 4곳 이상이어야 할 것 같습니다.");
         keepAcrossRooms = false;
 
         doneRooms.Add(room.roomID);

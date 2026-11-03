@@ -49,12 +49,12 @@
 ## 문 HUD 라벨 (lock-on 시) — name / verb / object 3칸
 - **RoomState**: `open / at / A` (방이름 안 씀)
 - **LevelCount**: `rooms ≥ / N`
-- **SignalGate**: 게이트 이름 (AND/OR/NOT/equals)
-- **LevelChoice**: `level{N} / is / {기록상태}` — 지정 레벨(`choiceLevelIndex`)을 A/L 중 무엇으로 클리어했는지(ChoiceProgress) 표시. **개폐 안 함(표시/tint 전용)**. 기록 없으면 `None`
+- **ReceiverState**: `R / is / A` — R(receiver)이 있는 방이 `requiredState`가 되면 열림(방송 없이 R 방 상태 직접 읽음)
+- **복합(useComposite)**: `open / at / A and L≥7 and R=A` — 켠 조건(`needRoomState`/`needLevelCount`/`needReceiverState`)을 모두 AND. `needReceiverState`는 `receiver`의 방이 `receiverStateValue`일 때 충족
 - **커스텀 라벨**: `useCustomLabel` 켜면 `customName/customVerb/customObject` 3칸을 모드 무관하게 그대로 표시
 - 등록 주의: **비활성(SetActive off) 문은 `Door.Start`가 안 돌아 방에 등록 안 됨** → 통로 인식 못 함. 상시 통로는 문 켜둔 채 `Always Open` + 메시만 숨길 것
 - **`Always Open` 문**: 통로 유지 + **락온 제외**(`self.lockable=false`) + **불 안 켬**
-- **특수 벽 tint**: [WallActivationTint](Room/WallActivationTint.cs)에 `byLevelChoice` 켜면 방 상태 대신 **지정 레벨 클리어 선택(A/L) 색**으로 고정(Start에서 1회). `choiceLevelIndex`로 레벨 지정
+- **특수 벽 tint**: [WallActivationTint](Room/WallActivationTint.cs)에 `byLevelMajority` 켜면 이 방 상태 대신 **같은 레벨(씬)에서 과반인 상태(L/A) 색**을 씀. 같은 씬 방들의 상태 변화를 구독해 과반이 바뀌면 자동 갱신. 동수/0이면 `noneColor`
 
 ---
 

@@ -81,6 +81,16 @@ public class CreatureActivationTint : MonoBehaviour
         RestartLoop();
     }
 
+    // 스토리 소비(M을 F로 성공) 후 true → 방 상태와 무관하게 None 색으로 고정.
+    private bool _consumed;
+
+    // 플레이어가 M을 F로 성공시키면 호출: 이후 방이 L/A여도 계속 None 비주얼.
+    public void ConsumeToNone()
+    {
+        _consumed = true;
+        _lastKey = int.MinValue;   // 다음 Loop 틱에서 None 색 강제 재적용
+    }
+
     // area 전환 복귀(SetActive true) 시 멈춘 색 갱신 Loop 재가동. 최초 활성화는 Start가 처리.
     private void OnEnable() { if (_started) RestartLoop(); }
 
@@ -150,7 +160,8 @@ public class CreatureActivationTint : MonoBehaviour
 
             if (tintByRoomState)
             {
-                var st = self.currentRoom != null ? self.currentRoom.Activation : Room.RoomActivation.None;
+                var st = _consumed ? Room.RoomActivation.None
+                       : (self.currentRoom != null ? self.currentRoom.Activation : Room.RoomActivation.None);
                 key = 10 + (int)st;   // 방상태 모드 (각성/휴면 키와 안 겹치게)
                 baseCol    = st == Room.RoomActivation.A ? aColor : st == Room.RoomActivation.L ? lColor : roomNoneColor;
                 dotCol     = st == Room.RoomActivation.A ? aDotColor : st == Room.RoomActivation.L ? lDotColor : noneDotColor;

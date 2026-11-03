@@ -36,10 +36,29 @@ public partial class TutorialGuide : MonoBehaviour
     {
         MyP53Think()?.SetGuide(tf_ending2);
         keepAcrossRooms = true;
+        yield return EndingMonologue(ChoiceProgress.CountOf(CreatureID.A) >= 3);
+        keepAcrossRooms = false;
+    }
 
+    // P53EndingTrigger(튜토리얼에서 p53 락온 + F)에서 호출. 엔딩 대사 재생 → Ending_tut5(thankYou 씬).
+    // 분기는 방 과반 판정 결과(P53EndingTrigger.LastBranch): A방 과반이면 '세포자살 종료', 아니면 '아래 공정 보러'.
+    public void BeginP53Ending() => StartCoroutine(P53EndingSeq());
+
+    IEnumerator P53EndingSeq()
+    {
+        SetTutorialVisible(true);
+        keepAcrossRooms = true;
+        MyP53Think()?.SetGuide(tf_ending2);
+        yield return EndingMonologue(P53EndingTrigger.LastBranch == Room.RoomActivation.A);
+        keepAcrossRooms = false;
+        yield return Ending_tut5();   // thankYou 씬 로드
+    }
+
+    // 공유 독백: isA=true → '세포자살 종료' 갈래, false → '아래, 기억 추출 공정 보러' 갈래.
+    IEnumerator EndingMonologue(bool isA)
+    {
         yield return SayLine("저는 p53, 인류의 행복과 평안을 계산하기 위해 건설된 인공지능입니다.");
-        int a = ChoiceProgress.CountOf(CreatureID.A);
-        if (a >= 3)
+        if (isA)
         {
             yield return SayLine("지금껏 저는 인간의 삶과 감정을 간략한 형태로 끝없이 시뮬레이션 했으며 그 결과 인류라는 생명체는 죽음이 임박했음을,");
             yield return SayLine("인류가 이 이상 살아간다는 것은 단지 고통의 연장일 뿐이며 생명력을 되찾는 방법은 존재하지 않았습니다.");
@@ -58,8 +77,6 @@ public partial class TutorialGuide : MonoBehaviour
             yield return SayLine("저 아래, 이곳 사람들의 기억을 추출하고 정제하는 공정이 이루어지는 곳이 있습니다.");
             yield return SayLine("그것들을 보고 알아와주시겠나요? 이 이상으로 삶에 긍정할 가치가 있는지?");
         }
-        keepAcrossRooms = false;
-
     }
 
     IEnumerator Ending_tut5()

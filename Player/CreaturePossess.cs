@@ -100,6 +100,11 @@ public class CreaturePossess : MonoBehaviour
         // 빙의 즉시 사망 종: 실제 조종 없이 스토리만 올리고 죽임 (일회성 소모)
         if (target.data != null && target.data.dieOnPossess)
         {
+            // 방이 None(미활성)이면 스토리도 안 올리고 죽이지도 않음 (Coffin과 동일: F만 소비).
+            if (target.currentRoom != null
+                && target.currentRoom.Activation != Room.RoomActivation.L
+                && target.currentRoom.Activation != Room.RoomActivation.A)
+                return;
             Player.Instance.TryAdvanceFromPossess(target);
             if (!target.IsDead) target.Die(CreatureID.Player);
             return;
@@ -254,14 +259,20 @@ public class CreaturePossess : MonoBehaviour
             if (cameraTransform != null)
             {
                 camOriginalParent = cameraTransform.parent;
-                cameraTransform.SetParent(target, true);
+                // target(proxy)이 비활성 계층(꺼진 area 밑 등)이면 카메라를 옮기는 순간 함께 꺼져
+                // "No cameras rendering"으로 화면이 블랙아웃된다. 그런 경우엔 카메라를 안 옮긴다(플레이어 밑에 둠).
+                if (target != null && target.gameObject.activeInHierarchy)
+                    cameraTransform.SetParent(target, true);
             }
         }
         else
         {
             if (cameraTransform != null)
             {
-                cameraTransform.SetParent(camOriginalParent, true);
+                // 원래 부모가 파괴됐거나 비활성이면 플레이어 밑으로 복구(블랙아웃 방지).
+                Transform back = (camOriginalParent != null && camOriginalParent.gameObject.activeInHierarchy)
+                    ? camOriginalParent : transform;
+                cameraTransform.SetParent(back, true);
                 cameraTransform.localPosition = camLocalPos;
             }
         }

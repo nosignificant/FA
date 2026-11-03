@@ -86,6 +86,19 @@ public class RoomManager : MonoBehaviour
             rooms.Remove(room.roomID);
     }
 
+    // 전체 로드된 방 중 이 상태(L/A)인 방 개수. 엔딩 판정·문 카운트 등에서 공용으로 씀.
+    public int CountRooms(Room.RoomActivation state)
+    {
+        int n = 0;
+        foreach (var r in allRooms)
+            if (r != null && r.Activation == state) n++;
+        return n;
+    }
+
+    // 전체 로드된 방 중 L 또는 A로 활성화된 방의 총합 (Door의 LevelTotal과 동일 기준).
+    public int CountActivatedTotal() =>
+        CountRooms(Room.RoomActivation.L) + CountRooms(Room.RoomActivation.A);
+
     public void UpdateActiveRooms(Room playerRoom)
     {
         // 전부 비활성화

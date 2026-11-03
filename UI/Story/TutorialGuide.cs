@@ -15,7 +15,6 @@ public partial class TutorialGuide : MonoBehaviour
     private TextMeshProUGUI tmp;
 
     [Header("튜토리얼 문")]
-    public Door tut0Door;
     public Door lv1_S1E1Door;
     public Door lv1_Door;
     public Door lv2_Door;
@@ -32,9 +31,7 @@ public partial class TutorialGuide : MonoBehaviour
     [Header("p53 안내 위치")]
     [Tooltip("tut0_2: R 쪽으로 p53가 안내할 위치")]
     public Transform tf_tutL;
-    public Transform tf_tut;
     public Transform tf_R;
-    public Transform tf_nextLv;
     public Transform tf_ending1;
     public Transform tf_ending2;
 

@@ -26,7 +26,6 @@ public class Door : MonoBehaviour
         RoomState,   // 양쪽 방 중 하나가 requiredState(L/A)로 활성화되면 열림
         LevelCount,  // 레벨 전체에서 requiredState로 활성화된 방이 levelCountN개 이상이면 열림
         LevelTotal,  // 레벨 전체에서 L+A(활성화된 방 전체) 합이 levelCountN개 이상이면 열림
-        LevelChoice, // 지정 레벨을 A/L 중 무엇으로 클리어했는지(ChoiceProgress) 표시 — 개폐 안 함(표시/tint 전용)
         ReceiverState, // R(receiver)이 있는 방이 requiredState(L/A)가 되는 즉시 열림. R의 방 상태를 그대로 따라감(방송 없음)
     }
 
@@ -55,9 +54,9 @@ public class Door : MonoBehaviour
     [Tooltip("needLevelCount가 세는 상태(기본 L). 아래 levelCountN과 함께 쓰임")]
     public Room.RoomActivation countState = Room.RoomActivation.L;
 
-    [Header("LevelChoice (레벨 클리어 선택 표시)")]
-    [Tooltip("몇 번째 레벨의 기록을 볼지 (1=level1, 2=level2...). ChoiceProgress 기록 순서 기준")]
-    public int choiceLevelIndex = 1;
+    [Tooltip("조건: R(receiver)이 있는 방이 receiverStateValue 상태여야 함 (위 receiver 필드 사용, 비우면 자동 탐색)")]
+    public bool needReceiverState = false;
+    public Room.RoomActivation receiverStateValue = Room.RoomActivation.A;
 
     [Header("HUD 라벨 직접 작성 (선택)")]
     [Tooltip("켜면 아래 3칸(이름/동사/목적어)을 모드 자동 라벨 대신 그대로 HUD에 표시")]
@@ -106,20 +105,18 @@ public class Door : MonoBehaviour
     // RoomState/ReceiverState/LevelCount면 requiredState(L/A)에 맞는 RoomState Graphic만 켜고 나머지는 끔.
     public void ApplyConditionGraphic()
     {
-        bool isLevelChoice = !useComposite && conditionMode == ConditionMode.LevelChoice;
         bool isLevelCount  = !useComposite && conditionMode == ConditionMode.LevelCount;
         // 단일 방 상태 스프라이트(L/A)를 쓰는가: 복합이면 needRoomState, 아니면 RoomState/ReceiverState 모드
         bool roomStatePart = useComposite ? needRoomState
             : (conditionMode == ConditionMode.RoomState || conditionMode == ConditionMode.ReceiverState);
-        bool stateMode = roomStatePart || isLevelChoice || isLevelCount;   // L/A 스프라이트·색 쓰는 모드
+        bool stateMode = roomStatePart || isLevelCount;   // L/A 스프라이트·색 쓰는 모드
 
         // ReceiverState('R is -') 전용 그래픽: 이 모드일 때만 켬
         bool isReceiverState = !useComposite && conditionMode == ConditionMode.ReceiverState;
         SetActiveAll(receiverStateGraphics, isReceiverState);
 
-        // 표시 상태: 복합=roomStateValue / RoomState·ReceiverState·LevelCount=requiredState / LevelChoice=기록된 선택
-        Room.RoomActivation dispState = isLevelChoice ? RecordedLevelState()
-            : useComposite ? roomStateValue : requiredState;
+        // 표시 상태: 복합=roomStateValue / RoomState·ReceiverState·LevelCount=requiredState
+        Room.RoomActivation dispState = useComposite ? roomStateValue : requiredState;
 
         bool wantL = stateMode && dispState == Room.RoomActivation.L;
         bool wantA = stateMode && dispState == Room.RoomActivation.A;
@@ -145,10 +142,10 @@ public class Door : MonoBehaviour
             }
         }
 
-        // 개수 게이지: 개수 조건 모드가 아니면(예: ReceiverState/RoomState) 둘 다 끔(0칸)
-        bool countMode = IsCountMode();
-        UpdateLevelCountParents(levelCountReqParents, countMode ? levelCountN : 0);
-        UpdateLevelCountParents(levelCountCurParents, countMode ? CurrentModeCount() : 0);
+        // 개수 게이지: LevelTotal은 요청에 따라 요구치·현재 둘 다 안 띄움. 그 외 개수 모드만 표시.
+        bool showGauge = ShowCurrentCountGauge();
+        UpdateLevelCountParents(levelCountReqParents, showGauge ? levelCountN : 0);
+        UpdateLevelCountParents(levelCountCurParents, showGauge ? CurrentModeCount() : 0);
     }
 
     // 배열 전체 SetActive
@@ -231,7 +228,7 @@ public class Door : MonoBehaviour
         if (conditionMode == ConditionMode.LevelCount
             || conditionMode == ConditionMode.LevelTotal
             || conditionMode == ConditionMode.ReceiverState
-            || (useComposite && needLevelCount))
+            || (useComposite && (needLevelCount || needReceiverState)))
             StartCoroutine(TickEvaluate());
     }
 
@@ -255,23 +252,10 @@ public class Door : MonoBehaviour
 
     private void Reevaluate() => EvaluateConditions();
 
-    // ChoiceProgress에서 이 문이 가리키는 레벨의 기록된 선택(A/L)을 RoomActivation으로.
-    // 아직 안 한(기록 없는) 레벨은 None.
-    public Room.RoomActivation RecordedLevelState()
-    {
-        var all = ChoiceProgress.All();
-        int i = choiceLevelIndex - 1;
-        if (i < 0 || i >= all.Count) return Room.RoomActivation.None;
-        var c = all[i];
-        if (c == CreatureID.A) return Room.RoomActivation.A;
-        if (c == CreatureID.L) return Room.RoomActivation.L;
-        return Room.RoomActivation.None;
-    }
-
     private void EvaluateConditions()
     {
-        // '현재 L/A 방 개수' 게이지는 항상 갱신. 개수 조건 모드가 아니면 0칸(전부 끔).
-        UpdateLevelCountParents(levelCountCurParents, IsCountMode() ? CurrentModeCount() : 0);
+        // '현재 L/A 방 개수' 게이지는 항상 갱신. 표시 모드 아니면(또는 LevelTotal) 0칸(전부 끔).
+        UpdateLevelCountParents(levelCountCurParents, ShowCurrentCountGauge() ? CurrentModeCount() : 0);
 
         if (alwaysOpen) return;   // 항상 열린 통로는 조건과 무관하게 계속 열림
         // 튜토리얼 방(어느 쪽이든)의 문은 조건 자동 개폐 안 함 (TutorialGuide가 수동 제어)
@@ -286,11 +270,11 @@ public class Door : MonoBehaviour
                    || (roomB != null && roomB.Activation == roomStateValue);
             if (needLevelCount)
                 ok &= CountActiveRooms(countState) >= levelCountN;
+            if (needReceiverState)
+                ok &= ResolveReceiver() != null && receiver.CurrentSignalState == receiverStateValue;
             if (ok != isOpen) DoorCloseAndOpen(ok);
             return;
         }
-
-        if (conditionMode == ConditionMode.LevelChoice) return;   // 표시/tint 전용 — 자동 개폐 안 함
 
         bool shouldOpen;
 
@@ -322,8 +306,7 @@ public class Door : MonoBehaviour
     // 문 HUD: name=조건1 / status=연산 / target=조건2 로 좌→우로 읽힘
     //   RoomState:  open / at      / A
     //   LevelCount: A    / rooms ≥ / 3
-    //   LevelChoice:levelN / is    / A
-    //   복합(useComposite): open / at / A and L≥7 (켠 조건들을 " and "로 연결)
+    //   복합(useComposite): open / at / A and L≥7 and R=A (켠 조건들을 " and "로 연결)
 
     // 복합 조건: 켠 bool들을 " and "로 이어 3번째 칸에 표시
     private string CompositeTarget()
@@ -331,6 +314,7 @@ public class Door : MonoBehaviour
         var parts = new System.Collections.Generic.List<string>();
         if (needRoomState) parts.Add(roomStateValue.ToString());
         if (needLevelCount) parts.Add(countState + "≥" + levelCountN);
+        if (needReceiverState) parts.Add("R=" + receiverStateValue);
         return parts.Count == 0 ? "-" : string.Join(" and ", parts);
     }
 
@@ -345,8 +329,6 @@ public class Door : MonoBehaviour
                 return requiredState.ToString();
             case ConditionMode.LevelTotal:
                 return "total";   // "total / rooms ≥ / n"
-            case ConditionMode.LevelChoice:
-                return "level" + choiceLevelIndex;
             case ConditionMode.ReceiverState:
                 return "R";   // "R / is / A"
             default: // RoomState (사용자 요청: 방이름 대신 "open" → "open / at / A"로 읽힘)
@@ -363,7 +345,6 @@ public class Door : MonoBehaviour
         {
             case ConditionMode.LevelCount: return "rooms ≥";   // "rooms ≥"
             case ConditionMode.LevelTotal: return "rooms ≥";   // "total rooms ≥ n"
-            case ConditionMode.LevelChoice: return "is";   // "levelN is 상태"
             case ConditionMode.ReceiverState: return "is";   // "R is 상태"
             default: return "at";   // RoomState (사용자 요청: "open / at / A" 형식, 방이름 안 씀)
         }
@@ -379,8 +360,6 @@ public class Door : MonoBehaviour
             case ConditionMode.LevelCount:
             case ConditionMode.LevelTotal:
                 return levelCountN.ToString();
-            case ConditionMode.LevelChoice:
-                return RecordedLevelState().ToString();   // 기록된 선택 "A"/"L"/"None"
             default: // RoomState
                 return requiredState.ToString();   // "L" 또는 "A"
         }
@@ -396,6 +375,10 @@ public class Door : MonoBehaviour
     // 개수 조건 모드인가 (LevelCount/LevelTotal 또는 복합 needLevelCount)
     private bool IsCountMode() => useComposite ? needLevelCount
         : (conditionMode == ConditionMode.LevelCount || conditionMode == ConditionMode.LevelTotal);
+
+    // 현재 개수 게이지를 표시할 모드인가. LevelTotal은 요청에 따라 현재 count를 띄우지 않음.
+    private bool ShowCurrentCountGauge() => IsCountMode()
+        && !(!useComposite && conditionMode == ConditionMode.LevelTotal);
     // 그 모드가 세는 상태 (복합=countState, 아니면 requiredState)
     private Room.RoomActivation CountStateForMode() => useComposite ? countState : requiredState;
 
