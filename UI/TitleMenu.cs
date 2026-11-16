@@ -23,7 +23,21 @@ public class TitleMenu : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
+        WireMouse();
         UpdateVisual();
+    }
+
+    // 각 항목에 마우스 hover(선택 이동) / 클릭(실행)을 연결
+    private void WireMouse()
+    {
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (items[i].entry == null) continue;
+            int idx = i;
+            items[i].entry.BindMouse(
+                () => { selected = idx; UpdateVisual(); },
+                () => { selected = idx; Confirm(); });
+        }
     }
 
     private void Update()

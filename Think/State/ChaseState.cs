@@ -169,9 +169,11 @@ class ChaseState : ThinkState
             if (t == null || t.data == null) continue;
 
             Transform tf = t.rootTransform;
-            if (IsBlocked(point, tf.position)) continue;
 
             float d = Vector3.Distance(point, tf.position);
+            if (d > MaxInfluenceDistance) continue;   // 멀어서 기여 ~0 → 비싼 벽 체크 생략
+            if (IsBlocked(point, tf.position)) continue;
+
             float distTerm = 1f / Mathf.Pow(d + 1f, 1.5f);
             float w = t.data.weight;
 

@@ -304,16 +304,21 @@ public class Door : MonoBehaviour
     }
 
     // 문 HUD: name=조건1 / status=연산 / target=조건2 로 좌→우로 읽힘
-    //   RoomState:  open / at      / A
-    //   LevelCount: A    / rooms ≥ / 3
-    //   복합(useComposite): open / at / A and L≥7 and R=A (켠 조건들을 " and "로 연결)
+    //   RoomState:  open / at   / L Room
+    //   LevelCount: L Room / ≥  / 3
+    //   복합(useComposite): open / at / A Room and L Room≥7 and R=A (켠 조건들을 " and "로 연결)
+
+    // 방 상태(L/A)를 조건 라벨용 문자열로. 생물 'L'과 구분되게 "Room"을 붙임.
+    //  (한글로 쓰고 싶으면 " Room" → "방" 으로만 바꾸면 전부 반영됨)
+    public static string StateWord(Room.RoomActivation s)
+        => s == Room.RoomActivation.None ? "-" : s.ToString() + " Room";
 
     // 복합 조건: 켠 bool들을 " and "로 이어 3번째 칸에 표시
     private string CompositeTarget()
     {
         var parts = new System.Collections.Generic.List<string>();
-        if (needRoomState) parts.Add(roomStateValue.ToString());
-        if (needLevelCount) parts.Add(countState + "≥" + levelCountN);
+        if (needRoomState) parts.Add(StateWord(roomStateValue));
+        if (needLevelCount) parts.Add(StateWord(countState) + "≥" + levelCountN);
         if (needReceiverState) parts.Add("R=" + receiverStateValue);
         return parts.Count == 0 ? "-" : string.Join(" and ", parts);
     }
@@ -326,7 +331,7 @@ public class Door : MonoBehaviour
         switch (conditionMode)
         {
             case ConditionMode.LevelCount:
-                return requiredState.ToString();
+                return StateWord(requiredState);   // "L Room / ≥ / 3"
             case ConditionMode.LevelTotal:
                 return "total";   // "total / rooms ≥ / n"
             case ConditionMode.ReceiverState:
@@ -343,7 +348,7 @@ public class Door : MonoBehaviour
         if (useComposite) return "at";
         switch (conditionMode)
         {
-            case ConditionMode.LevelCount: return "rooms ≥";   // "rooms ≥"
+            case ConditionMode.LevelCount: return "≥";          // "L Room ≥ 3" (이름칸이 이미 'L Room')
             case ConditionMode.LevelTotal: return "rooms ≥";   // "total rooms ≥ n"
             case ConditionMode.ReceiverState: return "is";   // "R is 상태"
             default: return "at";   // RoomState (사용자 요청: "open / at / A" 형식, 방이름 안 씀)
@@ -361,7 +366,7 @@ public class Door : MonoBehaviour
             case ConditionMode.LevelTotal:
                 return levelCountN.ToString();
             default: // RoomState
-                return requiredState.ToString();   // "L" 또는 "A"
+                return StateWord(requiredState);   // "L Room" 또는 "A Room"
         }
     }
 
@@ -416,7 +421,8 @@ public class Door : MonoBehaviour
         }
     }
 
-    // 레벨 전체에서 이 상태(L/A)로 활성화된 방의 개수
+    // 이 문이 속한 레벨(씬)에서 이 상태(L/A)로 활성화된 방의 개수.
+    // (allRooms는 로드된 모든 레벨을 포함하므로, 같은 씬만 세야 '현재 레벨' 기준이 됨)
     private int CountActiveRooms(Room.RoomActivation state)
     {
         if (RoomManager.Instance == null || RoomManager.Instance.rooms == null) return 0;
@@ -424,7 +430,7 @@ public class Door : MonoBehaviour
         int count = 0;
         foreach (var r in RoomManager.Instance.allRooms)
         {
-            if (r == null) continue;
+            if (r == null || r.gameObject.scene != gameObject.scene) continue;
             if (r.Activation == state) count++;
         }
         return count;

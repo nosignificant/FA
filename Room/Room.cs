@@ -146,6 +146,18 @@ public class Room : MonoBehaviour
         }
     }
 
+    // 엔딩용: 이 방의 L/A 에너지 생물을 전부 죽인다. (Die → Died 이벤트로 creatureList에서 자동 제거)
+    public void KillEnergyCreatures(CreatureID who)
+    {
+        var snapshot = new List<Creature>(creatureList);
+        foreach (var c in snapshot)
+        {
+            if (c == null || c.data == null) continue;
+            CreatureID id = c.data.creatureID;
+            if (id == CreatureID.L || id == CreatureID.A) c.Die(who);
+        }
+    }
+
     // R 방송용: 반대 종을 방송 종으로 '뒤집고', 모자라면 activation 문턱까지 채운다. 고정(latch)은 안 함.
     //  → 그 방이 방송 상태로 활성화되되, 이후 다시 반대 종이 과반이 되면 그 상태로 바뀐다.
     public void ApplyBroadcast(RoomActivation state)

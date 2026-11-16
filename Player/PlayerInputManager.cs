@@ -82,6 +82,10 @@ public class PlayerInputManager : MonoBehaviour
     private void HandleLockOn()
     {
         if (!Input.GetKeyDown(lockOnKey)) return;
+
+        // 엔딩 확정 대기 중엔 p53 락온을 유지해야 하므로 Tab 토글/순환 차단
+        if (P53EndingTrigger.Instance != null && P53EndingTrigger.Instance.AwaitingConfirm) return;
+
         lockOnPressedFrame = Time.frameCount;
 
         var p = Player.Instance;
@@ -112,13 +116,19 @@ public class PlayerInputManager : MonoBehaviour
 
         if (!Input.GetKeyDown(KeyCode.Escape)) return;
 
-        // 우선순위: Pause 닫기 > C패널 닫기 > 락온 해제 > Pause 열기
+        // 우선순위: Pause 닫기 > C패널 닫기 > 빙의 해제 > 락온 해제 > Pause 열기
         if (menu != null && menu.IsOpen)
             menu.Close();
         else if (StatuesMenu.AnyOpen)
             StatuesMenu.Instance.Back();   // 열려 있는 C 상태창 닫기
+        else if (Possess != null && Possess.IsPossessing)
+            Possess.Release();             // 빙의 중 ESC → 조종 해제 (다음 ESC로 락온 해제)
         else if (Player.Instance != null && Player.Instance.isTracking)
+        {
+            // 확정 대기 중 락온을 풀면 엔딩 확정 단계도 초기화 (다음에 다시 F부터)
+            if (P53EndingTrigger.Instance != null) P53EndingTrigger.Instance.CancelConfirm();
             Player.Instance.Unlock();
+        }
         else if (menu != null)
             menu.Open();
     }
@@ -127,7 +137,10 @@ public class PlayerInputManager : MonoBehaviour
     private void SyncPossessUI()
     {
         var p = Player.Instance;
-        if (p == null || p.UI_f == null || Possess == null) return;
-        p.UI_f.SetActive(Possess.IsPossessing);
+        if (p == null || p.UI_f == null) return;
+        // 빙의 중 + 엔딩 확정 대기 중(한 번 더 F로 확정)에 F UI 표시
+        bool possessing = Possess != null && Possess.IsPossessing;
+        bool awaitingEnding = P53EndingTrigger.Instance != null && P53EndingTrigger.Instance.AwaitingConfirm;
+        p.UI_f.SetActive(possessing || awaitingEnding);
     }
 }

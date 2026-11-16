@@ -58,9 +58,11 @@ public partial class TutorialGuide : MonoBehaviour
 
         yield return SayLine("감사합니다... 하지만 아직 수리가 더 필요할 것 같습니다.");
 
-        yield return SayLine($"{Pim.codexToggleKey}를 누르면 저의 상태를 파악할 수 있습니다.", 0.5f);
+        // 키 안내는 '누를 때까지' 패널에 계속 떠 있어야 함 (짧은 SayLine은 금방 만료돼 사라져서
+        //  대기 중엔 화면에 안내가 없어짐 → 플레이어가 놓침). 라인 37의 Tab/F 안내와 동일하게 ShowPanelText 유지.
+        ShowPanelText($"{Pim.codexToggleKey}를 누르면 저의 상태를 파악할 수 있습니다.");
         while (!StatuesMenu.AnyOpen) yield return null;
-        yield return SayLine($"{Pim.codexToggleKey}를 다시 눌러 해제하십시오.", 0.5f);
+        ShowPanelText($"{Pim.codexToggleKey}를 다시 눌러 해제하십시오.");
         while (StatuesMenu.AnyOpen) yield return null;
 
         yield return SayLine("저는 알아내야 하는 것이 있었고... 많은 에너지를 요하는 연산이었습니다.");

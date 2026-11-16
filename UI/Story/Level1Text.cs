@@ -31,7 +31,9 @@ public partial class TutorialGuide : MonoBehaviour
         keepAcrossRooms = true;
 
         yield return SayLine("아까 있던 문 중 하나는 L이 4 이상일 때라고 적혀있었죠.");
-        ShowPanelText("그 문을 열기 위해서는, 현재 지역에서 L 에너지를 생산하는 방이 4곳 이상이어야 할 것 같습니다.");
+        yield return SayLine("그 문을 열기 위해서는 현재 레벨에서 L 에너지를 생산하는 방이 4곳 이상이어야 할 것 같습니다. 주변 생물의 행동을 관찰하고, 조건을 만족시켜보십시오.");
+        ShowPanelText($"이런 경우, 문에 현재 지역에 해당 에너지를 생산 중인 방의 개수가 표기됩니다. 주변 생물의 행동을 관찰하고, 조건을 만족시켜보십시오. {Pim.lockOnKey}와 {Pim.possessKey}를 통해 생물을 안내할 수 있음을 잊지 마십시오.");
+
         keepAcrossRooms = false;
 
         doneRooms.Add(room.roomID);
@@ -48,12 +50,6 @@ public partial class TutorialGuide : MonoBehaviour
         keepAcrossRooms = false;
 
         doneRooms.Add(room.roomID);
-
-    }
-    IEnumerator Lv1AfterIntro()
-    {
-        lv1_Door.DoorCloseAndOpen(true);
-        yield return null;
 
     }
     IEnumerator Lv1After_tut0()

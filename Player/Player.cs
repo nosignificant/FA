@@ -57,7 +57,13 @@ public class Player : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        if (Instance != null && Instance != this)
+        {
+            // 씬에 배치된 중복 Player의 회전을 '이 씬 도착 시 바라볼 방향'으로 등록하고 파괴
+            AreaManager.Instance?.RegisterSceneFacing(gameObject.scene.name, transform.rotation);
+            Destroy(gameObject);
+            return;
+        }
         if (pl == null) pl = GetComponent<PlayerLockOn>();
         if (pc == null) pc = GetComponent<Creature>();
 

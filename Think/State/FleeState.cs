@@ -120,9 +120,10 @@ class FleeState : ThinkState
 
             Transform tf = t.rootTransform;
 
+            float d = Vector3.Distance(point, tf.position);
+            if (d > MaxInfluenceDistance) continue;   // 멀어서 기여 ~0 → 비싼 벽 체크 생략
             if (IsBlocked(point, tf.position)) continue;
 
-            float d = Vector3.Distance(point, tf.position);
             float distTerm = 1f / Mathf.Pow(d + 1f, 1.5f);
 
             float w = Mathf.Max(0f, t.data.weight);

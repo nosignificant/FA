@@ -55,6 +55,10 @@ public abstract class ThinkState
         oldTarget = newTarget;
     }
 
+    // 이 거리(m) 너머의 생물은 Score 기여(distTerm=1/(d+1)^1.5)가 거의 0이라
+    //  비싼 IsBlocked(벽 체크 raycast)를 생략한다. 넉넉히 크게 잡아 AI 동작은 사실상 불변.
+    protected const float MaxInfluenceDistance = 28f;
+
     protected bool IsBlocked(Vector3 from, Vector3 to)
     {
         Vector3 a = from + Vector3.up;

@@ -87,6 +87,10 @@ public partial class TutorialGuide : MonoBehaviour
     private PlayerLockOn Pl => _pl != null ? _pl : (_pl = Player.Instance?.GetComponent<PlayerLockOn>());
     private CreaturePossess Cp => _cp != null ? _cp : (_cp = Player.Instance?.GetComponent<CreaturePossess>());
 
+    // area를 SetActive로 껐다 켜며 복귀하면(이 가이드가 꺼졌던 경우) 현재 방을 다시 평가하도록 lastRoom 리셋.
+    // (완료된 방/진행도는 doneRooms로 계속 걸러지므로 재방문해도 재생 안 됨)
+    private void OnEnable() => lastRoom = "";
+
     void Start()
     {
         tmp = tutorialUI.GetComponentInChildren<TextMeshProUGUI>();
@@ -133,7 +137,7 @@ public partial class TutorialGuide : MonoBehaviour
         if (tmp != null) tmp.text = "";
         SetTutorialVisible(false);
 
-        if (doneRooms.Contains(room.roomID))
+        if (doneRooms.Contains(DoneKey(room)))
         {
             SetTutorialVisible(false);
             return;
@@ -146,7 +150,8 @@ public partial class TutorialGuide : MonoBehaviour
                 switch (room.roomID)
                 {
                     case "tut_1": co = StartCoroutine(tut0_1(room)); break;
-                    case "tut_2": co = StartCoroutine(tut0_2(room)); break;
+                    // tut_2는 허브 — 완료 레벨 수(ChoiceProgress.Count)로 분기 (첫 튜토리얼 / 레벨N 복귀 디브리핑)
+                    case "tut_2": co = StartCoroutine(TutHub_tut2(room)); break;
                 }
                 break;
 
@@ -160,12 +165,6 @@ public partial class TutorialGuide : MonoBehaviour
 
                 }
                 break;
-            case "level1_after":
-                switch (room.roomID)
-                {
-                    case "tut_2": co = StartCoroutine(Lv1After_tut0()); break;
-                }
-                break;
 
             case "level2":
                 switch (room.roomID)
@@ -173,29 +172,32 @@ public partial class TutorialGuide : MonoBehaviour
                     case "p_0": co = StartCoroutine(lv2_0(room)); break;
                 }
                 break;
-
-            case "level2_after":
-                switch (room.roomID)
-                {
-                    case "tut_2": co = StartCoroutine(Lv2After_tut2()); break;
-                }
-                break;
-            case "level3_after":
-                switch (room.roomID)
-                {
-                    case "tut_2": co = StartCoroutine(Lv3After_tut2()); break;
-                }
-                break;
-            case "Ending":
-                switch (room.roomID)
-                {
-                    case "tut_2": co = StartCoroutine(Ending_tut2()); break;
-                    case "tut_3": co = StartCoroutine(Ending_tut3()); break;
-                    case "tut_5": co = StartCoroutine(Ending_tut5()); break;
-                }
-                break;
         }
     }
+
+    // tutorial 허브 tut_2 방: 완료한 레벨 수에 따라 대사 분기, 진행도별로 한 번씩만 재생.
+    //  Count 0=첫 튜토리얼, 1=레벨1 복귀, 2=레벨2 복귀, 3=레벨3 복귀, 4+=레벨4 복귀
+    private IEnumerator TutHub_tut2(Room room)
+    {
+        int c = ChoiceProgress.Count;
+        switch (c)
+        {
+            case 0:  yield return tut0_2(room); break;
+            case 1:  yield return Lv1After_tut0(); break;
+            case 2:  yield return Lv2After_tut2(); break;
+            case 3:  yield return Lv3After_tut2(); break;
+            default: yield return Lv4After_tut2(); break;
+        }
+        doneRooms.Add(DoneKeyFor("tut_2", c));   // 이 진행도의 tut_2 완료(끝까지 본 경우만)
+    }
+
+    // 완료 처리/조회용 키. tutorial의 tut_2만 진행도까지 포함해 '진행도별 1회'가 되게 함.
+    private string DoneKey(Room room) =>
+        (gameObject.scene.name == "tutorial" && room.roomID == "tut_2")
+            ? DoneKeyFor("tut_2", ChoiceProgress.Count)
+            : room.roomID;
+
+    private string DoneKeyFor(string roomID, int progress) => $"{roomID}#{progress}";
 
 
     private IEnumerator PlaySceneIntro()
@@ -205,10 +207,8 @@ public partial class TutorialGuide : MonoBehaviour
         switch (gameObject.scene.name)
         {
             case "level3": yield return Level3Intro(); break;
-            case "level1_after": yield return Lv1AfterIntro(); break;
-            case "level2_after": yield return Lv2AfterIntro(); break;
-            case "level3_after": yield return Lv3AfterIntro(); break;
-            case "ending": yield return EndingIntro(); break;
+            case "level4": yield return Level4Intro(); break;
+            // 각 레벨 문 열기는 이제 level total 기반 문 로직이 담당 → 씬 진입 intro(문 열기)는 제거됨.
         }
 
         if (introHideOnEnd) SetTutorialVisible(false);

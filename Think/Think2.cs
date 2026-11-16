@@ -339,9 +339,11 @@ public class Think2 : MonoBehaviour
     //build proxy codes
     ////////////
     /// 
+    private readonly List<Vector3> _queryPoints = new();   // 매 틱 재사용 (new 할당으로 인한 GC 스파이크 방지)
     private List<Vector3> BuildQueryPoints()
     {
-        List<Vector3> points = new();
+        List<Vector3> points = _queryPoints;
+        points.Clear();
         //스캐너 반경만큼
         float r = Mathf.Max(0.1f, scanner.scanRadius);
         // 이만큼의 간격에 

@@ -154,9 +154,16 @@ public class PlayerLockOn : MonoBehaviour
             lockables.Add(c);
         }
 
+        // 현재 area(씬) 이름 — additive로 겹쳐 로드된 다른 레벨/튜토리얼 생물이 락온되는 것 방지용.
+        //  OverlapSphere가 같은 월드 좌표의 다른 씬 생물까지 주워담기 때문에 씬으로 걸러야 함.
+        string activeArea = room != null ? room.gameObject.scene.name
+                          : (AreaManager.Instance != null ? AreaManager.Instance.currentArea : null);
+
         candidates = lockables
             .Where(c => c != null && c.data != null && c.data.creatureID != CreatureID.Player)
+            .Where(c => string.IsNullOrEmpty(activeArea) || c.gameObject.scene.name == activeArea)   // 다른 area(씬) 생물 제외
             .Where(c => c.IsLockable)   // 락온 불가 종(weed 등)·개체 제외
+            .Where(c => !LockBlockedP53(c))   // 레벨1~5의 p53은 락온 제외 (엔딩 씬에서만 가능)
             .Where(c =>
             {
                 Vector3 sp = cam.WorldToScreenPoint(GetLockPosition(c));
@@ -210,6 +217,18 @@ public class PlayerLockOn : MonoBehaviour
             Mathf.SmoothDampAngle(currentEuler.z, targetEuler.z, ref rotationVelocity.z, rotationSmoothTime)
         );
         cam.transform.rotation = Quaternion.Euler(smoothed);
+    }
+
+    // p53는 엔딩 트리거(P53EndingTrigger)가 있는 씬(튜토리얼)에서만 락온 가능.
+    //  레벨1~5의 p53은 트리거가 없거나 다른 씬이므로 후보에서 제외 → 거기선 F 빙의/엔딩 모두 불가.
+    private static bool LockBlockedP53(Creature c)
+    {
+        bool isP53 = c.GetComponent<P53Think>() != null
+                  || c.GetComponentInParent<P53Think>() != null
+                  || c.GetComponentInChildren<P53Think>() != null;
+        if (!isP53) return false;
+        var trigger = P53EndingTrigger.Instance;
+        return trigger == null || c.gameObject.scene != trigger.gameObject.scene;
     }
 
     private Vector3 GetLockPosition(Creature creature)

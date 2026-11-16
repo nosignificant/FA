@@ -36,7 +36,13 @@ public class SelectLevel : MonoBehaviour
         var entries = root.GetComponentsInChildren<Entry>(true);
         items = new MenuItem[entries.Length];
         for (int i = 0; i < entries.Length; i++)
+        {
             items[i] = new MenuItem { label = entries[i].gameObject.name, entry = entries[i] };
+            int idx = i;   // 마우스 hover(선택 이동) / 클릭(실행) 연결
+            entries[i].BindMouse(
+                () => { selected = idx; UpdateVisual(); },
+                () => { selected = idx; Confirm(); });
+        }
         selected = 0;
         Debug.Log($"[SelectLevel:{name}] root={root.name} → Entry {entries.Length}개: " +
                   (entries.Length == 0 ? "(없음! Entry 컴포넌트 확인)" : string.Join(", ", System.Array.ConvertAll(items, m => m.label))), this);

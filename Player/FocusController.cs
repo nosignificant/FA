@@ -26,6 +26,8 @@ public class FocusController : MonoBehaviour
     [System.Serializable]
     public struct RoomFocus
     {
+        [Tooltip("이 씬에 있을 때만 적용. 비우면 씬 무관(모든 씬에서 roomID만으로 매칭)")]
+        public string sceneName;
         [Tooltip("이 방(roomID)에 있을 때")]
         public string roomID;
         [Tooltip("평소값 대신 쓸 focusDistance")]
@@ -80,7 +82,7 @@ public class FocusController : MonoBehaviour
         // 평소값: 외부 override(SetBaseFocus) > 방별 테이블 > defaultFocus
         float target = _hasBaseOverride ? _baseOverride : RoomBaseFocus();
         if (StatuesMenu.AnyOpen || paused) target = statusFocus;          // 상태창·일시정지 우선(가장 강한 흐림)
-        else if (IsPossessing()) target = possessFocus;
+        else if (IsPossessing() || IsEndingConfirm()) target = possessFocus;   // 빙의 + 엔딩 확정 대기도 동일 흐림
 
         float cur = _dof.focusDistance.value;
         _dof.focusDistance.value = (blurFadeSpeed <= 0f)
@@ -93,9 +95,17 @@ public class FocusController : MonoBehaviour
     {
         Room room = Player.Instance != null ? Player.Instance.currentRoom : null;
         if (room != null && roomFocusOverrides != null)
+        {
+            string sceneName = room.gameObject.scene.name;
             for (int i = 0; i < roomFocusOverrides.Length; i++)
-                if (roomFocusOverrides[i].roomID == room.roomID)
-                    return roomFocusOverrides[i].focus;
+            {
+                var o = roomFocusOverrides[i];
+                if (o.roomID != room.roomID) continue;
+                // 씬 지정이 있으면 그 씬에서만, 비워두면 씬 무관
+                if (!string.IsNullOrEmpty(o.sceneName) && o.sceneName != sceneName) continue;
+                return o.focus;
+            }
+        }
         return defaultFocus;
     }
 
@@ -104,4 +114,8 @@ public class FocusController : MonoBehaviour
         if (_possess == null) _possess = FindObjectOfType<CreaturePossess>();
         return _possess != null && _possess.IsPossessing;
     }
+
+    // 엔딩 확정 대기 중(p53 1차 F 후) — 빙의처럼 DOF를 흐리게
+    private bool IsEndingConfirm()
+        => P53EndingTrigger.Instance != null && P53EndingTrigger.Instance.AwaitingConfirm;
 }

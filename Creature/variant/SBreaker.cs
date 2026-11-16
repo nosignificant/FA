@@ -127,6 +127,10 @@ public class SBreaker : MonoBehaviour
             think.manualControl = (m == Mode.GotoWall || m == Mode.Breaking);
         }
 
+        // 휴면(Frozen)이면 자식 boid 떼도 함께 끔(숨김+정지), 깨어나면 다시 켬.
+        //  매번 호출해도 이미 맞으면 아무 일 안 함 — boid가 늦게 생성돼도 다음 체크에서 반영됨.
+        SetBoidsActive(m != Mode.Frozen);
+
         if (m == Mode.Frozen)
         {
             // 이전에 조준하던 벽 목표를 즉시 취소한다. Think의 다음 업데이트를 기다리면
@@ -154,6 +158,17 @@ public class SBreaker : MonoBehaviour
     private void FollowProxy()
     {
         if (tc != null && think != null) tc.SetMovementTarget(think.ProxyTarget);
+    }
+
+    // S 자식으로 달린 boid 떼 전체를 켜고/끔. boid 생성이 늦을 수 있어 비면 다음에 다시 찾는다.
+    private Boid[] _boids;
+    private void SetBoidsActive(bool on)
+    {
+        if (_boids == null || _boids.Length == 0)
+            _boids = GetComponentsInChildren<Boid>(true);
+        for (int i = 0; i < _boids.Length; i++)
+            if (_boids[i] != null && _boids[i].gameObject.activeSelf != on)
+                _boids[i].gameObject.SetActive(on);
     }
 
     // 연결된(열린 문/부서진 벽) 옆방 중 AA가 있는 방. 자기 방에 부술 벽 없을 때 그쪽으로 이동.

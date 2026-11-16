@@ -7,24 +7,32 @@ public partial class TutorialGuide : MonoBehaviour
 {
     IEnumerator Level4Intro()
     {
+        yield return SayLine("사실은 말하지 않은 게 있는데, 말해도 괜찮을까요?");
+
         if (ChoiceProgress.MoreOf(CreatureID.A, CreatureID.L))
         {
-            yield return SayLine("국가는 반드시 쇠퇴하며 언어도 마찬가지로 살아가다 죽었으며 인류도 탄생의 시기의 생명력은 다시 찾아볼 수 없게 되었습니다.");
-            yield return SayLine("생태계의 순환이라는 명목 하에 이를 반복하고 있지만 거시적인 관점에서는 선형적이었습니다.");
+            yield return SayLine("가공하기 이전 데이터의 출처는 제 시설 내부로 이주한 사람들, 그들의 기억입니다. 당신도 포함해서요.");
+            yield return SayLine("남은 자원은 끝없이 고갈되었고, 그들을 보호하는 동시에 연산하는 것은 매우 어려운 일이었기에 답을 찾을 때까지 보존해두는 것이 저의 최선이었습니다.");
+            yield return SayLine("하지만 저의 고장도 그렇고, 이제는 결론을 내려야겠죠.");
+
         }
         else
         {
-            yield return SayLine("사실은 아까 말하지 못한 것이 있습니다.");
-            yield return SayLine("그들이 이대로 사라지기보다는 제가 그들이 이 상황을 타개할 방법을 계산해낼 때까지 사람들을 보존해두는 게 나을 것 같아...");
-            yield return SayLine("그냥 그렇게 얼려두었습니다.");
-            yield return SayLine("저는 사람들이 갖고 있던 기억을 바탕으로 생물을 만들어 시뮬레이션을 계속했습니다만...");
-            yield return SayLine("...");
+            yield return SayLine("저의 내부에 있는 생물은, 추출하고 정제된 데이터를 기반으로 움직입니다. 여기까지 말씀 드렸었죠.");
+            yield return SayLine("제가 추출해오는 곳... 그 데이터의 출처가 제 시설 내부로 이주해온 사람들이라는 것입니다.");
+            yield return SayLine("그들이 사라지게 되면 저의 존재 이유도 사라지므로 저는 저의 시설 내부로 이주한 사람들을 보존하는 것을 택했습니다... ");
+            yield return SayLine("당신도 저의 일부라면, 나의 시설 내부에서 활동하는 생물이라면 저를 이해해주리라고 믿습니다.");
         }
 
     }
-    IEnumerator Lv4AfterIntro()
+    IEnumerator Lv4After_tut2()
     {
-        lv4_Door.DoorCloseAndOpen(true);
-        yield return null;
+        yield return SayLine("생산되는 에너지, 활동하는 생물들, 모두 남은 사람들의 기억을 바탕으로 합니다.");
+        yield return SayLine("그러므로 생산된 에너지를 바탕으로 연산을 이어나갈지, 또는 모두 끝낼지 판단할 기준이 될 수 있다고 생각합니다.");
+
+        yield return SayLine($"에너지를 생산 중인 방이 총합 20개 이상이 되면, 저를 바라보고 {Pim.possessKey}를 눌러주십시오.");
+        yield return SayLine($"또한, 이전에 왔던 구역은 언제든지 돌아갈 수 있습니다. 준비가 되면 알려주십시오.");
+
     }
+
 }

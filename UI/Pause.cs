@@ -42,6 +42,21 @@ public class Pause : MonoBehaviour
         // Instance는 홈(먼저 로드) 것이 주인 — 중복(레벨)은 양보. ESC는 항상 홈 패널을 토글.
         if (Instance != null && Instance != this) return;
         Instance = this;
+
+        WireMouse();
+    }
+
+    // 각 항목에 마우스 hover(선택 이동) / 클릭(실행)을 연결
+    private void WireMouse()
+    {
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (items[i].entry == null) continue;
+            int idx = i;
+            items[i].entry.BindMouse(
+                () => { selected = idx; UpdateVisual(); },
+                () => { selected = idx; Confirm(); });
+        }
     }
 
     private void OnDestroy()
@@ -55,8 +70,23 @@ public class Pause : MonoBehaviour
         Time.timeScale = 0f;
 
         if (panelRoot != null) panelRoot.SetActive(true);
-        if (canvasGroup != null) canvasGroup.alpha = 1f;
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 1f;
+            canvasGroup.blocksRaycasts = true;   // 마우스 클릭/hover 받게
+            canvasGroup.interactable = true;
+        }
         SetBgAlpha(0.7f);
+
+        // 첫 오픈 시 하위 항목 정렬이 틀어지는 문제 방지:
+        //  Awake에서 패널이 비활성인 채 텍스트를 넣어 레이아웃(ContentSizeFitter/LayoutGroup)이
+        //  리빌드되지 않은 상태로 열림 → 활성화 직후 라벨 갱신 + 강제 리빌드로 즉시 정렬.
+        UpdateVisual();
+        if (panelRoot != null)
+        {
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)panelRoot.transform);
+        }
 
         // 메뉴 버튼을 마우스로 누를 수 있게 커서 해제
         Cursor.lockState = CursorLockMode.None;
@@ -65,7 +95,12 @@ public class Pause : MonoBehaviour
 
     public void Close()
     {
-        if (canvasGroup != null) canvasGroup.alpha = 0f;
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 0f;
+            canvasGroup.blocksRaycasts = false;
+            canvasGroup.interactable = false;
+        }
         SetBgAlpha(0f);
         if (panelRoot != null) panelRoot.SetActive(false);
         Time.timeScale = 1f;

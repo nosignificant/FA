@@ -44,6 +44,10 @@ public class CreatureBoxOverlay : MonoBehaviour
             container = (RectTransform)transform;
     }
 
+    // overlay가 꺼지면(또는 파괴 직전) 그려둔 박스를 모두 숨김 — container가 별도 persistent 오브젝트일 때
+    //  박스만 화면에 남는 것을 방지.
+    private void OnDisable() => HideFrom(0);
+
     private void LateUpdate()
     {
         if (cam == null) cam = Camera.main;
@@ -105,6 +109,9 @@ public class CreatureBoxOverlay : MonoBehaviour
             foreach (var cr in r.creatureList)
             {
                 if (cr == null || cr.data == null) continue;
+                // 꺼진 area(다른 레벨) 생물 제외 — area를 끄면 비활성이지만 mainCollider 캐시가 남아
+                //  멈춘 월드 위치에 박스가 계속 그려지는(안 지워지는) 문제를 막는다.
+                if (!cr.gameObject.activeInHierarchy) continue;
                 if (cr.data.creatureID == CreatureID.Player || cr.data.creatureID == CreatureID.Door) continue;
                 if (onlyLockable && !cr.IsLockable) continue;
                 if (!creatures.Contains(cr)) creatures.Add(cr);

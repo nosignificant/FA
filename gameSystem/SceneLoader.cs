@@ -119,6 +119,35 @@ public class SceneLoader : MonoBehaviour
     // LevelPortal이 통과 직전 호출 → 다음 로딩 화면을 "level N clear L/A"로 표시.
     public void RequestClear(CreatureID choice) { _pendingClear = true; _pendingChoice = choice; }
 
+    // === additive area 전환용 커버 ===
+    // AreaManager의 Enter는 Single 로드가 아니라 additive+토글이라 LoadRoutine(진행바)을 못 쓴다.
+    // 대신 전환 동안 패널만 띄웠다 내리는 간단 커버. (최소 표시시간은 AreaManager가 보장)
+    private bool _coverOpenedStatues;   // 커버가 상태 패널을 열었는지 (닫을 때 되돌림 판단)
+    public void ShowCover()
+    {
+        if (loadingPanel != null) loadingPanel.SetActive(true);
+        HideAllLabels();
+        SetActiveSafe(loadingWord, true);   // 'loading' 글자만
+        SetBar(1f);
+
+        // 로딩 중 상태 패널 표시 (원래 LoadRoutine과 동일). 커버가 연 경우만 나중에 닫음.
+        _coverOpenedStatues = false;
+        if (StatuesMenu.Instance != null && !StatuesMenu.AnyOpen)
+        {
+            StatuesMenu.Instance.Toggle();
+            _coverOpenedStatues = true;
+        }
+    }
+    public void HideCover()
+    {
+        if (_coverOpenedStatues && StatuesMenu.Instance != null && StatuesMenu.AnyOpen)
+            StatuesMenu.Instance.Toggle();   // 커버가 연 상태 패널만 닫기 (유저가 직접 연 건 유지)
+        _coverOpenedStatues = false;
+
+        HideAllLabels();
+        if (loadingPanel != null) loadingPanel.SetActive(false);
+    }
+
     // 이제 'loading' 글자만 표시한다. level/숫자/clear/L/A 조각은 더 이상 쓰지 않음(인스펙터 참조는 유지).
     private void ApplyLevelLabels(string toScene)
     {

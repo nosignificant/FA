@@ -51,6 +51,11 @@ public class PlayerControl : MonoBehaviour
 
         rb.constraints = RigidbodyConstraints.FreezeRotation;
         rb.linearDamping = 0f;
+
+        // 고속 이동(달리기 ~44u/s) 시 캡슐이 바닥/지형에 박혀 감속·비껴가는 것 방지.
+        //  Continuous = 빠른 이동 중 지형 관통/걸림 줄임, Interpolate = 시각적 떨림 완화.
+        rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
     }
 
     void Update()
@@ -101,8 +106,11 @@ public class PlayerControl : MonoBehaviour
             float v = Input.GetAxisRaw("Vertical");
             float currentSpeed = moveSpeed;
 
-            Vector3 camFwd = cameraTransform.forward;
-            Vector3 camRight = cameraTransform.right;
+            // 이동 기준축은 '실제로 보고 있는' 카메라(= 락온이 쓰는 pl.cam)에서 읽는다.
+            //  씬 중복/스테일 참조로 cameraTransform이 다른 카메라를 가리키면 W가 엉뚱한 방향으로 감.
+            Transform camT = ActiveCam();
+            Vector3 camFwd = camT.forward;
+            Vector3 camRight = camT.right;
             camFwd.y = 0; camRight.y = 0;
             camFwd.Normalize(); camRight.Normalize();
 
@@ -118,8 +126,33 @@ public class PlayerControl : MonoBehaviour
         // (조종 중 플레이어는 proxy 자식이라, 여기서 velocity를 세팅하면 proxy에서 떨어져 나감)
     }
 
+    // 실제 렌더/회전되는 카메라 트랜스폼. 인스펙터의 cameraTransform이 중복·스테일 카메라를
+    //  가리키는 경우를 자가 치유: 권위 있는 Player.Instance.pl.cam 으로 맞춘다.
+    private bool _camWarned;
+    Transform ActiveCam()
+    {
+        Transform real = (Player.Instance != null && Player.Instance.pl != null && Player.Instance.pl.cam != null)
+            ? Player.Instance.pl.cam.transform : null;
+        if (real == null) return cameraTransform;   // 아직 준비 안 됨 → 기존 참조 사용
+
+        if (cameraTransform != real)
+        {
+            if (!_camWarned)
+            {
+                Debug.LogWarning($"[PlayerControl] 이동 기준 카메라 불일치 발견! " +
+                    $"cameraTransform='{(cameraTransform ? cameraTransform.name : "null")}' → 실제 카메라 '{real.name}'로 교정. " +
+                    $"(씬에 중복 카메라가 있을 수 있음)", this);
+                _camWarned = true;
+            }
+            cameraTransform = real;   // 교정 — 다음부터는 일치
+        }
+        return cameraTransform;
+    }
+
     void RotationLogic()
     {
+        ActiveCam();   // cameraTransform이 실제 카메라와 어긋나 있으면 여기서 교정 (이동/시점 축 일치)
+
         if (Player.Instance.isTracking)
         {
             // 락온 중엔 PlayerLockOn이 카메라 회전을 전담.
@@ -144,6 +177,17 @@ public class PlayerControl : MonoBehaviour
             cameraTransform.rotation = Quaternion.Euler(rotation.x, rotation.y, 0f);
     }
 
+
+    // 스폰/텔레포트 시 바라보는 방향을 이 yaw(도)로 강제. 내부 rotation을 갱신해야
+    // 다음 프레임 RotationLogic이 다시 덮어쓰지 않음 (transform만 돌리면 바로 되돌려짐).
+    public void SetLookYaw(float yaw)
+    {
+        rotation.y = yaw;
+        rotation.x = 0f;   // 수평 시점으로 리셋
+        transform.rotation = Quaternion.Euler(0f, rotation.y, 0f);
+        if (cameraTransform != null)
+            cameraTransform.rotation = Quaternion.Euler(rotation.x, rotation.y, 0f);
+    }
 
     public static void SetPlayerMove(bool onOff)
     {
