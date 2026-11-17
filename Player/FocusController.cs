@@ -82,7 +82,7 @@ public class FocusController : MonoBehaviour
         // 평소값: 외부 override(SetBaseFocus) > 방별 테이블 > defaultFocus
         float target = _hasBaseOverride ? _baseOverride : RoomBaseFocus();
         if (StatuesMenu.AnyOpen || paused) target = statusFocus;          // 상태창·일시정지 우선(가장 강한 흐림)
-        else if (IsPossessing() || IsEndingConfirm()) target = possessFocus;   // 빙의 + 엔딩 확정 대기도 동일 흐림
+        else if (IsEndingConfirm()) target = possessFocus;                // 엔딩 확정 대기만 흐림 (조종/following 중엔 흐림 없음)
 
         float cur = _dof.focusDistance.value;
         _dof.focusDistance.value = (blurFadeSpeed <= 0f)

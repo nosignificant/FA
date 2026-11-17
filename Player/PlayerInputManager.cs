@@ -49,6 +49,14 @@ public class PlayerInputManager : MonoBehaviour
 
         float wheel = Input.GetAxis("Mouse ScrollWheel");
         if (Mathf.Abs(wheel) > 0.0001f) codex.Scroll(wheel);
+
+        // ←/→ (및 A/D) : status·memory ↔ dialogue 페이지 전환 (C로 이동 막힌 상태라 비어있음)
+        if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) codex.PageRight();
+        if (Input.GetKeyDown(KeyCode.LeftArrow)  || Input.GetKeyDown(KeyCode.A)) codex.PageLeft();
+
+        // ↑/↓ (및 W/S) : dialogue 페이지일 때만 tutorial/level 리스트 선택 이동 (내부에서 페이지 체크)
+        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))   codex.DialogueMove(-1);
+        if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) codex.DialogueMove(1);
     }
 
     // F: 락온 대상이 스토리 코핀이면 스토리 획득, 아니면 빙의 토글.

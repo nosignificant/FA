@@ -221,23 +221,15 @@ public partial class TutorialGuide : MonoBehaviour
     //Utilities//
 
 
-    [Header("p53 팝업 가림 판정")]
-    [Tooltip("p53 팝업이 카메라 앞쪽 이 거리(m) 안에서 화면에 보이면 '읽을 수 있음' → 하단 패널 숨김")]
-    public float popupVisibleDistance = 25f;
-    [Tooltip("팝업이 연속으로 보인 지 이 시간(초) 지나야 하단 패널을 숨김 (들락날락 깜빡임 방지)")]
-    public float panelHideDelay = 1.5f;
-
     private bool _wantVisible;      // 표시 의도(보여줄 내용이 있음)
-    private bool _lineHasPopup;     // 현재 줄이 p53 팝업으로도 떠 있음
-    private bool _linePersistent;   // 팝업 없이 패널로만(지시문) — 수명 없이 유지
+    private bool _linePersistent;   // 패널로만(지시문) — 수명 없이 유지
     private float _lineExpiry;      // 이 시각 지나면 대사 줄 만료(패널 끔). 지시문은 무한.
     private bool _panelShown;       // 실제 패널 적용 상태(중복 Show/Hide 방지)
-    private float _readableSince = -1f;  // 팝업이 '읽을 수 있음'이 된 시각(연속). 아니면 -1
 
     private void SetTutorialVisible(bool visible)
     {
         _wantVisible = visible;
-        if (!visible) { _lineHasPopup = false; _linePersistent = false; }
+        if (!visible) _linePersistent = false;
     }
 
     // 표시할 내용이 아직 유효한가 — 대사 줄은 수명 지나면 만료(대사 끝나면 패널 안 뜸). 지시문은 유지.
@@ -248,46 +240,12 @@ public partial class TutorialGuide : MonoBehaviour
         return Time.time < _lineExpiry;
     }
 
-    // p53 팝업이 지금 '읽을 수 있는' 상태인가: 카메라 앞쪽 popupVisibleDistance 안 + 화면 안
-    private bool IsPopupReadable()
-    {
-        var npc = P53;
-        var cam = Camera.main;
-        if (npc == null || cam == null) return false;
-        Transform t = npc.rootTransform != null ? npc.rootTransform : npc.transform;
-        Vector3 pos = t.position + (Popup.Instance != null ? Popup.Instance.offset : Vector3.up);
-        Vector3 vp = cam.WorldToViewportPoint(pos);
-        return vp.z > 0f && vp.z <= popupVisibleDistance
-            && vp.x >= 0f && vp.x <= 1f && vp.y >= 0f && vp.y <= 1f;
-    }
-
-    // 팝업이 읽히는 동안엔 하단 패널 숨김. 단 깜빡임 방지로, 연속으로 panelHideDelay 지난 뒤에만 숨김.
+    // 표시할 내용이 유효한 동안 하단 패널을 보여줌 (대사는 팝업 없이 패널로만 뜸).
     private void ApplyPanelVisibility()
     {
         if (slidePanel == null) return;
 
-        bool show;
-        if (!ContentActive())
-        {
-            show = false;
-            _readableSince = -1f;
-        }
-        else if (!_lineHasPopup)
-        {
-            show = true;              // 지시문 등 팝업 없는 줄은 항상 패널
-            _readableSince = -1f;
-        }
-        else
-        {
-            bool readable = IsPopupReadable();
-            if (readable) { if (_readableSince < 0f) _readableSince = Time.time; }
-            else _readableSince = -1f;
-
-            // 팝업이 충분히(panelHideDelay) 연속으로 보여야 숨김 → 금방 다시 가려지면 패널 유지
-            bool hide = readable && (Time.time - _readableSince >= panelHideDelay);
-            show = !hide;
-        }
-
+        bool show = ContentActive();
         if (_panelShown == show) return;
         _panelShown = show;
         if (show) slidePanel.Show(); else slidePanel.Hide();
@@ -295,7 +253,7 @@ public partial class TutorialGuide : MonoBehaviour
 
     private void LateUpdate()
     {
-        ApplyPanelVisibility();   // 팝업 가림/수명 변화에 맞춰 매 프레임 갱신
+        ApplyPanelVisibility();   // 대사 수명 변화에 맞춰 매 프레임 갱신
     }
 
     //대사관련 코드
@@ -304,14 +262,14 @@ public partial class TutorialGuide : MonoBehaviour
         string resolved = Resolve(text);
         if (tmp != null) tmp.text = resolved;
 
-        // p53 머리 위에도 같은 대사를 팝업으로 띄움 (색·솟는 속도는 Popup 인스펙터에서 조절)
-        var npc = P53;
-        _lineHasPopup = npc != null;
+        // 지금까지 나온 대사를 레벨(씬)별로 기록 — C 메뉴 dialogue 세부창이 이걸 읽어 표시.
+        //  (지시문 전용 ShowPanelText는 Say를 안 거치므로 기록 안 됨)
+        DialogueLog.Record(gameObject.scene.name, resolved);
+
+        // 대사는 하단 패널로만 표시 (p53 머리 위 팝업 없음 → p53를 바라봐도 안 사라짐).
         _linePersistent = false;
         // 이 줄이 떠있는 시간 동안만 유효. 버퍼를 둬 연속 대사 사이 1프레임 끊김 방지.
         _lineExpiry = Time.time + Mathf.Max(0.1f, duration) + 0.3f;
-        if (_lineHasPopup)
-            Popup.Instance?.StoryLine(npc, resolved, messageInterval);
 
         SetTutorialVisible(true);
     }
@@ -320,7 +278,10 @@ public partial class TutorialGuide : MonoBehaviour
     private void ShowPanelText(string text)
     {
         if (tmp != null) tmp.text = text;
-        _lineHasPopup = false;
+
+        // 패널 지시문/서술도 '지금까지 나온 대사'로 함께 기록 (키 안내도 포함됨 — 거슬리면 추후 필터)
+        DialogueLog.Record(gameObject.scene.name, text);
+
         _linePersistent = true;
         SetTutorialVisible(true);
     }

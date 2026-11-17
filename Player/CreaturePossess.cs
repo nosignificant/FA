@@ -124,6 +124,7 @@ public class CreaturePossess : MonoBehaviour
     }
 
     private Creature controlledCreature;
+    public Creature ControlledCreature => controlledCreature;   // FollowingHUD 등에서 '따라오는 생물' 조회용
 
     public void Possess(Think2 brain)
     {
@@ -294,9 +295,10 @@ public class CreaturePossess : MonoBehaviour
             creature.intent = CreatureIntent.Controlled;
             creature.SetMovementEnabled(true);   // 얼어있던(비활성) 방의 생물을 조종해도 움직이도록
 
-            // 조종 중 락온을 고정하지 않음 — 다른 대상(수신기·L 생산기 등)을 락온해 연결/꽂기 할 수 있게
-            Player.Instance.pl.ForceLock(creature);
-            Player.Instance.pl.Unpin();
+            // 조종(따라오기) 시작 시 강제 락온하지 않고 해제 — 카메라 자유.
+            //  어떤 생물이 따라오는지는 FollowingHUD("() is following")로 표시.
+            if (Player.Instance.pl != null) Player.Instance.pl.Unlock();
+            Player.Instance.isTracking = false;
 
             // advancesStory 종이면 스토리 단계 +1
             Player.Instance.TryAdvanceFromPossess(creature);

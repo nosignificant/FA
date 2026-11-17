@@ -14,7 +14,7 @@ public class AreaManager : MonoBehaviour
 
     [Header("전환 로딩 커버")]
     [Tooltip("area 전환 시 로딩 패널(SceneLoader)을 최소 이 시간(초) 띄움 — 즉시 토글이어도 상태 패널을 읽을 수 있게. 0이면 끔")]
-    public float transitionCoverTime = 4f;
+    public float transitionCoverTime = 5f;
 
     // 각 씬에서 켰다 껐다 할 루트 오브젝트 이름 (area 밖의 player/RoomManager는 안 건드림)
     private const string AreaRootName = "area";

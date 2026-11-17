@@ -60,9 +60,10 @@ public class PlayerControl : MonoBehaviour
 
     void Update()
     {
-        if (Pause.Instance != null && Pause.Instance.IsOpen) return;   // 일시정지 중엔 시점 회전까지 차단
+        // 일시정지·상태창(C) 중엔 시점 회전·점프까지 모두 차단
+        if ((Pause.Instance != null && Pause.Instance.IsOpen) || StatuesMenu.AnyOpen) return;
 
-        RotationLogic();   // 조종(canMove=false)·코덱스 중에도 마우스 시점 회전 허용 (락온 중엔 내부에서 LockOn 전담)
+        RotationLogic();   // 조종(canMove=false) 중에도 마우스 시점 회전 허용 (락온 중엔 내부에서 LockOn 전담)
 
         if (!canMove) return;       // 조종 등 → 이동·점프만 차단
         if (inputBlocked) return;   // 이동/점프만 차단
@@ -100,6 +101,17 @@ public class PlayerControl : MonoBehaviour
 
     void MoveLogicSnappy()
     {
+        if (StatuesMenu.AnyOpen)
+        {
+            // 상태창(C) 열림 → 수평 이동 즉시 정지 (마찰0 재질이라 안 멈추고 미끄러지는 것 방지)
+            if (!rb.isKinematic)
+            {
+                Vector3 v = rb.linearVelocity; v.x = 0f; v.z = 0f;
+                rb.linearVelocity = v;
+            }
+            return;
+        }
+
         if (canMove && !inputBlocked)
         {
             float h = Input.GetAxisRaw("Horizontal");

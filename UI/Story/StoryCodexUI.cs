@@ -16,6 +16,8 @@ public class StoryCodexUI : MonoBehaviour
 
     [Header("빈 상태")]
     public GameObject emptyHint;             // 하나도 없을 때 표시할 안내 (선택)
+    [Tooltip("아무것도 수집 안 됐을 때 보여줄 문구. emptyHint의 TMP 텍스트에 채우고, emptyHint가 없으면 목록 첫 칸에 표시")]
+    [TextArea] public string emptyMessage = "아무것도 수집되지 않았습니다.";
 
     [Header("선택 하이라이트 (테두리 박스) — 마우스 스크롤 모드에선 미사용")]
     public RectTransform selectionBox;
@@ -148,10 +150,26 @@ public class StoryCodexUI : MonoBehaviour
             }
         }
 
-        for (int i = shown; i < pool.Count; i++) pool[i].gameObject.SetActive(false);
-        activeCount = shown;
+        activeCount = shown;   // 실제 획득 항목 수 (선택 이동 범위) — 안내 문구는 포함 안 함
 
-        if (emptyHint != null) emptyHint.SetActive(shown == 0);
+        // 하나도 수집 안 됐을 때 안내 문구 표시.
+        bool empty = shown == 0;
+        if (empty)
+        {
+            if (emptyHint != null)
+            {
+                var t = emptyHint.GetComponentInChildren<TMP_Text>(true);
+                if (t != null) t.text = emptyMessage;     // 코드에서 문구 보장
+            }
+            else if (entryPrefab != null && content != null)
+            {
+                GetEntry(0).text = emptyMessage;          // emptyHint 없으면 목록 자리에 한 줄
+                shown = 1;                                 // 이 칸은 켜둠(선택 대상은 아님)
+            }
+        }
+        if (emptyHint != null) emptyHint.SetActive(empty);
+
+        for (int i = shown; i < pool.Count; i++) pool[i].gameObject.SetActive(false);
 
         // 마우스 스크롤 모드 — 키보드 선택 박스는 안 씀
         if (selectionBox != null) selectionBox.gameObject.SetActive(false);
